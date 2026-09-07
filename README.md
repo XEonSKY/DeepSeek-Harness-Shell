@@ -2,7 +2,7 @@
 
 把 DeepSeek Harness Web UI 装进一个桌面应用的外壳：自动以子进程拉起 `dsh web --no-open`，用 `<webview>` 内嵌到无边框 Electron 窗口中展示。
 
-Electron 44 · electron-vite 5 · Vue 3 · Element Plus · TypeScript(strict) · MIT
+Electron 44 · electron-vite 5 · Vue 3 · Element Plus · TypeScript(strict)
 
 ## 功能特性
 

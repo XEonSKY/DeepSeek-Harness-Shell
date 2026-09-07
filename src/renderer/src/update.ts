@@ -1,0 +1,108 @@
+import { h, reactive } from 'vue'
+import { ElTag, ElNotification } from 'element-plus'
+import type { VNode } from 'vue'
+import type { UpdateResult } from '@shared/types'
+import { i18n } from './locales'
+
+const TYPE: Record<UpdateResult['status'], 'success' | 'warning' | 'error'> = {
+  ok: 'success',
+  update: 'warning',
+  missing: 'error',
+  error: 'warning'
+}
+
+/** 取当前语言下的翻译（模块非组件环境，直接从全局 i18n 读取）。 */
+function tt(key: string, named?: Record<string, unknown>): string {
+  return named ? i18n.global.t(key, named) : i18n.global.t(key)
+}
+
+export interface KernelCheckState {
+  /** A newer version than the installed one has been found. */
+  found: boolean
+  latest: string | null
+  /** Whether the found latest is a pre-release (rc / beta / …). */
+  prerelease: boolean
+}
+
+/** Latest kernel check result, so the 内核 page header can show it reactively. */
+export const kernelCheck = reactive<KernelCheckState>({
+  found: false,
+  latest: null,
+  prerelease: false
+})
+
+function isPrerelease(v: string): boolean {
+  return /^\d+\.\d+\.\d+-/.test(v)
+}
+
+/** Build the notification body: current & latest versions shown as el-tag. */
+function buildBody(r: UpdateResult): string | VNode {
+  const kids: Array<string | VNode> = []
+
+  if (r.current) {
+    kids.push(
+      h('div', { class: 'update-row' }, [
+        h('span', { class: 'update-lbl' }, tt('update.current')),
+        h(ElTag, { size: 'small', type: 'info', effect: 'plain' }, () => r.current!)
+      ])
+    )
+  }
+
+  if (r.latest) {
+    const isPre = isPrerelease(r.latest)
+    const tagType = r.status === 'update' ? (isPre ? 'warning' : 'success') : 'success'
+    kids.push(
+      h('div', { class: 'update-row' }, [
+        h('span', { class: 'update-lbl' }, tt('update.latest')),
+        h(ElTag, { size: 'small', effect: 'plain', type: tagType }, () => r.latest!)
+      ])
+    )
+  }
+
+  if (r.command) {
+    kids.push(h('div', { class: 'update-cmd' }, r.command))
+  }
+  kids.push(h('div', { class: 'update-note' }, r.message))
+
+  return h('div', { class: 'update-body' }, kids)
+}
+
+/** Ask the main process to check and show the result as a top-right toast. */
+export async function checkAndNotify(opts?: {
+  prerelease?: boolean
+  registry?: 'npmjs' | 'npmmirror'
+}): Promise<void> {
+  try {
+    const r: UpdateResult = await window.api.checkForUpdates(opts)
+    // Publish to the shared store so the 内核 header can render the new-version tag.
+    kernelCheck.found = r.status === 'update' && !!r.latest
+    kernelCheck.latest = r.latest
+    kernelCheck.prerelease = r.latest ? isPrerelease(r.latest) : false
+
+    const titles: Record<UpdateResult['status'], string> = {
+      ok: tt('update.okTitle'),
+      update: tt('update.updateTitle'),
+      missing: tt('update.missingTitle', { pkg: '@deepseek-ai/dsh' }),
+      error: tt('update.errorTitle')
+    }
+
+    ElNotification({
+      title: titles[r.status],
+      message: buildBody(r),
+      type: TYPE[r.status],
+      position: 'top-right',
+      // Drop below the custom (frameless) title bar so it never covers it.
+      offset: 60,
+      duration: 7000
+    })
+  } catch (err) {
+    ElNotification({
+      title: tt('update.checkFailedTitle'),
+      message: err instanceof Error ? err.message : String(err),
+      type: 'error',
+      position: 'top-right',
+      offset: 60,
+      duration: 5000
+    })
+  }
+}

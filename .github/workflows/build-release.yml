@@ -1,0 +1,75 @@
+name: Build & Release
+
+# 用 GitHub Actions 在三个平台自动构建 Electron 应用；推送 v* 标签时把产物
+# 发布到 GitHub Release（默认创建草稿）。对应 samuelmeuli/action-electron-builder
+# 的用途，但使用官方 runners + electron-builder 直接发布（该旧 action 已停更，
+# 且其 node-version:10 无法安装本项目 Electron 44）。
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # 允许用默认 GITHUB_TOKEN 创建 GitHub Release
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    env:
+      # 无证书时跳过代码签名尝试（否则 mac/linux 无证书会失败）。
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder 发布到 GitHub 所需的令牌（GitHub Actions 自动注入）。
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Compile the app (electron-vite build)
+        run: npm run build
+
+      # 仅当推送的是 v* 标签时才发布（生成 draft release，供下载/编辑）。
+      - name: Package & publish to GitHub Release (tagged)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npx electron-builder --publish always
+
+      # 普通 push / PR / 手动触发：只打包验证，不发布。
+      - name: Package without publishing (non-tag)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npx electron-builder --publish never
+
+      - name: Upload artifacts (non-tag)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/**/*.exe
+            dist/**/*.dmg
+            dist/**/*.AppImage
+            dist/*.yml
+            dist/*.blockmap
+          if-no-files-found: warn

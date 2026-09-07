@@ -1,7 +1,7 @@
 {
   "name": "deepseek-harness-shell",
   "productName": "DeepSeek Harness Shell",
-  "version": "0.1.2",
+  "version": "0.1.3-alpha-1",
   "description": "DeepSeek Harness Shell —— 基于 Electron + Vite + Vue3 + Element Plus 的桌面外壳，通过 `dsh web` 启动 DeepSeek Harness Web UI 并用 <webview> 内嵌展示。",
   "license": "Apache-2.0",
   "author": "XEonSKY Studio",
@@ -19,7 +19,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "reinstall":"node node_modules/electron/install.js",
+    "reinstall": "node node_modules/electron/install.js",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:win:x64": "npm run build && electron-builder --win --x64",
@@ -29,7 +29,6 @@
     "dist:linux:x64": "npm run build && electron-builder --linux --x64",
     "dist:linux:arm64": "npm run build && electron-builder --linux --arm64"
   },
-  "dependencies": {},
   "devDependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "@types/node": "^26.4.1",

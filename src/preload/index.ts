@@ -17,6 +17,7 @@ const api: RendererApi = {
   resetSettings: () => ipcRenderer.invoke('settings:reset'),
   getLogHistory: () => ipcRenderer.invoke('log:history'),
   getDshUrl: () => ipcRenderer.invoke('dsh:url:get'),
+  isDshRunning: () => ipcRenderer.invoke('dsh:running'),
   getDshVersion: () => ipcRenderer.invoke('dsh:version'),
   getKernelInstalled: () => ipcRenderer.invoke('kernel:installed'),
   listVersions: (opts) => ipcRenderer.invoke('kernel:versions', opts),

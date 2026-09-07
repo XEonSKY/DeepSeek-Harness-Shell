@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { InfoFilled, Promotion, Refresh } from '@element-plus/icons-vue'
+import { Promotion, Refresh } from '@element-plus/icons-vue'
 import { useSettingsStore } from './useSettingsStore'
 import { friendlyPlatform } from './settingsStore'
 import type { AppMeta, AppUpdateEvent } from '@shared/types'
+import aboutIcon from '../../assets/icon.png'
 
 const { state } = useSettingsStore()
 
@@ -82,7 +83,7 @@ onBeforeUnmount(() => offEvent?.())
 <template>
   <div class="panel">
     <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="40"><InfoFilled /></el-icon></div>
+      <div class="dsh-brand__icon about-logo"><img :src="aboutIcon" alt="DeepSeek Harness Shell" draggable="false" /></div>
       <div class="dsh-brand__txt">
         <div class="dsh-brand__name">DeepSeek Harness Shell</div>
         <div class="dsh-brand__ver">
@@ -108,6 +109,13 @@ onBeforeUnmount(() => offEvent?.())
             <div class="au__desc">{{ $t('sv.about.checkPrereleaseDesc') }}</div>
           </div>
           <el-switch v-model="state.appCheckPrerelease" />
+        </div>
+        <div class="au">
+          <div class="au__txt">
+            <div class="au__t">{{ $t('sv.about.devMode') }}</div>
+            <div class="au__desc">{{ $t('sv.about.devModeDesc') }}</div>
+          </div>
+          <el-switch v-model="state.devMode" />
         </div>
       </div>
     </el-card>
@@ -171,3 +179,17 @@ onBeforeUnmount(() => offEvent?.())
     </el-card>
   </div>
 </template>
+
+<style scoped>
+/* 关于页使用应用图标（icon.png）替代默认的 Info 图标。 */
+.about-logo {
+  background: transparent;
+}
+.about-logo img {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  object-fit: cover;
+  display: block;
+}
+</style>

@@ -31,6 +31,8 @@ export interface Settings {
   appAutoUpdate: boolean
   /** App 更新检查也把预发布版本当作候选（默认关）。 */
   appCheckPrerelease: boolean
+  /** 开发模式：开启后 F12 才允许打开 DevTools 控制台（默认关）。 */
+  devMode: boolean
 }
 
 /** Which npm registry to use for kernel version listing / install. */
@@ -60,7 +62,8 @@ export const DEFAULT_SETTINGS: Settings = {
   checkPrerelease: false,
   npmRegistry: 'npmjs',
   appAutoUpdate: true,
-  appCheckPrerelease: false
+  appCheckPrerelease: false,
+  devMode: false
 }
 
 /** Result of a kernel install / uninstall action. */
@@ -142,6 +145,8 @@ export interface RendererApi {
   resetSettings(): Promise<Settings>
   getLogHistory(): Promise<LogEntry[]>
   getDshUrl(): Promise<string | null>
+  /** Whether a dsh server instance is currently running in the main process. */
+  isDshRunning(): Promise<boolean>
   /** Current installed @deepseek-ai/dsh kernel version (from the local module). */
   getDshVersion(): Promise<string | null>
   /** Whether @deepseek-ai/dsh is present on this machine. */

@@ -10,6 +10,8 @@ export default {
     title: 'DeepSeek Harness Shell',
     nav: {
       ui: 'DeepSeek UI',
+      chat: 'DeepSeek 网页版对话',
+      platform: 'DeepSeek 用量 / 充值',
       terminal: 'DeepSeek Harness 终端',
       settings: '设置'
     },
@@ -33,7 +35,10 @@ export default {
     registryNpmjs: '官方 registry.npmjs.org',
     registryNpmmirror: 'npmmirror 镜像 registry.npmmirror.com',
     install: '安装内核',
-    quit: '退出'
+    quit: '退出',
+    preLabel: '包含测试版',
+    versionPlaceholder: '选择要安装的版本（默认最新）',
+    versionHint: '取消勾选「包含测试版」只列出正式版并默认安装最新正式版；勾选后也会列出并安装 rc / beta 等预发布版本。清除选择即安装当前范围内的最新版本。'
   },
   /** 内核更新通知 */
   update: {
@@ -61,6 +66,11 @@ export default {
     autoScroll: '自动滚动',
     clear: '清空显示',
     empty: '（暂无输出。DeepSeek Harness 启动后，实时日志会出现在这里。）'
+  },
+  /** 内嵌外部站点页（网页版 Chat / DeepSeek 平台）加载状态 */
+  webpage: {
+    loadFailed: '无法加载该网页，请检查网络连接后重试。',
+    retry: '重试'
   },
   /** 设置页（sv = Settings View） */
   sv: {
@@ -138,6 +148,8 @@ export default {
       autoUpdateDesc: '启动时自动检查新版本，并在发现后于后台下载。',
       checkPrerelease: '检测测试版',
       checkPrereleaseDesc: '把预发布（rc / beta 等）也当作可更新的版本。',
+      devMode: '开发模式',
+      devModeDesc: '开启后，按 F12 才能打开 / 关闭 DevTools 控制台（默认关闭）。',
       checkTitle: '自动更新',
       checkBtn: '检查更新',
       checking: '正在检查更新…',
@@ -166,7 +178,11 @@ export default {
     uninstallBoxTitle: '卸载内核',
     uninstallBoxText: '将卸载 DeepSeek Harness 内核（{pkg}），并先停止运行中的 dsh。卸载后需要重新安装才能使用。确定继续吗？',
     uninstallOkBtn: '卸载',
-    cancelBtn: '取消'
+    cancelBtn: '取消',
+    dshRunningTitle: '需先关闭正在运行的 dsh',
+    updateStopText: '升级内核前会先强制关闭正在运行的 dsh 服务，升级完成后会自动重启以运行新版本。确定继续吗？',
+    switchStopText: '安装 / 切换到所选版本前会先强制关闭正在运行的 dsh 服务，完成后会自动重启以运行该版本。确定继续吗？',
+    continueBtn: '继续'
   },
   /** main 进程文案（kernel/updater/托盘/对话框） */
   m: {
@@ -187,7 +203,12 @@ export default {
       installOk: '内核已安装到 {version}。',
       installFail: '内核安装失败：{tail}',
       uninstallFail: '卸载失败：{tail}',
-      uninstallOk: '已卸载 @deepseek-ai/dsh。'
+      uninstallOk: '已卸载 @deepseek-ai/dsh。',
+      uninstallDiag: '卸载失败，原因检测：{reason}\n\nnpm 输出：\n{tail}',
+      uninstallReasonHolder: '仍有进程在使用 DeepSeek Harness：{procs}（本应用管理的 dsh 已全部停止）。请先关闭上述进程后再重试。',
+      uninstallReasonLocked: '安装目录仍存在且无法删除，可能被占用、为只读，或被安全软件锁定。请检查相关进程与目录权限后再试。',
+      uninstallReasonPresent: '安装目录仍存在，但未检测到占用进程，可能因文件权限或安全软件拦截而无法删除。',
+      uninstallReasonRemoved: '模块文件已移除，失败可能发生在清理命令入口（.cmd / bin）时，请检查 npm 前缀目录的写权限。'
     },
     appUpdate: {
       noneReleased: '仓库尚未发布任何版本。',

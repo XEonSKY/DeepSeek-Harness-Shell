@@ -1,30 +1,46 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, Document, Setting, Minus, FullScreen, Close, Refresh, Cpu } from '@element-plus/icons-vue'
+import { Monitor, Document, Setting, Minus, FullScreen, Close, Refresh, Cpu, Wallet, ChatDotRound } from '@element-plus/icons-vue'
 import { ElCheckbox, ElMessageBox } from 'element-plus'
 import appIcon from './assets/icon.png'
 import { checkAndNotify } from './update'
 import { applyTheme } from './theme'
+import { appState } from './state'
 
 const { t } = useI18n({ useScope: 'global' })
 
-type ViewKey = 'web' | 'log' | 'settings'
+type ViewKey = 'web' | 'chat' | 'platform' | 'log' | 'settings'
 
 const route = useRoute()
 const router = useRouter()
 /** 当前高亮的视图（/settings* 统一归入设置）。 */
 const view = computed<ViewKey>(() => {
   if (route.path.startsWith('/settings')) return 'settings'
+  if (route.path.startsWith('/chat')) return 'chat'
+  if (route.path.startsWith('/platform')) return 'platform'
   if (route.path.startsWith('/log')) return 'log'
   return 'web'
 })
 
 /** 跳转到某视图对应的路由。 */
 function go(k: ViewKey): void {
-  const path = k === 'web' ? '/' : k === 'log' ? '/log' : '/settings'
+  const path =
+    k === 'web' ? '/' : k === 'chat' ? '/chat' : k === 'platform' ? '/platform' : k === 'log' ? '/log' : '/settings'
   if (route.path !== path) void router.push(path)
+}
+
+/**
+ * DeepSeek UI 导航点击：CTRL（或 Cmd）点击在系统浏览器打开当前 dsh 地址；
+ * 否则普通切回内置 UI 页。
+ */
+async function uiClick(e: MouseEvent): Promise<void> {
+  if ((e.ctrlKey || e.metaKey) && appState.url) {
+    await window.api.openExternal(appState.url)
+    return
+  }
+  go('web')
 }
 
 const winMinimize = (): void => window.api.windowMinimize()
@@ -89,12 +105,46 @@ const installingKernel = ref(false)
 const installError = ref('')
 const installReg = ref<Reg>('npmjs')
 
+// Optional kernel-version selection on first install: pick a specific published
+// version and whether to include pre-releases (the list is re-fetched accordingly).
+const installPrerelease = ref(false)
+const installVersions = ref<string[]>([])
+const versionsLoading = ref(false)
+const installVersion = ref('')
+
+async function loadInstallVersions(): Promise<void> {
+  if (versionsLoading.value) return
+  versionsLoading.value = true
+  try {
+    const list = await window.api.listVersions({
+      prerelease: installPrerelease.value,
+      registry: installReg.value
+    })
+    installVersions.value = list
+    // Default to the newest version within the current selection scope.
+    if (!list.includes(installVersion.value)) installVersion.value = list[0] ?? ''
+  } catch {
+    installVersions.value = []
+  } finally {
+    versionsLoading.value = false
+  }
+}
+
+// Rebuild the version list when the install mask shows, or when the pre-release
+// toggle / registry changes while it is open.
+watch([showMissing, installPrerelease, installReg], () => {
+  if (showMissing.value) void loadInstallVersions()
+})
+
 async function doInstallKernel(): Promise<void> {
   if (installingKernel.value) return
   installingKernel.value = true
   installError.value = ''
   try {
-    const r = await window.api.installKernel({ registry: installReg.value })
+    const r = await window.api.installKernel({
+      version: installVersion.value || null,
+      registry: installReg.value
+    })
     if (!r.ok) {
       installError.value = r.message
       return
@@ -119,6 +169,7 @@ onMounted(() => {
     const s = await window.api.getSettings()
     applyTheme(s.theme)
     installReg.value = s.npmRegistry
+    installPrerelease.value = s.checkPrerelease === true
     const ok = await window.api.getKernelInstalled()
     if (!ok) {
       showMissing.value = true // main does not start dsh when the kernel is absent
@@ -142,16 +193,36 @@ onBeforeUnmount(() => {
         <img :src="appIcon" class="icon" alt="" draggable="false" />
         <span class="title">{{ $t('app.title') }}</span>
 
-        <!-- 界面 / 终端 live on the left as icon buttons -->
+        <!-- 界面 / 网页版 Chat / 充值平台 / 终端 live on the left as icon buttons -->
         <nav class="nav">
           <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
             <button
               class="icon-btn"
               :class="{ active: view === 'web' }"
               type="button"
-              @click="go('web')"
+              @click="uiClick"
             >
               <el-icon><Monitor /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
+            <button
+              class="icon-btn"
+              :class="{ active: view === 'chat' }"
+              type="button"
+              @click="go('chat')"
+            >
+              <el-icon><ChatDotRound /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
+            <button
+              class="icon-btn"
+              :class="{ active: view === 'platform' }"
+              type="button"
+              @click="go('platform')"
+            >
+              <el-icon><Wallet /></el-icon>
             </button>
           </el-tooltip>
           <el-tooltip :content="$t('app.nav.terminal')" placement="bottom" :show-after="300">
@@ -168,8 +239,8 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="right">
-        <!-- Refresh: only on the DeepSeek UI (web) page -->
-        <el-tooltip v-if="view === 'web'" :content="$t('app.reload')" placement="bottom" :show-after="300">
+        <!-- Refresh: on the DeepSeek UI (web), web Chat and DeepSeek platform pages -->
+        <el-tooltip v-if="view === 'web' || view === 'chat' || view === 'platform'" :content="$t('app.reload')" placement="bottom" :show-after="300">
           <button class="icon-btn" type="button" @click="winReload">
             <el-icon><Refresh /></el-icon>
           </button>
@@ -219,6 +290,23 @@ onBeforeUnmount(() => {
           <el-option :label="$t('kernelMissing.registryNpmjs')" value="npmjs" />
           <el-option :label="$t('kernelMissing.registryNpmmirror')" value="npmmirror" />
         </el-select>
+        <div class="missing-opt">
+          <span class="missing-opt__txt">{{ $t('kernelMissing.preLabel') }}</span>
+          <el-switch v-model="installPrerelease" />
+        </div>
+        <div class="missing-vrow">
+          <el-select
+            v-model="installVersion"
+            filterable
+            :loading="versionsLoading"
+            class="missing-reg"
+            :placeholder="$t('kernelMissing.versionPlaceholder')"
+          >
+            <el-option v-for="v in installVersions" :key="v" :value="v" :label="v" />
+          </el-select>
+          <el-button :icon="Refresh" circle :loading="versionsLoading" @click="loadInstallVersions" />
+        </div>
+        <p class="missing-vhint">{{ $t('kernelMissing.versionHint') }}</p>
         <p v-if="installError" class="missing-err">{{ installError }}</p>
         <div class="missing-actions">
           <el-button :loading="installingKernel" type="primary" :icon="Refresh" @click="doInstallKernel">
@@ -369,6 +457,30 @@ onBeforeUnmount(() => {
 .missing-reg {
   width: 100%;
   margin-bottom: 8px;
+}
+.missing-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+.missing-vrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.missing-vrow .missing-reg {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+.missing-vhint {
+  margin: 6px 0 0;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 .missing-err {
   margin: 6px 0 0;

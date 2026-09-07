@@ -34,6 +34,7 @@ export const useSettingsStore = defineStore('settings', () => {
     npmRegistry: DEFAULT_SETTINGS.npmRegistry,
     appAutoUpdate: DEFAULT_SETTINGS.appAutoUpdate,
     appCheckPrerelease: DEFAULT_SETTINGS.appCheckPrerelease,
+    devMode: DEFAULT_SETTINGS.devMode,
     applying: false,
     updating: false,
     updatingKernel: false,
@@ -61,6 +62,7 @@ export const useSettingsStore = defineStore('settings', () => {
     state.npmRegistry = (s.npmRegistry ?? DEFAULT_SETTINGS.npmRegistry) as SettingsState['npmRegistry']
     state.appAutoUpdate = s.appAutoUpdate !== false
     state.appCheckPrerelease = s.appCheckPrerelease === true
+    state.devMode = s.devMode === true
     appState.workspace = s.workspace
     if (typeof s.port === 'number' && s.port > 0) {
       state.portMode = 'manual'
@@ -151,6 +153,32 @@ export const useSettingsStore = defineStore('settings', () => {
     return v === state.version ? v + i18n.global.t('sv.dsh.currentSuffix') : v
   }
 
+  /**
+   * Kernel-modifying operations (upgrade / version switch) must first stop any
+   * running dsh. Only when one is actually running do we confirm before closing
+   * it; the main process also force-stops it independently before the npm step.
+   * Resolves true when it is safe to proceed (not running, or user confirmed).
+   */
+  async function confirmStopDshIfRunning(body: string): Promise<boolean> {
+    let running = false
+    try {
+      running = await window.api.isDshRunning()
+    } catch {
+      running = false
+    }
+    if (!running) return true
+    try {
+      await ElMessageBox.confirm(body, tt('msg.dshRunningTitle'), {
+        confirmButtonText: tt('msg.continueBtn'),
+        cancelButtonText: tt('msg.cancelBtn'),
+        type: 'warning'
+      })
+      return true
+    } catch {
+      return false // cancelled
+    }
+  }
+
   async function runUpdateCheck(): Promise<void> {
     if (state.updating) return
     state.updating = true
@@ -166,6 +194,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function runUpdateKernel(): Promise<void> {
     if (state.updatingKernel) return
+    if (!(await confirmStopDshIfRunning(tt('msg.updateStopText')))) return
     state.updatingKernel = true
     try {
       const r = await window.api.updateKernel({ registry: state.npmRegistry })
@@ -187,6 +216,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function switchVersion(): Promise<void> {
     const target = state.selectedVersion
     if (!target || state.switchingKernel) return
+    if (!(await confirmStopDshIfRunning(tt('msg.switchStopText')))) return
     state.switchingKernel = true
     try {
       const r = await window.api.installKernel({ version: target, registry: state.npmRegistry })
@@ -288,7 +318,8 @@ export const useSettingsStore = defineStore('settings', () => {
       state.dshBin,
       state.timeoutMs,
       state.appAutoUpdate,
-      state.appCheckPrerelease
+      state.appCheckPrerelease,
+      state.devMode
     ],
     scheduleSave
   )

@@ -60,9 +60,11 @@ export function createShellWindow(): void {
     return k.type === 'keyDown' && mod && (k.key || '').toLowerCase() === 't'
   }
   wc.on('before-input-event', (event, input) => {
-    // F12 打开/关闭主界面（Vue UI）的 DevTools 控制台，便于排查问题。
+    // F12 打开/关闭主界面（Vue UI）的 DevTools 控制台。仅当「开发模式」开启
+    // （设置 → 关于 → 开发模式，settings.json 的 devMode）时才生效，否则忽略。
     if (input.type === 'keyDown' && (input.key || '') === 'F12') {
       event.preventDefault()
+      if (!loadSettings().devMode) return
       if (wc.isDevToolsOpened()) wc.closeDevTools()
       else wc.openDevTools({ mode: 'detach' })
       return

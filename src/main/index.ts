@@ -8,52 +8,71 @@ import { restart, killServer, killAllChildren } from './dsh'
 import { getTray, isQuitting, setQuitting, destroyTray } from './runtime'
 
 // ---------------------------------------------------------------------------
-// Boot: wire IPC, start the external-config watchers, open the window/tray,
-// and launch dsh when the kernel is present.
+// Single-instance guard: acquire the lock as early as possible. If another
+// instance already holds it, this second process quits immediately; the OS
+// forwards the new launch attempt to the first instance via 'second-instance'.
 // ---------------------------------------------------------------------------
-app.whenReady().then(async () => {
-  registerIpc()
-  startConfigWatchers()
-  createShellWindow()
-  createTray()
+const gotLock = app.requestSingleInstanceLock()
 
-  const cfg = loadSettings()
-  // Launch dsh only if the kernel is present. When missing we do not show a
-  // native prompt anymore — the renderer detects it on load and shows the
-  // in-app install mask (installKernel starts dsh after a successful install).
-  if (resolveInstall(cfg).present) {
-    void restart()
-  }
-
-  // 打包后按设置自动检查 app 更新（静默，开发态自动跳过）。
-  startAutoCheckIfEnabled()
-
-  app.on('activate', () => {
-    // macOS convention: re-show the window when the dock icon is clicked.
+if (!gotLock) {
+  // Another instance is already running (two shells would fight over the same
+  // port / workspace / dsh watchdog), so there is nothing left for this one to do.
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // A user (re)launched the app while it is already running (desktop
+    // shortcut, installer-launched copy, …). Bring the existing window — which
+    // may be tray-hidden or minimized — back to the front instead of opening a
+    // duplicate shell.
     showMainWindow()
   })
-})
 
-// Closing hides to tray when a tray exists. If there is no tray (unavailable),
-// fall back to quitting when all windows are gone.
-app.on('window-all-closed', () => {
-  if (!getTray()) app.quit()
-})
+  // Boot: wire IPC, start the external-config watchers, open the window/tray,
+  // and launch dsh when the kernel is present.
+  app.whenReady().then(async () => {
+    registerIpc()
+    startConfigWatchers()
+    createShellWindow()
+    createTray()
 
-app.on('before-quit', () => {
-  if (!isQuitting()) setQuitting(true)
-  killServer()
-  killAllChildren() // also reap any in-flight npm / leftover watchdog trees
-  destroyTray()
-})
+    const cfg = loadSettings()
+    // Launch dsh only if the kernel is present. When missing we do not show a
+    // native prompt anymore — the renderer detects it on load and shows the
+    // in-app install mask (installKernel starts dsh after a successful install).
+    if (resolveInstall(cfg).present) {
+      void restart()
+    }
 
-process.on('exit', () => {
-  killServer()
-  killAllChildren()
-})
-process.on('SIGINT', () => {
-  setQuitting(true)
-  killServer()
-  killAllChildren()
-  app.quit()
-})
+    // 打包后按设置自动检查 app 更新（静默，开发态自动跳过）。
+    startAutoCheckIfEnabled()
+
+    app.on('activate', () => {
+      // macOS convention: re-show the window when the dock icon is clicked.
+      showMainWindow()
+    })
+  })
+
+  // Closing hides to tray when a tray exists. If there is no tray (unavailable),
+  // fall back to quitting when all windows are gone.
+  app.on('window-all-closed', () => {
+    if (!getTray()) app.quit()
+  })
+
+  app.on('before-quit', () => {
+    if (!isQuitting()) setQuitting(true)
+    killServer()
+    killAllChildren() // also reap any in-flight npm / leftover watchdog trees
+    destroyTray()
+  })
+
+  process.on('exit', () => {
+    killServer()
+    killAllChildren()
+  })
+  process.on('SIGINT', () => {
+    setQuitting(true)
+    killServer()
+    killAllChildren()
+    app.quit()
+  })
+}

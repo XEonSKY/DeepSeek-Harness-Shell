@@ -31,6 +31,7 @@ export interface SettingsState {
   npmRegistry: NpmRegistry
   appAutoUpdate: boolean
   appCheckPrerelease: boolean
+  devMode: boolean
   applying: boolean
   updating: boolean
   updatingKernel: boolean
@@ -86,6 +87,7 @@ export function payloadFrom(state: SettingsState): Settings {
     checkPrerelease: state.autoCheckPrerelease,
     npmRegistry: state.npmRegistry,
     appAutoUpdate: state.appAutoUpdate,
-    appCheckPrerelease: state.appCheckPrerelease
+    appCheckPrerelease: state.appCheckPrerelease,
+    devMode: state.devMode
   }
 }

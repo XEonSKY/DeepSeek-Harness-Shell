@@ -9,6 +9,8 @@ export default {
     title: 'DeepSeek Harness Shell',
     nav: {
       ui: 'DeepSeek UI',
+      chat: 'DeepSeek Chat',
+      platform: 'Usage & top-up',
       terminal: 'DeepSeek Harness Terminal',
       settings: 'Settings'
     },
@@ -30,7 +32,10 @@ export default {
     registryNpmjs: 'Official registry.npmjs.org',
     registryNpmmirror: 'npmmirror mirror registry.npmmirror.com',
     install: 'Install kernel',
-    quit: 'Quit'
+    quit: 'Quit',
+    preLabel: 'Include pre-releases',
+    versionPlaceholder: 'Choose a version to install (latest by default)',
+    versionHint: 'With “Include pre-releases” off, only stable versions are listed and the newest stable is installed by default. Turning it on also lists and installs pre-releases (rc / beta). Clearing the selection installs the newest version within the current scope.'
   },
   update: {
     okTitle: 'Up to date',
@@ -55,6 +60,10 @@ export default {
     autoScroll: 'Auto-scroll',
     clear: 'Clear',
     empty: '(No output yet. Live logs will appear here once DeepSeek Harness starts.)'
+  },
+  webpage: {
+    loadFailed: 'Could not load this page. Check your network connection and retry.',
+    retry: 'Retry'
   },
   sv: {
     cap: 'Settings',
@@ -131,6 +140,8 @@ export default {
       autoUpdateDesc: 'Check for a new version on startup and download it in the background when one is found.',
       checkPrerelease: 'Include pre-releases',
       checkPrereleaseDesc: 'Treat pre-releases (rc / beta / …) as updatable versions too.',
+      devMode: 'Developer mode',
+      devModeDesc: 'When on, F12 can open / close the DevTools console (off by default).',
       checkTitle: 'Automatic updates',
       checkBtn: 'Check for updates',
       checking: 'Checking for updates…',
@@ -158,7 +169,11 @@ export default {
     uninstallBoxTitle: 'Uninstall kernel',
     uninstallBoxText: 'This uninstalls the DeepSeek Harness kernel ({pkg}) and stops any running dsh first. You will need to reinstall it to use DeepSeek Harness again. Continue?',
     uninstallOkBtn: 'Uninstall',
-    cancelBtn: 'Cancel'
+    cancelBtn: 'Cancel',
+    dshRunningTitle: 'A running dsh must be stopped first',
+    updateStopText: 'Upgrading the kernel will first force-close any running dsh service; it will restart automatically afterwards to run the new version. Continue?',
+    switchStopText: 'Installing / switching to the selected version will first force-close any running dsh service; it will restart automatically afterwards to run that version. Continue?',
+    continueBtn: 'Continue'
   },
   m: {
     kernel: {
@@ -178,7 +193,12 @@ export default {
       installOk: 'Kernel installed to {version}.',
       installFail: 'Kernel install failed: {tail}',
       uninstallFail: 'Uninstall failed: {tail}',
-      uninstallOk: '@deepseek-ai/dsh uninstalled.'
+      uninstallOk: '@deepseek-ai/dsh uninstalled.',
+      uninstallDiag: 'Uninstall failed — detected cause: {reason}\n\nnpm output:\n{tail}',
+      uninstallReasonHolder: 'Processes are still using DeepSeek Harness: {procs} (all dsh managed by this app has been stopped). Close those processes and try again.',
+      uninstallReasonLocked: 'The install directory still exists and cannot be removed — it is likely locked, read-only, or held by security software. Check the relevant processes and directory permissions and retry.',
+      uninstallReasonPresent: 'The install directory still exists, but no occupying process was detected — deletion was likely blocked by file permissions or security software.',
+      uninstallReasonRemoved: 'The module files were removed; the failure likely happened while cleaning the command entry (.cmd / bin). Check write permission on the npm prefix directory.'
     },
     appUpdate: {
       noneReleased: 'This repository has not published any releases yet.',

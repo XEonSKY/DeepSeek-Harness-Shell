@@ -124,6 +124,24 @@ export function killServer(): void {
   serverProcess = null
 }
 
+/** Whether a dsh server (a watchdog/dsh tree) is currently launched. */
+export function isDshRunning(): boolean {
+  return serverProcess !== null
+}
+
+/**
+ * Force-stop every launched dsh instance (the active watchdog/dsh tree plus any
+ * lingering registered children, e.g. older generations). Returns true if a
+ * server was actually running and had to be shut down. Used before swapping or
+ * removing the kernel module, where a live process would lock the files.
+ */
+export function stopAllDsh(): boolean {
+  const wasRunning = isDshRunning()
+  killServer()
+  killAllChildren()
+  return wasRunning
+}
+
 // ---------------------------------------------------------------------------
 // Port selection
 // ---------------------------------------------------------------------------

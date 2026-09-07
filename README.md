@@ -26,6 +26,8 @@ npm run start        # 预览构建产物
 
 前置：Node ≥ 20，并已全局安装内核 `npm install -g @deepseek-ai/dsh`。
 
+> 若 `npm run dev` 报 electron 二进制缺失，先执行 `npm run reinstall`（`node node_modules/electron/install.js`）补装。
+
 ## 打包
 
 ```bash
@@ -60,6 +62,14 @@ DeepSeekHarness-Shell/
 ## 配置优先级
 
 CLI（`--host/--port/--workspace/--timeout-ms/--dsh-bin`）＞ 环境变量（`DSH_DESKTOP_*`、`DSH_BIN`、`DSH_NODE`）＞ `settings.json`（userData）＞ 默认值。语言与主题另随 dsh 的 `~/.dsh/settings.yaml` 统一管理。
+
+## 界面与快捷键
+
+- 三视图：**DeepSeek UI**（`/`）· **终端/日志**（`/log`）· **设置**（`/settings`，内含 常规 / 外观 / 内核 / 关于 子页）。
+- `Ctrl+T`（macOS `Cmd+T`）在「DeepSeek UI」与「终端」之间切换（也能捕获 dsh 页面里的按键）。
+- `F12` 打开 / 关闭外壳界面的调试控制台（DevTools）。
+- 无边框自绘标题栏：可拖拽移动窗口；右上角「刷新」仅 DeepSeek UI 页显示（刷新 dsh UI，不重启进程）。
+- 关闭按钮行为：隐藏到系统托盘或退出（可记住选择）；系统托盘「退出」会真正结束进程并连同关闭 dsh。
 
 ## License
 

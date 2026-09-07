@@ -68,7 +68,8 @@ export function loadSettings(): Settings {
     checkPrerelease: disk.checkPrerelease ?? DEFAULT_SETTINGS.checkPrerelease,
     npmRegistry: disk.npmRegistry ?? DEFAULT_SETTINGS.npmRegistry,
     appAutoUpdate: disk.appAutoUpdate ?? DEFAULT_SETTINGS.appAutoUpdate,
-    appCheckPrerelease: disk.appCheckPrerelease ?? DEFAULT_SETTINGS.appCheckPrerelease
+    appCheckPrerelease: disk.appCheckPrerelease ?? DEFAULT_SETTINGS.appCheckPrerelease,
+    devMode: disk.devMode ?? DEFAULT_SETTINGS.devMode
   }
 }
 

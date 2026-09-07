@@ -4,7 +4,7 @@ import type { Settings, ResolvedLocale } from '@shared/types'
 import { resolveLocale, localeCodeOf } from '@shared/i18n'
 import { readDiskSettings, persistSettings, syncDshTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale } from './settings'
 import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from './kernel'
-import { getLogHistory, restart } from './dsh'
+import { getLogHistory, restart, isDshRunning } from './dsh'
 import { checkAppSelfUpdate } from './updater'
 import { appMeta, triggerAppUpdate, restartAndInstall } from './appupdate'
 import { broadcast, getCurrentUrl, getMainWindow, setQuitting } from './runtime'
@@ -37,6 +37,7 @@ export function registerIpc(): void {
   })
   ipcMain.handle('log:history', () => getLogHistory())
   ipcMain.handle('dsh:url:get', () => getCurrentUrl())
+  ipcMain.handle('dsh:running', () => isDshRunning())
   ipcMain.handle('dsh:version', () => resolveInstall(loadSettings()).version)
   ipcMain.handle('kernel:installed', () => kernelInstalled())
   ipcMain.handle('kernel:versions', (_e, opts) => listVersions(opts))

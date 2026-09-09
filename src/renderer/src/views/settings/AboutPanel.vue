@@ -19,6 +19,13 @@ const errMsg = ref('')
 
 const envLabel = ref('')
 
+/** 项目主页（外部浏览器打开）。 */
+const REPO_URL = 'https://github.com/XEonSKY/DeepSeek-Harness-Shell'
+
+function openRepo(): void {
+  void window.api.openExternal(REPO_URL)
+}
+
 function onEvent(e: AppUpdateEvent): void {
   switch (e.kind) {
     case 'checking':
@@ -124,6 +131,29 @@ onBeforeUnmount(() => offEvent?.())
       </div>
     </PanelCard>
 
+    <!-- 项目链接 -->
+    <PanelCard id="about-links">
+      <template #header>
+        <div class="sec__title">{{ $t('sv.about.links') }}</div>
+      </template>
+      <div class="au">
+        <div class="au__txt">
+          <div class="au__t">{{ $t('sv.about.github') }}</div>
+          <div class="au__desc">{{ $t('sv.about.githubDesc') }}</div>
+          <div class="repo-url">{{ REPO_URL }}</div>
+        </div>
+        <el-button class="repo-btn" @click="openRepo">
+          <svg class="gh-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path
+              fill="currentColor"
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            />
+          </svg>
+          {{ $t('sv.about.openGithub') }}
+        </el-button>
+      </div>
+    </PanelCard>
+
     <!-- 更新操作区 -->
     <PanelCard id="about-check">
       <template #header>
@@ -195,5 +225,28 @@ onBeforeUnmount(() => offEvent?.())
   border-radius: 13px;
   object-fit: cover;
   display: block;
+}
+
+/* 项目主页：地址 + 外链按钮 */
+.repo-url {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 8px;
+  font-family: var(--el-font-family-mono);
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  word-break: break-all;
+}
+.repo-btn {
+  flex: 0 0 auto;
+}
+.gh-icon {
+  width: 15px;
+  height: 15px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  display: inline-block;
 }
 </style>

@@ -1,4 +1,5 @@
 import type { BrowserWindow, Tray } from 'electron'
+import { listWindows, coreWindowId, windowByContentsId } from './windowreg'
 
 /**
  * Lowest-level cross-cutting runtime state shared by every main-process module.
@@ -61,9 +62,29 @@ export function destroyTray(): void {
   tray = null
 }
 
-/** Send an event to the renderer if the window is still alive. */
+/** Send an event to all alive shell windows' renderers (falls back to the single main window). */
 export function broadcast(channel: string, payload?: unknown): void {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send(channel, payload)
+  const wins = listWindows()
+  const targets = wins.length > 0 ? wins : mainWindow ? [mainWindow] : []
+  for (const w of targets) {
+    sendToWindow(w, channel, payload)
   }
+}
+
+/** Send an event to one specific window's renderer (directed; multi-window safe). */
+export function sendToWindow(w: BrowserWindow | null | undefined, channel: string, payload?: unknown): void {
+  if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) {
+    w.webContents.send(channel, payload)
+  }
+}
+
+/** Send an event to a window looked up by webContents id (no-op if that window is gone). */
+export function sendToWcId(wcId: number | null | undefined, channel: string, payload?: unknown): void {
+  if (wcId == null) return
+  sendToWindow(windowByContentsId(wcId), channel, payload)
+}
+
+/** 只发给“当前核心窗口”（内核 UI 唯一宿主）。无核心则不发送。 */
+export function sendCore(channel: string, payload?: unknown): void {
+  sendToWcId(coreWindowId(), channel, payload)
 }

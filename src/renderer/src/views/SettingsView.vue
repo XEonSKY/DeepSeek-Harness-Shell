@@ -65,11 +65,12 @@ onMounted(async () => {
     </aside>
 
     <div class="main">
-      <div v-loading="loading" class="main__scroll">
+      <!-- 页头由各子页自带（大图标标题头），此处不再渲染 -->
+      <el-scrollbar v-loading="loading" class="main__scroll">
         <div class="cols">
           <router-view />
         </div>
-      </div>
+      </el-scrollbar>
     </div>
   </div>
 </template>
@@ -80,6 +81,24 @@ onMounted(async () => {
   display: flex;
   height: 100%;
 }
+/* ---- 配色：浅色（默认）---- */
+.settings {
+  background: #ffffff;
+  color: var(--el-text-color-primary);
+}
+.settings .side {
+  background: #f9fafb;
+}
+.settings .main {
+  background: transparent;
+}
+/* ---- 配色：深色（html.dark）---- */
+html.dark .settings {
+  background: #151517;
+}
+html.dark .settings .side {
+  background: #1b1b1c;
+}
 .settings .side {
   flex: 0 0 218px;
   display: flex;
@@ -87,7 +106,7 @@ onMounted(async () => {
   gap: 4px;
   padding: 16px 10px;
   border-right: 1px solid var(--el-border-color-light);
-  background: var(--el-fill-color-blank);
+  background: #f9fafb;
   overflow-y: auto;
 }
 .settings .side__cap {
@@ -135,24 +154,59 @@ onMounted(async () => {
 }
 .settings .main__scroll {
   flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 20px 22px;
   min-height: 0;
+}
+.settings .main__scroll :deep(.el-scrollbar__view) {
+  padding: 22px 24px 40px;
 }
 .settings .cols {
   width: 100%;
   max-width: 760px;
   margin: 0 auto;
 }
-.settings .sec {
-  margin-bottom: 14px;
+
+/* ---- 正文分区：每个分组一个独立边框盒，组间留间距 ---- */
+.settings .el-collapse {
+  border: none;
+  background: transparent;
+}
+.settings .el-collapse-item {
+  border: 1px solid var(--el-border-color);
   border-radius: 10px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+}
+.settings .el-collapse-item + .el-collapse-item {
+  margin-top: 14px;
+}
+.settings .el-collapse-item__header {
+  padding: 13px 18px;
+  border-bottom: none;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.settings .el-collapse-item__header.is-active {
+  border-bottom: 1px solid var(--el-border-color);
+}
+.settings .el-collapse-item__wrap {
+  border-bottom: none;
+}
+.settings .el-collapse-item__content {
+  padding: 14px 18px 18px;
 }
 .settings .sec__title {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.settings .sec__title .el-icon {
+  color: var(--el-text-color-secondary);
+}
+.settings .hint {
+  font-size: 12px;
+  line-height: 1.55;
 }
 .settings .row {
   display: flex;
@@ -182,7 +236,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 6px 4px 18px;
+  padding: 22px 4px 26px;
 }
 .settings .dsh-brand__icon {
   width: 64px;
@@ -191,13 +245,17 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
   color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
 }
 .settings .dsh-brand__name {
   font-size: 20px;
   font-weight: 700;
+}
+.settings .dsh-brand__desc {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 .settings .dsh-brand__ver {
   margin-top: 4px;

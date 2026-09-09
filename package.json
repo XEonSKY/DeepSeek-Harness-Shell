@@ -1,7 +1,7 @@
 {
   "name": "deepseek-harness-shell",
   "productName": "DeepSeek Harness Shell",
-  "version": "0.1.5-alpha-1",
+  "version": "0.1.5-alpha-2",
   "description": "DeepSeek Harness Shell —— 基于 Electron + Vite + Vue3 + Element Plus 的桌面外壳，通过 `dsh web` 启动 DeepSeek Harness Web UI 并用 <webview> 内嵌展示。",
   "license": "Apache-2.0",
   "author": "XEonSKY Studio",
@@ -136,6 +136,8 @@
   },
   "dependencies": {
     "@antdv-next/icons": "^1.1.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "antdv-next": "^1.5.3",
     "node-downloader-helper": "^2.1.9"
   }

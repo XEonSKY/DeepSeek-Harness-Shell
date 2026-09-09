@@ -70,6 +70,14 @@ export interface Settings {
   ignoreSystemScale: boolean
   /** 扩展翻译风格/区域变体（仅当前语言生效）：off ｜ anime/wenyan/hant(zh) ｜ pirate/shakespeare(en)。 */
   funLocale: FunLocale
+  /** 默认搜索引擎（地址栏/新标签页搜索用）。 */
+  searchEngine: SearchEngineId
+  /** 新标签页模式：'builtin'(内置导航页) ｜ 'url'(加载 newTabUrl)。 */
+  newTabMode: NewTabMode
+  /** 新标签页自定义 URL（newTabMode='url' 时生效）。 */
+  newTabUrl: string
+  /** 新标签页内置导航页的常用站点快捷方式。 */
+  shortcuts: Shortcut[]
 }
 
 /** 扩展翻译：关闭、语言风格项（anime/wenyan 属 zh；pirate/shakespeare 属 en），
@@ -92,6 +100,18 @@ export type NpmSource = 'system' | 'bundled' | 'localnode'
 export type NpmRegistry = 'npmjs' | 'npmmirror'
 
 export type Theme = 'system' | 'light' | 'dark'
+
+/** 支持的搜索引擎。 */
+export type SearchEngineId = 'baidu' | 'sogou' | '360' | 'bing' | 'google' | 'duckduckgo'
+
+/** 新标签页内容：内置导航页 ｜ 自定义 URL。 */
+export type NewTabMode = 'builtin' | 'url'
+
+/** 常用站点快捷方式（标题 + URL）。 */
+export interface Shortcut {
+  title: string
+  url: string
+}
 
 /**
  * dsh `settings.yaml` 里 `locale.preference` 使用的两字母语言码。
@@ -127,7 +147,11 @@ export const DEFAULT_SETTINGS: Settings = {
   proxyScope: ['npm', 'node', 'update'],
   zoomPercent: 100,
   ignoreSystemScale: false,
-  funLocale: 'off'
+  funLocale: 'off',
+  searchEngine: 'bing',
+  newTabMode: 'builtin',
+  newTabUrl: '',
+  shortcuts: []
 }
 
 /** Result of a kernel install / uninstall action. */
@@ -152,27 +176,6 @@ export interface UpdateResult {
   latest: string | null
   message: string
   command?: string
-}
-
-/**
- * Result of checking whether the shell app *itself* has a newer release on
- * GitHub (compared against the running app version, e.g. from package.json).
- */
-export interface AppUpdateResult {
-  /** update = a newer release exists; ok = already latest; error = check failed. */
-  status: 'ok' | 'update' | 'error'
-  /** The currently running shell version (could be null in an unusual env). */
-  current: string | null
-  /** The newest release tag from GitHub (leading "v" stripped), or null. */
-  latest: string | null
-  /** Human-readable status line (localized). */
-  message: string
-  /** URL to open for download/release notes. */
-  releaseUrl: string | null
-  /** Architecture of the currently running shell (e.g. x64 / arm64 / ia32). */
-  arch: string | null
-  /** OS of the running shell (e.g. win32 / darwin / linux). */
-  platform: string | null
 }
 
 /** 运行环境元信息（关于页展示当前版本/架构）。 */
@@ -260,8 +263,6 @@ export interface RendererApi {
    * version (runs `npm install -g`). Resolves when the install finishes.
    */
   updateKernel(opts?: { registry?: NpmRegistry }): Promise<KernelAction>
-  /** Check whether the shell app itself has a newer GitHub release. */
-  checkAppUpdate(): Promise<AppUpdateResult>
   /** 运行环境元信息（关于页显示当前版本/架构）。 */
   getAppMeta(): Promise<AppMeta>
   /** 触发一次 app 自动更新检查；有可用更新时由主进程后台自动下载。 */
@@ -296,6 +297,10 @@ export interface RendererApi {
   onToggleView(cb: () => void): () => void
   /** Main asks the renderer to show the (Element Plus) close-behaviour prompt. */
   onAskClose(cb: () => void): () => void
+  /** A webview asked to open a URL in a new window/tab; the shell opens an in-app tab. */
+  onNewTab(cb: (url: string) => void): () => void
+  /** Main informs this window its role changed (e.g. it became the new core window). */
+  onShellRole(cb: (isCore: boolean) => void): () => void
   /** Renderer reports the user's close decision back to the main process. */
   resolveClose(decision: { action: 'hide' | 'quit'; remember: boolean }): void
   /** Main detected that the kernel was removed/never installed; show the install mask. */
@@ -321,10 +326,46 @@ export interface RendererApi {
   getConfigDir(): Promise<{ current: string; default: string }>
   /** 设置自选配置目录（传 null 恢复默认）；返回新的当前有效目录。 */
   setConfigDir(dir: string | null): Promise<string>
+  /** 本窗口元信息：窗口 id 与是否核心窗口（核心窗口才承载 dsh 内核 UI）。 */
+  getShellMeta(): Promise<{ winId: number; isCore: boolean }>
+  /** 把一个 URL 开到一个独立（副）窗口（右键“在新窗口打开 / 移动”）。 */
+  openWebWindow(url: string): Promise<void>
+  /** 聚焦核心窗口（副窗口“跳转核心窗口”按钮）；无核心窗口时重建一个。 */
+  focusCoreWindow(): Promise<void>
+  /** 取走本窗口的“开页意图”（创建副窗口时若带 URL，据此开一个动态标签页）。 */
+  takeOpenIntent(): Promise<string | null>
+  /** 把本窗口“当前标签页标题”同步给主进程，用于命名本（副）窗口为：<标题> - 软件名。 */
+  setShellTitle(title: string): void
+  /** “移动到其它窗口”：主进程弹目标选择（其它壳窗口）。true=已移走（本窗口应移除对应标签）；false=取消。 */
+  moveTabToWindow(url: string): Promise<boolean>
+  /** 跨窗口拖标签：源窗口开始拖拽某标签，登记并取回“其它壳窗口”的屏幕几何供算落点。target 为 URL 或内置导航页伪链接。 */
+  tabDragBegin(target: string): Promise<Array<{ id: number; x: number; y: number; w: number; h: number }>>
+  /** 源窗口报告当前“指针悬停的目标窗口 id”（null=没有）。主进程让那个窗口亮起可接收遮罩。 */
+  tabDragHover(targetId: number | null): void
+  /** 结束/取消拖拽（源窗口未移入其它窗口时）。 */
+  tabDragEnd(): void
+  /** 源窗口决定把被拖标签移入某目标窗口。 */
+  tabDragDropTo(targetId: number): void
+  /** 主进程通知源窗口：被拖标签已移入其它窗口，应移除本地那个标签。 */
+  onTabDragMoved(cb: () => void): () => void
+  /** 主进程通知本窗口：是否正被某跨窗口拖拽“悬停”为目标（用于亮可接收遮罩）。 */
+  onTabDragHover(cb: (on: boolean) => void): () => void
   quit(): void
 
   // Frameless-window controls (drawn by the renderer's custom title bar).
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void
+}
+
+/**
+ * 内置「新建标签页」（导航页）在窗口间流转时的伪链接。它不是一个可加载的网址，而是表示
+ * “在这里打开一个内置导航页”。当把一个 newtab 标签“在新窗口/其它窗口打开”或移入其它窗口时，
+ * 就以这个值作为目标传递；收到方据此开一个内置导航页（而非 webview URL）。
+ */
+export const NEWTAB_URL = 'dssh://about:blank'
+
+/** 目标是否表示“打开内置导航页”（NEWTAB_URL）。 */
+export function isNewTabTarget(target: string | null | undefined): boolean {
+  return typeof target === 'string' && target === NEWTAB_URL
 }

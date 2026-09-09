@@ -16,9 +16,21 @@ export default {
       settings: '设置'
     },
     reload: '重新加载',
+    jumpCore: '核心窗口',
+    jumpCoreHint: '跳转到核心窗口',
     minimize: '最小化',
     maximize: '最大化 / 还原',
-    closeHint: '关闭（隐藏到托盘或退出）'
+    closeHint: '关闭（隐藏到托盘或退出）',
+    tabs: {
+      new: '新建标签页',
+      close: '关闭标签页',
+      keep: '固定（保活，不计入最近 3 个）',
+      dup: '复制标签页',
+      openWindow: '在新窗口打开',
+      moveWindow: '移动到其它窗口',
+      promptTitle: '输入网址',
+      promptPlaceholder: 'https://…'
+    }
   },
   /** 关闭行为询问（App 内 ElMessageBox） */
   closeAsk: {
@@ -100,6 +112,21 @@ export default {
     versionPlaceholder: '选择要安装的版本（默认最新）',
     versionHint: '取消勾选「包含测试版」只列出正式版并默认安装最新正式版；勾选后也会列出并安装 rc / beta 等预发布版本。清除选择即安装当前范围内的最新版本。'
   },
+  engine: {
+    baidu: '百度',
+    sogou: '搜狗',
+    q360: '360',
+    bing: 'Bing',
+    google: 'Google',
+    duckduckgo: 'DuckDuckGo'
+  },
+  /** 内置新标签导航页 */
+  navPage: {
+    placeholder: '搜索或输入网址',
+    search: '搜索',
+    quick: '常用站点',
+    engineLabel: '搜索引擎'
+  },
   /** 内核更新通知 */
   update: {
     okTitle: '已是最新',
@@ -136,6 +163,13 @@ export default {
   sv: {
     cap: '设置',
     nav: { general: '常规', appearance: '外观', network: '网络', dsh: '内核', about: '关于' },
+    intro: {
+      general: '工作目录、端口与标签页/搜索等基础行为。',
+      appearance: '界面语言、主题与缩放等观感设置。',
+      network: '代理连接与网络作用范围。',
+      dsh: 'dsh 内核的来源、Node/npm 环境与更新。',
+      about: '关于应用与内核，以及更新检查。'
+    },
     general: {
       run: '运行',
       workspace: '工作目录',
@@ -146,6 +180,18 @@ export default {
       portAuto: '自动（推荐）',
       portManual: '手动指定',
       portHint: '自动从 3080 起挑空闲端口。',
+      engineLabel: '默认搜索引擎',
+      newTabTitle: '新标签页',
+      newTabModeBuiltin: '内置导航页',
+      newTabModeUrl: '自定义网址',
+      newTabUrlLabel: '网址',
+      newTabUrlPlaceholder: 'https://example.com',
+      shortcuts: '常用站点快捷方式',
+      shortcutTitle: '名称',
+      shortcutUrl: '网址',
+      shortcutAdd: '添加',
+      shortcutRemove: '删除',
+      shortcutHint: '显示在新标签页导航页上，点击即可直达。',
       closeBehavior: '关闭按钮行为',
       closeTray: '隐藏到系统托盘',
       closeQuit: '直接退出',
@@ -270,7 +316,11 @@ export default {
       downloadedDesc: '重启后自动安装。',
       restartNow: '立即重启并安装',
       notAvailable: '已是最新版本。',
-      unavailable: '当前无可用更新。'
+      unavailable: '当前无可用更新。',
+      links: '项目',
+      github: 'GitHub 主页',
+      githubDesc: '查看源码、提交问题与功能建议。',
+      openGithub: '打开主页',
     }
   },
   /** 即时反馈（ElMessage / ElMessageBox 内文案） */
@@ -284,9 +334,6 @@ export default {
     uninstallFail: '卸载失败：{err}',
     uninstallOk: '已卸载内核，将引导重新安装。',
     updateKernelFail: '内核更新失败：{err}',
-    checkFailed: '检查更新失败。',
-    updateAvailable: '发现新版本。',
-    upToDate: '已是最新版本。',
     uninstallBoxTitle: '卸载内核',
     uninstallBoxText: '将卸载 DeepSeek Harness 内核（{pkg}），并先停止运行中的 dsh。卸载后需要重新安装才能使用。确定继续吗？',
     uninstallOkBtn: '卸载',
@@ -331,12 +378,6 @@ export default {
       uninstallReasonRemoved: '模块文件已移除，失败可能发生在清理命令入口（.cmd / bin）时，请检查 npm 前缀目录的写权限。'
     },
     appUpdate: {
-      noneReleased: '仓库尚未发布任何版本。',
-      httpErr: '检查更新失败（GitHub HTTP {status}）。',
-      latestReadFail: '最新版本号读取失败。',
-      foundNew: '发现新版本 {current} → {latest}',
-      upToDate: '已是最新版本 {latest}。',
-      netErr: '检查更新失败，无法连接 GitHub。',
       onlyPackaged: '仅打包安装的应用支持自动更新。'
     },
     tray: {

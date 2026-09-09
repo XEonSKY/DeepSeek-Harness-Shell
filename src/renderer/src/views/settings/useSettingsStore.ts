@@ -2,7 +2,7 @@ import { reactive, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DEFAULT_SETTINGS } from '@shared/types'
-import type { AppUpdateResult, Settings, Theme } from '@shared/types'
+import type { Settings, Theme } from '@shared/types'
 import { applyTheme } from '../../theme'
 import { appState } from '../../state'
 import { i18n } from '../../locales'
@@ -46,6 +46,10 @@ export const useSettingsStore = defineStore('settings', () => {
     zoomPercent: DEFAULT_SETTINGS.zoomPercent,
     ignoreSystemScale: DEFAULT_SETTINGS.ignoreSystemScale,
     funLocale: DEFAULT_SETTINGS.funLocale,
+    searchEngine: DEFAULT_SETTINGS.searchEngine,
+    newTabMode: DEFAULT_SETTINGS.newTabMode,
+    newTabUrl: DEFAULT_SETTINGS.newTabUrl,
+    shortcuts: [...DEFAULT_SETTINGS.shortcuts],
     dshRunning: false,
     applying: false,
     updating: false,
@@ -55,11 +59,7 @@ export const useSettingsStore = defineStore('settings', () => {
     versionsLoading: false,
     switchingKernel: false,
     uninstalling: false,
-    selectedVersion: '',
-    appChecking: false,
-    appCheckResult: null,
-    appOpenUrl: '',
-    appVersion: null
+    selectedVersion: ''
   })
 
   function fillFrom(s: Settings): void {
@@ -86,6 +86,12 @@ export const useSettingsStore = defineStore('settings', () => {
     state.zoomPercent = s.zoomPercent ?? DEFAULT_SETTINGS.zoomPercent
     state.ignoreSystemScale = s.ignoreSystemScale === true
     state.funLocale = s.funLocale ?? DEFAULT_SETTINGS.funLocale
+    state.searchEngine = s.searchEngine ?? DEFAULT_SETTINGS.searchEngine
+    state.newTabMode = s.newTabMode ?? DEFAULT_SETTINGS.newTabMode
+    state.newTabUrl = s.newTabUrl ?? ''
+    state.shortcuts = Array.isArray(s.shortcuts)
+      ? s.shortcuts.map((sc) => ({ title: sc.title || '', url: sc.url || '' }))
+      : [...DEFAULT_SETTINGS.shortcuts]
     appState.workspace = s.workspace
     if (typeof s.port === 'number' && s.port > 0) {
       state.portMode = 'manual'
@@ -332,32 +338,6 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  async function runAppCheck(): Promise<void> {
-    if (state.appChecking) return
-    state.appChecking = true
-    try {
-      const r: AppUpdateResult = await window.api.checkAppUpdate()
-      state.appCheckResult = r
-      state.appVersion = r.current
-      state.appOpenUrl = r.releaseUrl ?? ''
-      if (r.status === 'error') {
-        ElMessage.warning(r.message || tt('msg.checkFailed'))
-      } else if (r.status === 'update') {
-        ElMessage.info(r.message || tt('msg.updateAvailable'))
-      } else {
-        ElMessage.success(r.message || tt('msg.upToDate'))
-      }
-    } catch {
-      ElMessage.error(tt('msg.checkFailed'))
-    } finally {
-      state.appChecking = false
-    }
-  }
-
-  function openAppRelease(): void {
-    if (state.appOpenUrl) void window.api.openExternal(state.appOpenUrl)
-  }
-
   const actions: SettingsActions = {
     loadVersion,
     browseWorkspace,
@@ -374,8 +354,6 @@ export const useSettingsStore = defineStore('settings', () => {
     runUpdateKernel,
     switchVersion,
     confirmUninstall,
-    runAppCheck,
-    openAppRelease,
     fillFrom
   }
 
@@ -406,7 +384,11 @@ export const useSettingsStore = defineStore('settings', () => {
       () => state.proxyScope.join(','),
       state.zoomPercent,
       state.ignoreSystemScale,
-      state.funLocale
+      state.funLocale,
+      state.searchEngine,
+      state.newTabMode,
+      state.newTabUrl,
+      () => state.shortcuts.map((sc) => `${sc.title}\u0000${sc.url}`).join('\u0001')
     ],
     scheduleSave
   )

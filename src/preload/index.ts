@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppUpdateEvent, LogEntry, RendererApi, Settings, Theme } from '@shared/types'
+import type { AppUpdateEvent, LogEntry, NodeDeployProgress, RendererApi, Settings, Theme } from '@shared/types'
 
 const api: RendererApi = {
   platform: process.platform,
@@ -18,6 +18,11 @@ const api: RendererApi = {
   getLogHistory: () => ipcRenderer.invoke('log:history'),
   getDshUrl: () => ipcRenderer.invoke('dsh:url:get'),
   isDshRunning: () => ipcRenderer.invoke('dsh:running'),
+  startDsh: () => ipcRenderer.invoke('dsh:start'),
+  stopDsh: () => ipcRenderer.invoke('dsh:stop'),
+  restartDsh: () => ipcRenderer.invoke('dsh:restart'),
+  setWindowZoom: (percent) => ipcRenderer.invoke('zoom:set', percent),
+  relaunch: () => ipcRenderer.send('app:relaunch'),
   getDshVersion: () => ipcRenderer.invoke('dsh:version'),
   getKernelInstalled: () => ipcRenderer.invoke('kernel:installed'),
   listVersions: (opts) => ipcRenderer.invoke('kernel:versions', opts),
@@ -31,6 +36,11 @@ const api: RendererApi = {
     const listener = (_e: unknown, evt: AppUpdateEvent): void => cb(evt)
     ipcRenderer.on('appupdate:event', listener)
     return () => ipcRenderer.removeListener('appupdate:event', listener)
+  },
+  onNodeDeployProgress(cb) {
+    const listener = (_e: unknown, p: NodeDeployProgress): void => cb(p)
+    ipcRenderer.on('nodeenv:deploy-progress', listener)
+    return () => ipcRenderer.removeListener('nodeenv:deploy-progress', listener)
   },
   updateKernel: (opts) => ipcRenderer.invoke('kernel:update', opts),
   installKernel: (opts) => ipcRenderer.invoke('kernel:install', opts),
@@ -89,6 +99,11 @@ const api: RendererApi = {
 
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+  openFile: () => ipcRenderer.invoke('dialog:openFile'),
+  probeEnv: () => ipcRenderer.invoke('env:probe'),
+  deployLocalNode: () => ipcRenderer.invoke('nodeenv:deploy'),
+  getConfigDir: () => ipcRenderer.invoke('configdir:get'),
+  setConfigDir: (dir) => ipcRenderer.invoke('configdir:set', dir),
   quit: () => ipcRenderer.send('app:quit'),
 
   windowMinimize: () => ipcRenderer.send('win:minimize'),

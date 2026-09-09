@@ -1,29 +1,64 @@
 import { createI18n } from 'vue-i18n'
-import zhCN from '@shared/locales/zh-CN'
-import enUS from '@shared/locales/en-US'
+import zh from '@shared/locales/zh'
+import en from '@shared/locales/en'
+import { catalogForLocale, styleLocaleOf } from '@shared/locales/ext'
 import type { ResolvedLocale } from '@shared/types'
+import type { ExtStyle } from '@shared/locales/ext'
 
 export type { ResolvedLocale }
 
 /**
  * renderer 的 vue-i18n 单例（组合式 API，legacy:false）。
  * 文案与 main 共用同一份 shared/locales 目录。
- * 界面语言由 dsh settings.yaml 的 locale.preference（zh/en）决定，见 getUiLocale/setUiLocale。
+ * 界面语言由 dsh settings.yaml 的 locale.preference 决定，语言码统一为 zh / en。
  */
 export const i18n = createI18n({
   legacy: false,
   globalInjection: true,
-  locale: 'zh-CN',
-  fallbackLocale: 'zh-CN',
+  locale: 'zh',
+  fallbackLocale: 'zh',
   missingWarn: false,
   fallbackWarn: false,
   messages: {
-    'zh-CN': zhCN,
-    'en-US': enUS
+    zh,
+    en
   }
 })
 
 /** 把 vue-i18n 切到某语言（不写盘；持久化走 setUiLocale）。 */
 export function setLocale(locale: ResolvedLocale): void {
   i18n.global.locale.value = locale
+}
+
+// ---------------------------------------------------------------------------
+// 扩展翻译：变体目录由 shared/locales/{zh,en}/rules.ts + ext.ts 提供并构建，
+// 这里只负责把构建结果覆盖到 vue-i18n 对应语言并触发刷新。不改 dsh 设置。
+// ---------------------------------------------------------------------------
+
+export type { ExtStyle }
+
+function pingRefresh(): void {
+  const cur = i18n.global.locale.value
+  if (cur === 'zh' || cur === 'en') {
+    i18n.global.locale.value = '__ext_ping__' as never
+    i18n.global.locale.value = cur
+  }
+}
+
+/** 把「扩展翻译」应用到对应语言的文案目录（off 还原 zh 与 en 两套）。 */
+export function applyExtTranslation(style: ExtStyle): void {
+  if (style === 'off') {
+    i18n.global.setLocaleMessage('zh', catalogForLocale('zh', 'off') as any)
+    i18n.global.setLocaleMessage('en', catalogForLocale('en', 'off') as any)
+    pingRefresh()
+    return
+  }
+  const loc = styleLocaleOf(style)
+  i18n.global.setLocaleMessage(loc, catalogForLocale(loc, style) as any)
+  if (i18n.global.locale.value === loc) pingRefresh()
+}
+
+/** 旧名兼容。 */
+export function applyFunToZh(style: ExtStyle): void {
+  applyExtTranslation(style)
 }

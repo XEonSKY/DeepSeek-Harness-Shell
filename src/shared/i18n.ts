@@ -1,21 +1,22 @@
-import zhCN from './locales/zh-CN'
-import enUS from './locales/en-US'
+import zh from './locales/zh'
+import en from './locales/en'
 import type { LocaleCode, ResolvedLocale } from './types'
 
 /**
  * 跨进程共享的 i18n 工具（供 main 进程使用；renderer 走 vue-i18n 但消费同一份目录）。
  * 纯函数、无副作用、不依赖 Vue / Electron，方便 Node 侧直接 import。
+ * 语言码统一为两字母：zh / en。
  */
 
 /** locale -> 目录 */
 export const messages: Record<ResolvedLocale, unknown> = {
-  'zh-CN': zhCN,
-  'en-US': enUS
+  zh,
+  en
 }
 
-/** 把应用内部语言转成 dsh settings.yaml 用的两字母码。 */
+/** 内部语言码即 dsh settings.yaml 用的两字母码（zh/en）。 */
 export function localeCodeOf(locale: ResolvedLocale): LocaleCode {
-  return locale === 'zh-CN' ? 'zh' : 'en'
+  return locale
 }
 
 /**
@@ -24,9 +25,9 @@ export function localeCodeOf(locale: ResolvedLocale): LocaleCode {
  * @param system 系统语言（app.getLocale()/navigator.language）
  */
 export function resolveLocale(pref: string | null | undefined, system?: string): ResolvedLocale {
-  if (pref === 'zh' || pref === 'en') return pref === 'zh' ? 'zh-CN' : 'en-US'
+  if (pref === 'zh' || pref === 'en') return pref
   const sys = (system ?? '').toLowerCase()
-  return sys.startsWith('zh') ? 'zh-CN' : 'en-US'
+  return sys.startsWith('zh') ? 'zh' : 'en'
 }
 
 type AnyDict = Record<string, unknown>
@@ -43,10 +44,10 @@ function lookup(root: unknown, path: string): string | null {
 
 /**
  * 纯翻译函数：读 `locale` 目录中 `path`（点分）的文案并替换 `{name}` 占位符。
- * 缺失时回退 zh-CN，再缺失则原样返回 path。
+ * 缺失时回退 zh，再缺失则原样返回 path。
  */
 export function t(locale: ResolvedLocale, path: string, params?: Record<string, unknown>): string {
-  const template = lookup(messages[locale], path) ?? lookup(messages['zh-CN'], path) ?? path
+  const template = lookup(messages[locale], path) ?? lookup(messages.zh, path) ?? path
   if (!params) return template
   return template.replace(/\{(\w+)\}/g, (m, k) =>
     Object.prototype.hasOwnProperty.call(params, k) ? String(params[k]) : m

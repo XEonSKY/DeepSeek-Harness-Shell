@@ -1,11 +1,36 @@
+import path from 'node:path'
 import { app } from 'electron'
 import { registerIpc } from './ipc'
 import { startAutoCheckIfEnabled } from './appupdate'
-import { loadSettings, startConfigWatchers } from './settings'
+import { loadSettings, startConfigWatchers, readDiskSettings } from './settings'
 import { createShellWindow, createTray, showMainWindow } from './ui'
 import { resolveInstall } from './kernel'
 import { restart, killServer, killAllChildren } from './dsh'
 import { getTray, isQuitting, setQuitting, destroyTray } from './runtime'
+
+// ---------------------------------------------------------------------------
+// Dev vs release isolation. A dev run must not grab the installed release's
+// single-instance lock; otherwise launching dev while the packaged app is open
+// would kick it (or get kicked itself). Electron keys that lock to the userData
+// directory, so pointing dev at its own userData folder isolates the lock (and
+// keeps the dev Chromium/updater profile apart too). Must run BEFORE
+// requestSingleInstanceLock() below. The release build keeps the default path.
+// NOTE: the app's own settings.json does NOT live under userData — see
+// main/settings.ts configDir() (~/.config/dsh_shell[_dev]).
+// ---------------------------------------------------------------------------
+if (!app.isPackaged) {
+  app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} (dev)`))
+}
+
+// 忽略系统显示缩放：若设置开启，在 ready 前强制设备缩放系数为 1（需重启生效）。
+try {
+  const boot = readDiskSettings()
+  if (boot.ignoreSystemScale) {
+    app.commandLine.appendSwitch('force-device-scale-factor', '1')
+  }
+} catch {
+  /* settings not readable yet; fall back to OS scaling */
+}
 
 // ---------------------------------------------------------------------------
 // Single-instance guard: acquire the lock as early as possible. If another

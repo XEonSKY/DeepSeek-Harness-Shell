@@ -1,4 +1,4 @@
-/** Settings persisted in the app's userData directory. */
+/** Settings persisted in the app's config dir: ~/.config/dsh_shell[_dev]/settings.json. */
 export interface Settings {
   /** Bind host for dsh. dsh only allows 127.0.0.1 today. */
   host: string
@@ -33,7 +33,60 @@ export interface Settings {
   appCheckPrerelease: boolean
   /** 开发模式：开启后 F12 才允许打开 DevTools 控制台（默认关）。 */
   devMode: boolean
+  /**
+   * 内核来源：
+   *  - 'local'（默认）：由应用把 @deepseek-ai/dsh 安装/运行在应用自己的目录
+   *    （~/.config/dsh_shell/kernel），用所选 Node 运行。
+   *  - 'global'：使用系统 npm install -g 装在 PATH 上的 @deepseek-ai/dsh。
+   */
+  kernelSource: 'local' | 'global'
+  /**
+   * 运行 dsh / npm 的 Node 运行时：
+   *  - 'electron'（默认）：Electron 自带 Node（ELECTRON_RUN_AS_NODE）。
+   *  - 'system'：系统 Node（要求 ≥ 20）。
+   *  - 'local'：应用按架构下载解压到配置目录的 Node（<configDir>/node）。
+   */
+  nodeRuntime: NodeRuntimeKind
+  /**
+   * 本地内核安装时使用的 npm：
+   *  - 'system'（默认）：用系统 npm。
+   *  - 'bundled'：内置 npm（首次在线拉取并缓存到应用目录）。
+   *  - 'localnode'：用部署在配置目录的本地 Node 自带的 npm（未部署时不可选）。
+   */
+  npmSource: NpmSource
+  /** 代理开关。 */
+  proxyEnabled: boolean
+  /** 代理协议。 */
+  proxyProtocol: ProxyProtocol
+  /** 代理主机。 */
+  proxyHost: string
+  /** 代理端口。 */
+  proxyPort: number | null
+  /** 代理范围：npm(安装/下载) · node(Node 下载部署) · update(内核更新检查)。 */
+  proxyScope: ProxyScope[]
+  /** 界面缩放百分比（50–200，默认 100）。 */
+  zoomPercent: number
+  /** 忽略操作系统显示缩放（默认关）。 */
+  ignoreSystemScale: boolean
+  /** 扩展翻译风格/区域变体（仅当前语言生效）：off ｜ anime/wenyan/hant(zh) ｜ pirate/shakespeare(en)。 */
+  funLocale: FunLocale
 }
+
+/** 扩展翻译：关闭、语言风格项（anime/wenyan 属 zh；pirate/shakespeare 属 en），
+ *  或中文区域文本变体（hant=繁体中文，文本文件覆盖）。 */
+export type FunLocale = 'off' | 'anime' | 'wenyan' | 'hant' | 'pirate' | 'shakespeare'
+
+/** Node 运行时选择：'system'(≥20) ｜ 'electron'(自带) ｜ 'local'(下载部署)。 */
+export type NodeRuntimeKind = 'system' | 'electron' | 'local'
+
+/** 代理协议。 */
+export type ProxyProtocol = 'http' | 'socks5'
+
+/** 代理范围项：'npm' ｜ 'node' ｜ 'update'。 */
+export type ProxyScope = 'npm' | 'node' | 'update'
+
+/** 本地安装所用 npm：'system' ｜ 'bundled'(内置) ｜ 'localnode'(本地 Node 自带)。 */
+export type NpmSource = 'system' | 'bundled' | 'localnode'
 
 /** Which npm registry to use for kernel version listing / install. */
 export type NpmRegistry = 'npmjs' | 'npmmirror'
@@ -46,8 +99,8 @@ export type Theme = 'system' | 'light' | 'dark'
  */
 export type LocaleCode = 'zh' | 'en'
 
-/** 应用内部实际语言（与 vue-i18n / element-plus 语言名对应）。 */
-export type ResolvedLocale = 'zh-CN' | 'en-US'
+/** 应用内部实际语言（两字母，与 vue-i18n / element-plus 语言名对应）。 */
+export type ResolvedLocale = 'zh' | 'en'
 
 export const DEFAULT_SETTINGS: Settings = {
   host: '127.0.0.1',
@@ -63,7 +116,18 @@ export const DEFAULT_SETTINGS: Settings = {
   npmRegistry: 'npmjs',
   appAutoUpdate: true,
   appCheckPrerelease: false,
-  devMode: false
+  devMode: false,
+  kernelSource: 'local',
+  nodeRuntime: 'electron',
+  npmSource: 'system',
+  proxyEnabled: false,
+  proxyProtocol: 'http',
+  proxyHost: '',
+  proxyPort: null,
+  proxyScope: ['npm', 'node', 'update'],
+  zoomPercent: 100,
+  ignoreSystemScale: false,
+  funLocale: 'off'
 }
 
 /** Result of a kernel install / uninstall action. */
@@ -118,6 +182,32 @@ export interface AppMeta {
   platform: string | null
 }
 
+/** 首次安装向导探测到的本机运行环境。 */
+export interface EnvProbe {
+  platform: string
+  arch: string
+  /** 系统 Node：present 表示找到；version 形如 v20.11.1（null 表示读不到）。 */
+  node: { present: boolean; version: string | null }
+  /** 是否有系统 npm。 */
+  npm: boolean
+  /** 应用已部署到配置目录的 Node（nodeRuntime='local' 用）。 */
+  local: { present: boolean; version: string | null }
+}
+
+/** 下载部署本地 Node 的结果。 */
+export interface NodeDeployResult {
+  ok: boolean
+  message: string
+  version: string | null
+}
+
+/** 下载部署本地 Node 的进度广播。 */
+export interface NodeDeployProgress {
+  percent: number
+  downloaded: number
+  total: number
+}
+
 /** 自动更新过程状态（由主进程 electron-updater 事件桥接而来）。 */
 export interface AppUpdateEvent {
   kind: 'checking' | 'available' | 'not-available' | 'progress' | 'downloaded' | 'error'
@@ -133,7 +223,7 @@ export interface RendererApi {
   versions: { electron: string; node: string; chrome: string }
 
   getSettings(): Promise<Settings>
-  /** 当前界面语言：读取 dsh settings.yaml 的 locale.preference（zh→zh-CN / en→en-US；未设则跟随系统解析）。 */
+  /** 当前界面语言：读取 dsh settings.yaml 的 locale.preference（zh/en；未设则跟随系统解析）。 */
   getUiLocale(): Promise<ResolvedLocale>
   /** 把界面语言写回 dsh settings.yaml 的 locale.preference（两字母码）。 */
   setUiLocale(locale: ResolvedLocale): Promise<void>
@@ -147,6 +237,16 @@ export interface RendererApi {
   getDshUrl(): Promise<string | null>
   /** Whether a dsh server instance is currently running in the main process. */
   isDshRunning(): Promise<boolean>
+  /** Start / restart the dsh server (start is a no-op-ish restart). */
+  startDsh(): Promise<void>
+  /** Stop the running dsh server and clear its URL. */
+  stopDsh(): Promise<void>
+  /** Restart the dsh server with current settings. */
+  restartDsh(): Promise<void>
+  /** 设置外壳窗口缩放百分比（50–200）。 */
+  setWindowZoom(percent: number): Promise<void>
+  /** 重启应用（用于需重启生效的设置）。 */
+  relaunch(): void
   /** Current installed @deepseek-ai/dsh kernel version (from the local module). */
   getDshVersion(): Promise<string | null>
   /** Whether @deepseek-ai/dsh is present on this machine. */
@@ -209,6 +309,18 @@ export interface RendererApi {
   openExternal(url: string): Promise<void>
   /** Open a native directory picker; resolves the chosen path or null. */
   openDirectory(): Promise<string | null>
+  /** Open a native file picker (e.g. for the dsh launcher); resolves the chosen path or null. */
+  openFile(): Promise<string | null>
+  /** Probe whether a system Node / npm is installed on this machine. */
+  probeEnv(): Promise<EnvProbe>
+  /** 下载并按当前平台/架构把 Node LTS 部署到配置目录（进度会进日志）。 */
+  deployLocalNode(): Promise<NodeDeployResult>
+  /** 本地 Node 部署进度广播。 */
+  onNodeDeployProgress(cb: (p: NodeDeployProgress) => void): () => void
+  /** 当前有效 + 默认的应用配置目录。 */
+  getConfigDir(): Promise<{ current: string; default: string }>
+  /** 设置自选配置目录（传 null 恢复默认）；返回新的当前有效目录。 */
+  setConfigDir(dir: string | null): Promise<string>
   quit(): void
 
   // Frameless-window controls (drawn by the renderer's custom title bar).

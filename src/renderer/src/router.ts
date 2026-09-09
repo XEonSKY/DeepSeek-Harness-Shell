@@ -32,6 +32,7 @@ export const router = createRouter({
         { path: '', name: 'settings-root', redirect: { name: 'settings-general' } },
         { path: 'general', name: 'settings-general', component: () => import('./views/settings/GeneralPanel.vue') },
         { path: 'appearance', name: 'settings-appearance', component: () => import('./views/settings/AppearancePanel.vue') },
+        { path: 'network', name: 'settings-network', component: () => import('./views/settings/NetworkPanel.vue') },
         { path: 'dsh', name: 'settings-dsh', component: () => import('./views/settings/DshPanel.vue') },
         { path: 'about', name: 'settings-about', component: () => import('./views/settings/AboutPanel.vue') }
       ]

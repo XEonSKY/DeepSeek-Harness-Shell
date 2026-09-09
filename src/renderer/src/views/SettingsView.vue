@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { Component } from 'vue'
-import { Setting, Moon, Cpu, InfoFilled } from '@element-plus/icons-vue'
+import { Setting, Moon, Connection, Cpu, InfoFilled } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from './settings/useSettingsStore'
 
-type Group = 'general' | 'appearance' | 'dsh' | 'about'
+type Group = 'general' | 'appearance' | 'network' | 'dsh' | 'about'
 
 const { actions } = useSettingsStore()
 const route = useRoute()
@@ -14,6 +14,7 @@ const router = useRouter()
 const menus: { key: Group; icon: Component }[] = [
   { key: 'general', icon: Setting },
   { key: 'appearance', icon: Moon },
+  { key: 'network', icon: Connection },
   { key: 'dsh', icon: Cpu },
   { key: 'about', icon: InfoFilled }
 ]

@@ -1,66 +1,36 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 import { createInterface } from 'node:readline'
-import type { KernelAction, Settings, UpdateResult } from '@shared/types'
-import { broadcast } from './runtime'
-import { resolveDsh } from './tools'
-import { loadSettings, mt } from './settings'
+import type { KernelAction, Settings, UpdateResult, NodeRuntimeKind } from '@shared/types'
+import { IS_WIN, broadcast } from './runtime'
+import { resolveKernel, nodeRuntimeFor, localNodeNpmCli } from './tools'
+import { loadSettings, mt, localKernelDir, bundledNpmDir } from './settings'
 import { pushLog, rememberChild, isDshRunning, stopAllDsh, restart } from './dsh'
+import { downloadFile } from './downloader'
+import { proxyEnv, npmProxyArgs } from './net'
 import { isPrerelease, compareVersions, pickLatest, sortVersionsDesc } from './semver'
 
 // ---------------------------------------------------------------------------
-// @deepseek-ai/dsh install & version checks
+// @deepseek-ai/dsh install & version checks (source-aware: local vs global)
 // ---------------------------------------------------------------------------
 
-interface DshInstallInfo {
+export interface DshInstallInfo {
   present: boolean
   version: string | null
   dir: string | null
+  kind: 'local' | 'global'
 }
 
-/** Walk upward from a resolved launcher path to find the module's package.json. */
-function findDshManifest(startPath: string): { dir: string; version: string } | null {
-  let d = path.dirname(startPath)
-  for (let i = 0; i < 5; i++) {
-    const moduleDir = path.join(d, 'node_modules', '@deepseek-ai', 'dsh')
-    const pkg = path.join(moduleDir, 'package.json')
-    if (fs.existsSync(pkg)) {
-      try {
-        const v = (JSON.parse(fs.readFileSync(pkg, 'utf8')) as { version?: string }).version
-        if (v) return { dir: moduleDir, version: v }
-      } catch {
-        /* continue walking */
-      }
-    }
-    // The resolved path might itself point inside the module (e.g. .../lib/bin.js)
-    if (path.basename(d) === 'dsh') {
-      const pkg = path.join(d, 'package.json')
-      if (fs.existsSync(pkg)) {
-        try {
-          const v = (JSON.parse(fs.readFileSync(pkg, 'utf8')) as { version?: string }).version
-          if (v) return { dir: d, version: v }
-        } catch {
-          /* continue */
-        }
-      }
-    }
-    d = path.dirname(d)
-  }
-  return null
-}
-
-/** Detect whether @deepseek-ai/dsh is present and read its installed version. */
+/** Detect whether the kernel chosen by cfg.kernelSource is present and its version. */
 export function resolveInstall(cfg: Settings): DshInstallInfo {
-  let launcher: string
-  try {
-    launcher = resolveDsh(cfg.dshBin)
-  } catch {
-    return { present: false, version: null, dir: null }
-  }
-  const m = findDshManifest(launcher)
-  return m ? { present: true, version: m.version, dir: m.dir } : { present: true, version: null, dir: null }
+  const k = resolveKernel(cfg)
+  return { present: k.present, version: k.version, dir: k.moduleDir || null, kind: k.kind }
+}
+
+export function kernelInstalled(): boolean {
+  return resolveInstall(loadSettings()).present
 }
 
 function registryBase(r: 'npmjs' | 'npmmirror'): string {
@@ -96,7 +66,7 @@ export async function performUpdateCheck(
       current: null,
       latest: null,
       message: mt('m.kernel.missingMsg'),
-      command: 'npm install -g @deepseek-ai/dsh'
+      command: ''
     }
   }
   if (!info.version) {
@@ -111,7 +81,6 @@ export async function performUpdateCheck(
       message: mt('m.kernel.registryUnreachable', { version: info.version })
     }
   }
-  // Stable-only by default; when prerelease is requested keep the pre-releases too.
   const pool = opts?.prerelease ? versions : versions.filter((v) => !isPrerelease(v))
   const latest = pickLatest(pool)
   if (!latest) {
@@ -126,40 +95,41 @@ export async function performUpdateCheck(
     current: info.version,
     latest,
     message: mt('m.kernel.newKind', { kind, current: info.version, latest }),
-    command: `npm install -g @deepseek-ai/dsh@${latest}`
+    command: ''
   }
 }
 
-/**
- * Run an npm global command, streaming output into the app's log view.
- * npm must already be on PATH; global installs go to the user's normal prefix
- * (no admin needed when that prefix is user-writable, e.g. %APPDATA%\npm).
- */
-function runNpm(args: string[], label: string): Promise<{ ok: boolean; stderrTail: string }> {
+// ---------------------------------------------------------------------------
+// npm invocation (system npm OR bundled npm run under Electron's Node)
+// ---------------------------------------------------------------------------
+
+type ToolResult = { ok: boolean; stderrTail: string }
+
+/** Spawn any process and stream stdout/stderr into the log view. */
+function runTool(exec: string, argv: string[], label: string, opts: { shell: boolean; env?: NodeJS.ProcessEnv }): Promise<ToolResult> {
   return new Promise((resolve) => {
-    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-    pushLog('o', `[dsh-desktop] ${label} …`)
+    pushLog('o', `[Manager] ${label} …`)
     let stderrTail = ''
     let settled = false
     const child = rememberChild(
-      spawn(npmCmd, args, {
-        shell: process.platform === 'win32',
+      spawn(exec, argv, {
+        shell: opts.shell,
         windowsHide: true,
         cwd: os.homedir(),
-        env: process.env,
+        env: opts.env ?? process.env,
         stdio: ['ignore', 'pipe', 'pipe']
       })
     )
     const rl = createInterface({ input: child.stdout! })
     rl.on('line', (line) => {
       pushLog('o', line)
-      console.log('[npm]', line)
+      console.log('[Manager]', line)
     })
     child.stderr!.on('data', (d: Buffer) => {
       const s = d.toString()
       stderrTail = (stderrTail + s).slice(-3000)
       pushLog('e', s)
-      console.error('[npm]', s.replace(/\n/g, '\n[npm]'))
+      console.error('[Manager]', s.replace(/\n/g, '\n[Manager]'))
     })
     const done = (ok: boolean): void => {
       if (settled) return
@@ -169,34 +139,170 @@ function runNpm(args: string[], label: string): Promise<{ ok: boolean; stderrTai
     child.on('error', () => done(false))
     child.on('exit', (code) => {
       if (code === 0) {
-        pushLog('o', `[dsh-desktop] ${label} completed.`)
+        pushLog('o', `[Manager] ${label} completed.`)
         done(true)
       } else {
-        pushLog('e', `[dsh-desktop] ${label} failed (code=${code}).`)
+        pushLog('e', `[Manager] ${label} failed (code=${code}).`)
         done(false)
       }
     })
   })
 }
 
-/** `npm install -g <pkg>`, optionally pinned to a registry mirror. */
-function runNpmInstall(pkg: string, registry?: 'npmjs' | 'npmmirror'): Promise<{ ok: boolean; stderrTail: string }> {
+/** Run the system `npm` (npm.cmd on Windows). */
+function runNpm(args: string[], label: string): Promise<ToolResult> {
+  const cfg = loadSettings()
+  const env = { ...process.env, ...proxyEnv(cfg, 'npm') }
+  return runTool(IS_WIN ? 'npm.cmd' : 'npm', [...args, ...npmProxyArgs(cfg)], label, { shell: IS_WIN, env })
+}
+
+/** Run an npm-cli.js under a Node runtime (used for the bundled / localnode npm). */
+function runNpmCli(cli: string, args: string[], label: string, runtime?: NodeRuntimeKind): Promise<ToolResult> {
+  const cfg = loadSettings()
+  const rt = nodeRuntimeFor(runtime ?? 'electron')
+  const env = { ...process.env, ...rt.env, ...proxyEnv(cfg, 'npm') }
+  return runTool(rt.exec, [cli, ...args, ...npmProxyArgs(cfg)], label, { shell: false, env })
+}
+
+function runNpmInstallGlobal(pkg: string, registry?: 'npmjs' | 'npmmirror'): Promise<ToolResult> {
   const args = ['install', '-g', pkg]
   if (registry) args.push(`--registry=${registryBase(registry)}`)
   return runNpm(args, `npm install -g ${pkg}`)
 }
 
-// ---------------------------------------------------------------------------
-// Uninstall-failure diagnosis: when `npm uninstall -g` fails we try to find out
-// why the module directory could not be removed (a live process still using it,
-// a read-only / locked folder, etc.) and report a concrete, actionable error.
-// ---------------------------------------------------------------------------
+/** Whether a system `npm` is available on PATH (or the Windows global prefix). */
+function hasSystemNpm(): boolean {
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+  if (IS_WIN) {
+    dirs.push(path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'npm'))
+    for (const d of dirs) {
+      for (const n of ['npm.cmd', 'npm.bat']) {
+        if (fs.existsSync(path.join(d, n))) return true
+      }
+    }
+  } else {
+    for (const d of dirs) {
+      if (fs.existsSync(path.join(d, 'npm'))) return true
+    }
+  }
+  return false
+}
+
+/** Resolve the bundled npm's npm-cli.js after it has been fetched + extracted. */
+function bundledNpmCli(): string {
+  return path.join(bundledNpmDir(), 'package', 'bin', 'npm-cli.js')
+}
+
+/** Locate a system `tar` (Windows ships tar.exe in System32). */
+function findSystemTar(): string | null {
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+  const names = IS_WIN ? ['tar.exe', 'tar'] : ['tar']
+  if (IS_WIN) dirs.push(path.join(process.env.WINDIR || 'C:\\Windows', 'System32'))
+  for (const d of dirs) {
+    for (const n of names) {
+      const p = path.join(d, n)
+      if (fs.existsSync(p)) return p
+    }
+  }
+  return null
+}
 
 /**
- * Windows: list running processes whose command line references the dsh module
- * directory (i.e. still launched from it). EncodedCommand is used so the probe's
- * own command line does not contain the needle and match itself. Best effort.
+ * Make the bundled npm available: if it is not already cached in the app dir,
+ * fetch a pinned npm tarball from the chosen registry and extract it with a
+ * system tar. Once ready its bin is run under Electron's own Node.
  */
+async function ensureBundledNpm(cfg: Settings): Promise<{ ok: boolean; cli?: string; message?: string }> {
+  const cli = bundledNpmCli()
+  if (fs.existsSync(cli)) return { ok: true, cli }
+  const base = registryBase(cfg.npmRegistry)
+  let version = ''
+  try {
+    const res = await fetch(`${base}/npm/latest`)
+    if (!res.ok) throw new Error('registry')
+    const meta = (await res.json()) as { version?: string }
+    if (!meta.version) throw new Error('no version')
+    version = meta.version
+  } catch {
+    return { ok: false, message: mt('m.kernel.bundledNpmFetchFail') }
+  }
+  const npmDir = bundledNpmDir()
+  try {
+    fs.mkdirSync(npmDir, { recursive: true })
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) }
+  }
+  const tgz = path.join(npmDir, `npm-${version}.tgz`)
+  try {
+    fs.unlinkSync(tgz)
+  } catch {
+    /* no stale file */
+  }
+  const dl = await downloadFile({ url: `${base}/npm/-/npm-${version}.tgz`, destDir: npmDir, fileName: `npm-${version}.tgz` })
+  if (!dl.ok) {
+    return { ok: false, message: mt('m.kernel.bundledNpmFetchFail') }
+  }
+  const tar = findSystemTar()
+  if (!tar) {
+    return { ok: false, message: mt('m.kernel.bundledNpmNoTar') }
+  }
+  const r = spawnSync(tar, ['-xzf', tgz, '-C', npmDir], { encoding: 'utf8' })
+  try {
+    fs.unlinkSync(tgz)
+  } catch {
+    /* best effort */
+  }
+  if (r.status !== 0) return { ok: false, message: mt('m.kernel.bundledNpmExtractFail') }
+  if (fs.existsSync(cli)) return { ok: true, cli }
+  return { ok: false, message: mt('m.kernel.bundledNpmMissing') }
+}
+
+/**
+ * Pick the npm to use for a LOCAL install per cfg.npmSource:
+ *  - 'system'   : the system npm (error when none).
+ *  - 'bundled'  : the bundled npm (fetched/cached on first use).
+ *  - 'localnode': the npm bundled with the deployed local Node.
+ * `cli === null` means "use the system npm"; otherwise the npm-cli.js path,
+ * plus the Node runtime it must run under.
+ */
+async function chooseLocalNpm(cfg: Settings): Promise<{ ok: boolean; cli: string | null; runtime?: NodeRuntimeKind; message?: string }> {
+  if (cfg.npmSource === 'bundled') {
+    const b = await ensureBundledNpm(cfg)
+    return b.ok && b.cli ? { ok: true, cli: b.cli, runtime: 'electron' } : { ok: false, cli: null, message: b.message }
+  }
+  if (cfg.npmSource === 'localnode') {
+    const cli = localNodeNpmCli()
+    if (!cli) return { ok: false, cli: null, message: mt('m.kernel.noLocalNodeNpm') }
+    return { ok: true, cli, runtime: 'local' }
+  }
+  if (hasSystemNpm()) return { ok: true, cli: null }
+  return { ok: false, cli: null, message: mt('m.kernel.noSystemNpm') }
+}
+
+/** Local install into ~/.config/dsh_shell/kernel via `npm --prefix`. */
+async function runLocalNpmInstall(target: string, cfg: Settings): Promise<{ ok: boolean; stderrTail: string; fatal?: string }> {
+  const npm = await chooseLocalNpm(cfg)
+  if (!npm.ok) return { ok: false, stderrTail: '', fatal: npm.message }
+  const kernelDir = localKernelDir()
+  try {
+    fs.mkdirSync(kernelDir, { recursive: true })
+    const pkgFile = path.join(kernelDir, 'package.json')
+    if (!fs.existsSync(pkgFile)) {
+      fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dsh-shell-kernel', private: true, version: '0.0.0' }, null, 2))
+    }
+  } catch (err) {
+    return { ok: false, stderrTail: '', fatal: err instanceof Error ? err.message : String(err) }
+  }
+  const args = ['install', '--prefix', kernelDir, '--no-audit', '--no-fund', target]
+  if (cfg.npmRegistry) args.push(`--registry=${registryBase(cfg.npmRegistry)}`)
+  const label = `npm install ${target} (local)`
+  return npm.cli ? runNpmCli(npm.cli, args, label, npm.runtime ?? 'electron') : runNpm(args, label)
+}
+
+// ---------------------------------------------------------------------------
+// Uninstall-failure diagnosis (global npm only — the module may be locked)
+// ---------------------------------------------------------------------------
+
 function detectHolders(dir: string): Promise<string[]> {
   return new Promise((resolve) => {
     const escDir = dir.replace(/'/g, "''")
@@ -237,11 +343,6 @@ function detectHolders(dir: string): Promise<string[]> {
   })
 }
 
-/**
- * Probe whether the module directory is locked / not removable: renaming a
- * directory whose contents are open (or that is read-only / held) fails on
- * Windows. The rename is immediately reversed; returns true when locked.
- */
 function probeDirInUse(dir: string): boolean {
   const tmp = `${dir}.~uninstall-probe-${Date.now()}`
   try {
@@ -255,13 +356,12 @@ function probeDirInUse(dir: string): boolean {
     try {
       fs.renameSync(tmp, dir)
     } catch {
-      console.error('[dsh-desktop] could not restore module dir after lock probe:', tmp)
+      console.error('[Manager] could not restore module dir after lock probe:', tmp)
     }
   }
   return false
 }
 
-/** Compose a localized, cause-specific message for a failed uninstall. */
 async function uninstallDiagnose(dir: string | null, tail: string): Promise<string> {
   const fallback = mt('m.kernel.uninstallFail', { tail: tail.trim() || '...' })
   if (!dir) return fallback
@@ -269,7 +369,7 @@ async function uninstallDiagnose(dir: string | null, tail: string): Promise<stri
   const dirExists = fs.existsSync(dir)
   let reason: string
   if (dirExists) {
-    const holders = process.platform === 'win32' ? await detectHolders(dir) : []
+    const holders = IS_WIN ? await detectHolders(dir) : []
     if (holders.length) {
       reason = mt('m.kernel.uninstallReasonHolder', { procs: holders.slice(0, 5).join('；') })
     } else if (probeDirInUse(dir)) {
@@ -288,10 +388,6 @@ function busyMsg(): KernelAction {
   return { ok: false, message: mt('m.kernel.busy'), version: null }
 }
 
-export function kernelInstalled(): boolean {
-  return resolveInstall(loadSettings()).present
-}
-
 /** Newest considered published versions (newest first). */
 export async function listVersions(opts?: { prerelease?: boolean; registry?: 'npmjs' | 'npmmirror' }): Promise<string[]> {
   const cfg = loadSettings()
@@ -301,30 +397,48 @@ export async function listVersions(opts?: { prerelease?: boolean; registry?: 'np
   return sortVersionsDesc(versions, opts?.prerelease ?? cfg.checkPrerelease)
 }
 
-/** Upgrade to the newest considered version via npm install -g. */
+async function resolveTargetVersion(cfg: Settings, registry: 'npmjs' | 'npmmirror'): Promise<string> {
+  const versions = await fetchPublishedVersions(registry)
+  if (!versions || !versions.length) throw new Error(mt('m.kernel.installNoVersions'))
+  const picked = pickLatest(cfg.checkPrerelease ? versions : versions.filter((v) => !isPrerelease(v)))
+  if (!picked) throw new Error(mt('m.kernel.installNone'))
+  return picked
+}
+
+/** Upgrade / install the kernel to the newest (or a specific) version. */
+async function installTo(local: boolean, target: string, registry: 'npmjs' | 'npmmirror', cfg: Settings): Promise<KernelAction> {
+  const wasRunning = isDshRunning()
+  stopAllDsh()
+  let result: { ok: boolean; stderrTail: string; fatal?: string }
+  if (local) {
+    result = await runLocalNpmInstall(`@deepseek-ai/dsh@${target}`, cfg)
+  } else {
+    result = await runNpmInstallGlobal(`@deepseek-ai/dsh@${target}`, registry)
+  }
+  if (!result.ok) {
+    if (wasRunning) void restart()
+    const message =
+      result.fatal ??
+      (local ? mt('m.kernel.localInstallFail', { tail: result.stderrTail.trim() || '...' }) : mt('m.kernel.installFail', { tail: result.stderrTail.trim() || '...' }))
+    return { ok: false, message, version: null }
+  }
+  void restart() // bring the new/installed kernel up
+  return { ok: true, message: mt('m.kernel.installOk', { version: target }), version: target }
+}
+
+/** Upgrade to the newest considered version. */
 export async function updateKernel(opts?: { registry?: 'npmjs' | 'npmmirror' }): Promise<KernelAction> {
   if (kernelBusy) return busyMsg()
   const cfg = loadSettings()
   const effRegistry = opts?.registry ?? cfg.npmRegistry
+  const local = cfg.kernelSource !== 'global'
   const check = await performUpdateCheck(cfg, { prerelease: cfg.checkPrerelease, registry: effRegistry })
   if (check.status !== 'update' || !check.latest) {
     return { ok: false, message: check.message || '', version: null }
   }
-  const target = check.latest
-  // A live dsh process would lock the module files, so force-close every dsh
-  // instance before npm swaps the kernel. If one was running we restore it
-  // afterwards so a failed upgrade does not leave the shell serverless.
-  const wasRunning = isDshRunning()
-  stopAllDsh()
   kernelBusy = true
   try {
-    const r = await runNpmInstall(`@deepseek-ai/dsh@${target}`, effRegistry)
-    if (!r.ok) {
-      if (wasRunning) void restart()
-      return { ok: false, message: mt('m.kernel.updateFail', { tail: r.stderrTail.trim() || '...' }), version: null }
-    }
-    void restart() // bring the newly upgraded kernel up
-    return { ok: true, message: mt('m.kernel.updateOk', { version: target }), version: target }
+    return await installTo(local, check.latest, effRegistry, cfg)
   } finally {
     kernelBusy = false
   }
@@ -335,46 +449,45 @@ export async function installKernel(opts?: { version?: string | null; registry?:
   if (kernelBusy) return busyMsg()
   const cfg = loadSettings()
   const registry = opts?.registry ?? cfg.npmRegistry
+  const local = cfg.kernelSource !== 'global'
   let target = (opts?.version ?? '').trim()
   if (!target) {
-    const versions = await fetchPublishedVersions(registry)
-    if (!versions || !versions.length) return { ok: false, message: mt('m.kernel.installNoVersions'), version: null }
-    const picked = pickLatest(cfg.checkPrerelease ? versions : versions.filter((v) => !isPrerelease(v)))
-    target = picked || ''
-    if (!target) return { ok: false, message: mt('m.kernel.installNone'), version: null }
+    try {
+      target = await resolveTargetVersion(cfg, registry)
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err), version: null }
+    }
   }
-  // Same as update: a running dsh locks the module, so shut every instance down
-  // first. If one was running and the install fails we restart the old kernel;
-  // on success we restart so the newly (re)installed version becomes active.
-  const wasRunning = isDshRunning()
-  stopAllDsh()
   kernelBusy = true
   try {
-    const r = await runNpmInstall(`@deepseek-ai/dsh@${target}`, registry)
-    if (!r.ok) {
-      if (wasRunning) void restart()
-      return { ok: false, message: mt('m.kernel.installFail', { tail: r.stderrTail.trim() || '...' }), version: null }
-    }
-    void restart() // fresh install → bring up dsh; switch → run the new version
-    return { ok: true, message: mt('m.kernel.installOk', { version: target }), version: target }
+    return await installTo(local, target, registry, cfg)
   } finally {
     kernelBusy = false
   }
 }
 
-/** Uninstall @deepseek-ai/dsh (stops dsh first), then asks the shell to show the install mask. */
+/** Uninstall the effective kernel. */
 export async function uninstallKernel(): Promise<KernelAction> {
   if (kernelBusy) return busyMsg()
-  // Remember where the module lives now; on failure we inspect that path to
-  // detect what is still occupying it.
-  const dir = resolveInstall(loadSettings()).dir
+  const info = resolveInstall(loadSettings())
+  const local = info.kind === 'local'
   kernelBusy = true
   try {
     stopAllDsh()
+    if (local) {
+      try {
+        // Removing the local module dir is enough (npm managed it under our prefix).
+        if (info.dir) fs.rmSync(info.dir, { recursive: true, force: true })
+        else fs.rmSync(path.join(localKernelDir(), 'node_modules'), { recursive: true, force: true })
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err), version: null }
+      }
+      broadcast('kernel:missing')
+      return { ok: true, message: mt('m.kernel.uninstallOk'), version: null }
+    }
     const r = await runNpm(['uninstall', '-g', '@deepseek-ai/dsh'], 'npm uninstall -g @deepseek-ai/dsh')
     if (!r.ok) {
-      // Diagnose the occupation cause and return a concrete, actionable error.
-      const message = await uninstallDiagnose(dir, r.stderrTail)
+      const message = await uninstallDiagnose(info.dir, r.stderrTail)
       return { ok: false, message, version: null }
     }
     broadcast('kernel:missing')

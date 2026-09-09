@@ -175,7 +175,7 @@ export function createTray(): void {
   } catch (err) {
     // Tray may be unavailable (e.g. some Linux setups). Degrade gracefully:
     // closing the window then falls back to the previous hide-to-tray-less path.
-    console.error('[dsh-desktop] failed to create tray:', err)
+    console.error('[Manager] failed to create tray:', err)
     setTray(null)
   }
 }

@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { Promotion, Refresh } from '@element-plus/icons-vue'
 import { useSettingsStore } from './useSettingsStore'
+import PanelCard from './PanelCard.vue'
 import { friendlyPlatform } from './settingsStore'
 import type { AppMeta, AppUpdateEvent } from '@shared/types'
 import aboutIcon from '../../assets/icon.png'
@@ -94,7 +95,10 @@ onBeforeUnmount(() => offEvent?.())
     </div>
 
     <!-- 更新开关 -->
-    <el-card shadow="never" class="sec">
+    <PanelCard id="about-options">
+      <template #header>
+        <div class="sec__title">{{ $t('sv.about.options') }}</div>
+      </template>
       <div class="kopt">
         <div class="au">
           <div class="au__txt">
@@ -118,10 +122,10 @@ onBeforeUnmount(() => offEvent?.())
           <el-switch v-model="state.devMode" />
         </div>
       </div>
-    </el-card>
+    </PanelCard>
 
     <!-- 更新操作区 -->
-    <el-card shadow="never" class="sec">
+    <PanelCard id="about-check">
       <template #header>
         <div class="sec__title"><el-icon><Refresh /></el-icon> {{ $t('sv.about.checkTitle') }}</div>
       </template>
@@ -176,7 +180,7 @@ onBeforeUnmount(() => offEvent?.())
         show-icon
         :closable="false"
       />
-    </el-card>
+    </PanelCard>
   </div>
 </template>
 

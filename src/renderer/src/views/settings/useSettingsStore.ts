@@ -35,6 +35,18 @@ export const useSettingsStore = defineStore('settings', () => {
     appAutoUpdate: DEFAULT_SETTINGS.appAutoUpdate,
     appCheckPrerelease: DEFAULT_SETTINGS.appCheckPrerelease,
     devMode: DEFAULT_SETTINGS.devMode,
+    kernelSource: DEFAULT_SETTINGS.kernelSource,
+    nodeRuntime: DEFAULT_SETTINGS.nodeRuntime,
+    npmSource: DEFAULT_SETTINGS.npmSource,
+    proxyEnabled: DEFAULT_SETTINGS.proxyEnabled,
+    proxyProtocol: DEFAULT_SETTINGS.proxyProtocol,
+    proxyHost: DEFAULT_SETTINGS.proxyHost,
+    proxyPort: DEFAULT_SETTINGS.proxyPort,
+    proxyScope: [...DEFAULT_SETTINGS.proxyScope],
+    zoomPercent: DEFAULT_SETTINGS.zoomPercent,
+    ignoreSystemScale: DEFAULT_SETTINGS.ignoreSystemScale,
+    funLocale: DEFAULT_SETTINGS.funLocale,
+    dshRunning: false,
     applying: false,
     updating: false,
     updatingKernel: false,
@@ -63,6 +75,17 @@ export const useSettingsStore = defineStore('settings', () => {
     state.appAutoUpdate = s.appAutoUpdate !== false
     state.appCheckPrerelease = s.appCheckPrerelease === true
     state.devMode = s.devMode === true
+    state.kernelSource = s.kernelSource ?? DEFAULT_SETTINGS.kernelSource
+    state.nodeRuntime = s.nodeRuntime ?? DEFAULT_SETTINGS.nodeRuntime
+    state.npmSource = s.npmSource ?? DEFAULT_SETTINGS.npmSource
+    state.proxyEnabled = s.proxyEnabled === true
+    state.proxyProtocol = s.proxyProtocol ?? DEFAULT_SETTINGS.proxyProtocol
+    state.proxyHost = s.proxyHost ?? DEFAULT_SETTINGS.proxyHost
+    state.proxyPort = s.proxyPort ?? DEFAULT_SETTINGS.proxyPort
+    state.proxyScope = Array.isArray(s.proxyScope) ? [...s.proxyScope] : [...DEFAULT_SETTINGS.proxyScope]
+    state.zoomPercent = s.zoomPercent ?? DEFAULT_SETTINGS.zoomPercent
+    state.ignoreSystemScale = s.ignoreSystemScale === true
+    state.funLocale = s.funLocale ?? DEFAULT_SETTINGS.funLocale
     appState.workspace = s.workspace
     if (typeof s.port === 'number' && s.port > 0) {
       state.portMode = 'manual'
@@ -99,6 +122,54 @@ export const useSettingsStore = defineStore('settings', () => {
     if (p) {
       state.workspace = p
       appState.workspace = p
+    }
+  }
+
+  /** 全局模式下选择 dsh 启动器文件（dshBin）。 */
+  async function browseDshBin(): Promise<void> {
+    const p = await window.api.openFile()
+    if (p) state.dshBin = p
+  }
+
+  /** 刷新 dsh 运行状态。 */
+  async function refreshRunning(): Promise<void> {
+    try {
+      state.dshRunning = await window.api.isDshRunning()
+    } catch {
+      state.dshRunning = false
+    }
+  }
+
+  /** 启动 dsh（未运行时拉起来）。 */
+  async function startDsh(): Promise<void> {
+    try {
+      await window.api.startDsh()
+    } catch (err) {
+      ElMessage.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      await refreshRunning()
+    }
+  }
+
+  /** 停止 dsh。 */
+  async function stopDsh(): Promise<void> {
+    try {
+      await window.api.stopDsh()
+    } catch (err) {
+      ElMessage.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      await refreshRunning()
+    }
+  }
+
+  /** 用当前配置重启 dsh。 */
+  async function restartDsh(): Promise<void> {
+    try {
+      await window.api.restartDsh()
+    } catch (err) {
+      ElMessage.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      await refreshRunning()
     }
   }
 
@@ -290,8 +361,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const actions: SettingsActions = {
     loadVersion,
     browseWorkspace,
+    browseDshBin,
     apply,
     resetAll,
+    refreshRunning,
+    startDsh,
+    stopDsh,
+    restartDsh,
     loadVersions,
     versionLabel,
     runUpdateCheck,
@@ -319,10 +395,23 @@ export const useSettingsStore = defineStore('settings', () => {
       state.timeoutMs,
       state.appAutoUpdate,
       state.appCheckPrerelease,
-      state.devMode
+      state.devMode,
+      state.kernelSource,
+      state.nodeRuntime,
+      state.npmSource,
+      state.proxyEnabled,
+      state.proxyProtocol,
+      state.proxyHost,
+      state.proxyPort,
+      () => state.proxyScope.join(','),
+      state.zoomPercent,
+      state.ignoreSystemScale,
+      state.funLocale
     ],
     scheduleSave
   )
+  // 缩放即时生效（写主进程窗口 zoom；webview 缩放由 HomeView 订阅设置同步）。
+  watch(() => state.zoomPercent, (v) => void window.api.setWindowZoom(v))
   // 主题即时生效（dsh 自己 watch 同步的 settings.yaml，无需手动刷新）。
   watch(() => state.theme, (t: Theme) => applyTheme(t))
   // 预发布开关/镜像变化时重建版本列表。

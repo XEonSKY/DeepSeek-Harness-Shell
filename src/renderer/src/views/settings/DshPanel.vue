@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { Cpu, Promotion, Refresh } from '@element-plus/icons-vue'
+import { onMounted } from 'vue'
+import { Cpu, Folder, Promotion, Refresh } from '@element-plus/icons-vue'
 import { kernelCheck } from '../../update'
 import { useSettingsStore } from './useSettingsStore'
+import PanelCard from './PanelCard.vue'
 
 const { state, actions } = useSettingsStore()
+
+onMounted(() => {
+  void actions.refreshRunning()
+})
 </script>
 
 <template>
@@ -28,33 +34,69 @@ const { state, actions } = useSettingsStore()
       </div>
     </div>
 
-    <el-card shadow="never" class="sec">
+    <PanelCard id="dsh-startup">
       <template #header>
         <div class="sec__title"><el-icon><Cpu /></el-icon> {{ $t('sv.dsh.startup') }}</div>
       </template>
       <el-form label-position="top">
-        <el-form-item :label="$t('sv.dsh.launcherPath')">
-          <el-input v-model="state.dshBin" :placeholder="$t('sv.dsh.launcherPlaceholder')" />
-          <div class="hint">{{ $t('sv.dsh.launcherHint') }}</div>
-        </el-form-item>
         <el-form-item :label="$t('sv.dsh.timeout')">
           <el-input-number v-model="state.timeoutMs" :min="5000" :step="5000" />
           <div class="hint">{{ $t('sv.dsh.timeoutHint') }}</div>
         </el-form-item>
+
+        <el-form-item :label="$t('sv.dsh.kernelSource')">
+          <el-select v-model="state.kernelSource" class="dd">
+            <el-option :value="'local'" :label="$t('sv.dsh.kernelLocal')" />
+            <el-option :value="'global'" :label="$t('sv.dsh.kernelGlobal')" />
+          </el-select>
+          <div class="hint">{{ state.kernelSource === 'local' ? $t('sv.dsh.kernelLocalHint') : $t('sv.dsh.kernelGlobalHint') }}</div>
+        </el-form-item>
+
+        <!-- 启动器路径：仅全局模式，用文件选择器选择 -->
+        <el-form-item v-if="state.kernelSource === 'global'" :label="$t('sv.dsh.launcherPath')">
+          <div class="row">
+            <el-input v-model="state.dshBin" readonly :placeholder="$t('sv.dsh.launcherPlaceholder')" />
+            <el-button :icon="Folder" @click="actions.browseDshBin()">{{ $t('sv.dsh.browseLauncher') }}</el-button>
+          </div>
+          <div class="hint">{{ $t('sv.dsh.launcherHint') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="$t('sv.dsh.nodeRuntime')">
+          <el-select v-model="state.nodeRuntime" class="dd">
+            <el-option :value="'electron'" :label="$t('sv.dsh.nodeElectron')" />
+            <el-option :value="'system'" :label="$t('sv.dsh.nodeSystem')" />
+            <el-option :value="'local'" :label="$t('sv.dsh.nodeLocal')" />
+          </el-select>
+          <div class="hint">{{ $t('sv.dsh.nodeRuntimeHint') }}</div>
+        </el-form-item>
+
+        <el-form-item v-if="state.kernelSource === 'local'" :label="$t('sv.dsh.npmSource')">
+          <el-select v-model="state.npmSource" class="dd">
+            <el-option :value="'system'" :label="$t('sv.dsh.npmSystem')" />
+            <el-option :value="'bundled'" :label="$t('sv.dsh.npmBundled')" />
+            <el-option :value="'localnode'" :label="$t('sv.dsh.npmLocalNode')" />
+          </el-select>
+          <div class="hint">{{ $t('sv.dsh.npmSourceHint') }}</div>
+        </el-form-item>
       </el-form>
-    </el-card>
 
-    <el-card shadow="never" class="sec apply-sec">
-      <template #header>
-        <div class="sec__title"><el-icon><Promotion /></el-icon> {{ $t('sv.dsh.applyTitle') }}</div>
-      </template>
-      <div class="apply-row">
-        <div class="apply__txt">{{ $t('sv.dsh.applyTxt') }}</div>
-        <el-button type="primary" :loading="state.applying" @click="actions.apply()">{{ $t('sv.dsh.applyBtn') }}</el-button>
+      <!-- 启动 / 停止 / 重启 · 立即应用 -->
+      <div class="ctl-row" style="display: flex; align-items: center; gap: 10px; margin-top: 4px">
+        <el-tag :type="state.dshRunning ? 'success' : 'info'" size="small" effect="plain">
+          {{ state.dshRunning ? $t('sv.dsh.running') : $t('sv.dsh.stopped') }}
+        </el-tag>
+        <el-button-group>
+          <el-button size="small" type="primary" :disabled="state.dshRunning" @click="actions.startDsh()">{{ $t('sv.dsh.start') }}</el-button>
+          <el-button size="small" :disabled="!state.dshRunning" @click="actions.stopDsh()">{{ $t('sv.dsh.stop') }}</el-button>
+          <el-button size="small" @click="actions.restartDsh()">{{ $t('sv.dsh.restart') }}</el-button>
+        </el-button-group>
+        <el-button type="primary" style="margin-left: auto" :loading="state.applying" @click="actions.apply()">
+          {{ $t('sv.dsh.applyBtn') }}
+        </el-button>
       </div>
-    </el-card>
+    </PanelCard>
 
-    <el-card shadow="never" class="sec">
+    <PanelCard id="dsh-update">
       <template #header>
         <div class="sec__title"><el-icon><Refresh /></el-icon> {{ $t('sv.dsh.kernelUpdate') }}</div>
       </template>
@@ -91,22 +133,9 @@ const { state, actions } = useSettingsStore()
           </el-button>
         </div>
       </div>
-    </el-card>
 
-    <!-- 版本管理 -->
-    <el-card shadow="never" class="sec">
-      <template #header>
-        <div class="sec__title"><el-icon><Cpu /></el-icon> {{ $t('sv.dsh.versionMgmt') }}</div>
-      </template>
-      <el-form label-position="top">
-        <el-form-item :label="$t('sv.dsh.registry')">
-          <el-select v-model="state.npmRegistry" class="vm-reg">
-            <el-option :label="$t('sv.dsh.registryNpmjs')" value="npmjs" />
-            <el-option :label="$t('sv.dsh.registryNpmmirror')" value="npmmirror" />
-          </el-select>
-          <div class="hint">{{ $t('sv.dsh.registryHint') }}</div>
-        </el-form-item>
-
+      <div class="upd-sep" />
+      <el-form label-position="top" class="vm-in">
         <el-form-item :label="$t('sv.dsh.selectVersion')">
           <div class="vm-row">
             <el-select v-model="state.selectedVersion" filterable :placeholder="$t('sv.dsh.selectPlaceholder')" class="vm-sel" :disabled="state.versionsLoading || state.switchingKernel">
@@ -125,6 +154,7 @@ const { state, actions } = useSettingsStore()
         <div class="vm-un__txt">{{ $t('sv.dsh.uninstallTxt', { pkg: '@deepseek-ai/dsh' }) }}</div>
         <el-button type="danger" plain :loading="state.uninstalling" @click="actions.confirmUninstall()">{{ $t('sv.dsh.uninstall') }}</el-button>
       </div>
-    </el-card>
+    </PanelCard>
   </div>
 </template>
+

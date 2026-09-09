@@ -14,21 +14,21 @@ import type { ResolvedLocale } from '@shared/types'
 
 /**
  * 启动：界面语言来自 dsh settings.yaml 的 locale.preference（zh/en），由主进程经
- * `getUiLocale` 解析返回；读不到时回退为跟随系统（zh-CN/en-US）。据此挂载 vue-i18n
+ * `getUiLocale` 解析返回；读不到时回退为跟随系统（zh/en）。据此挂载 vue-i18n
  * 与 Element Plus。
  */
 async function bootstrap(): Promise<void> {
-  let resolved: ResolvedLocale = 'zh-CN'
+  let resolved: ResolvedLocale = 'zh'
   try {
     resolved = await window.api.getUiLocale()
   } catch {
-    /* window.api 可能在异常环境不可用，按 zh-CN 处理 */
+    /* window.api 可能在异常环境不可用，按 zh 处理 */
   }
   i18n.global.locale.value = resolved
 
   const app = createApp(App)
   app.use(createPinia())
-  app.use(ElementPlus, { locale: resolved === 'zh-CN' ? zhCn : en })
+  app.use(ElementPlus, { locale: resolved === 'zh' ? zhCn : en })
   app.use(i18n)
   app.use(router)
   app.mount('#app')

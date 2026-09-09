@@ -1,4 +1,4 @@
-import type { AppUpdateResult, NpmRegistry, Settings, Theme } from '@shared/types'
+import type { AppUpdateResult, FunLocale, NpmRegistry, NpmSource, ProxyProtocol, ProxyScope, Settings, Theme, NodeRuntimeKind } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/types'
 import type { InjectionKey } from 'vue'
 
@@ -32,6 +32,22 @@ export interface SettingsState {
   appAutoUpdate: boolean
   appCheckPrerelease: boolean
   devMode: boolean
+  /** 内核来源：'local'（内置/默认）｜ 'global'（使用全局安装）。 */
+  kernelSource: 'local' | 'global'
+  /** Node 运行时：'system' ｜ 'electron'(默认) ｜ 'local'。 */
+  nodeRuntime: NodeRuntimeKind
+  /** 本地安装用的 npm：'system' ｜ 'bundled'(内置) ｜ 'localnode'(本地 Node 自带)。 */
+  npmSource: NpmSource
+  proxyEnabled: boolean
+  proxyProtocol: ProxyProtocol
+  proxyHost: string
+  proxyPort: number | null
+  proxyScope: ProxyScope[]
+  zoomPercent: number
+  ignoreSystemScale: boolean
+  funLocale: FunLocale
+  /** dsh 是否正在运行（仅 UI，不持久化）。 */
+  dshRunning: boolean
   applying: boolean
   updating: boolean
   updatingKernel: boolean
@@ -51,8 +67,13 @@ export interface SettingsState {
 export interface SettingsActions {
   loadVersion(): Promise<void>
   browseWorkspace(): Promise<void>
+  browseDshBin(): Promise<void>
   apply(): Promise<void>
   resetAll(): Promise<void>
+  refreshRunning(): Promise<void>
+  startDsh(): Promise<void>
+  stopDsh(): Promise<void>
+  restartDsh(): Promise<void>
   loadVersions(): Promise<void>
   versionLabel(v: string): string
   runUpdateCheck(): Promise<void>
@@ -88,6 +109,17 @@ export function payloadFrom(state: SettingsState): Settings {
     npmRegistry: state.npmRegistry,
     appAutoUpdate: state.appAutoUpdate,
     appCheckPrerelease: state.appCheckPrerelease,
-    devMode: state.devMode
+    devMode: state.devMode,
+    kernelSource: state.kernelSource,
+    nodeRuntime: state.nodeRuntime,
+    npmSource: state.npmSource,
+    proxyEnabled: state.proxyEnabled,
+    proxyProtocol: state.proxyProtocol,
+    proxyHost: state.proxyHost,
+    proxyPort: state.proxyPort,
+    proxyScope: [...state.proxyScope],
+    zoomPercent: state.zoomPercent,
+    ignoreSystemScale: state.ignoreSystemScale,
+    funLocale: state.funLocale
   }
 }

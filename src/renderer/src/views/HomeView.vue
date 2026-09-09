@@ -7,7 +7,12 @@ const holder = ref<HTMLDivElement | null>(null)
 let wv: any = null
 let offUrl: (() => void) | null = null
 let offReload: (() => void) | null = null
+let offSettings: (() => void) | null = null
 let pollTimer: number | null = null
+
+function applyZoom(pct: number): void {
+  if (wv && typeof wv.setZoomFactor === 'function') wv.setZoomFactor((pct || 100) / 100)
+}
 
 // The webview is created once the container is mounted (it always exists), so
 // there is no dependency on a v-if swap happening before we set the src.
@@ -22,6 +27,11 @@ function ensureWebview(): void {
   wv.addEventListener('dom-ready', () => {
     appState.connected = true
     appState.starting = false
+    // 与外壳缩放保持一致
+    void window.api
+      .getSettings()
+      .then((s) => applyZoom(s.zoomPercent ?? 100))
+      .catch(() => {})
   })
 }
 
@@ -75,6 +85,8 @@ onMounted(async () => {
   ensureWebview()
   offUrl = window.api.onDshUrl((u) => void applyUrl(u))
   offReload = window.api.onReloadDsh(reload) // title-bar refresh (UI page only)
+  // 设置变更时实时同步 webview 缩放
+  offSettings = window.api.onSettingsChanged((s) => applyZoom(s.zoomPercent ?? 100))
   startPolling()
   const u = await window.api.getDshUrl()
   await applyUrl(u)
@@ -83,6 +95,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   offUrl?.()
   offReload?.()
+  offSettings?.()
   stopPolling()
   if (wv && holder.value && wv.parentNode === holder.value) {
     try {

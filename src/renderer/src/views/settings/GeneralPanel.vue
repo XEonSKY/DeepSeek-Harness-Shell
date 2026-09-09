@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { Folder, Refresh, SwitchButton, Setting } from '@element-plus/icons-vue'
 import { useSettingsStore } from './useSettingsStore'
+import PanelCard from './PanelCard.vue'
 
 const { state, actions } = useSettingsStore()
 </script>
 
 <template>
   <div class="panel">
-    <el-card shadow="never" class="sec">
+    <PanelCard id="general-run">
       <template #header>
         <div class="sec__title"><el-icon><Setting /></el-icon> {{ $t('sv.general.run') }}</div>
       </template>
@@ -31,9 +32,9 @@ const { state, actions } = useSettingsStore()
           <div class="hint">{{ $t('sv.general.portHint') }}</div>
         </el-form-item>
       </el-form>
-    </el-card>
+    </PanelCard>
 
-    <el-card shadow="never" class="sec">
+    <PanelCard id="general-close">
       <template #header>
         <div class="sec__title"><el-icon><SwitchButton /></el-icon> {{ $t('sv.general.closeBehavior') }}</div>
       </template>
@@ -47,9 +48,9 @@ const { state, actions } = useSettingsStore()
         </div>
         <div class="hint">{{ $t('sv.general.askEveryHint') }}</div>
       </div>
-    </el-card>
+    </PanelCard>
 
-    <el-card shadow="never" class="sec reset-sec">
+    <PanelCard id="general-reset">
       <template #header>
         <div class="sec__title"><el-icon><Refresh /></el-icon> {{ $t('sv.general.reset') }}</div>
       </template>
@@ -57,6 +58,6 @@ const { state, actions } = useSettingsStore()
         <div class="reset__txt">{{ $t('sv.general.resetTxt') }}</div>
         <el-button plain type="danger" @click="actions.resetAll()">{{ $t('sv.general.resetBtn') }}</el-button>
       </div>
-    </el-card>
+    </PanelCard>
   </div>
 </template>

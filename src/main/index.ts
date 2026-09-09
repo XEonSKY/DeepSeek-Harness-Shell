@@ -2,11 +2,12 @@ import path from 'node:path'
 import { app } from 'electron'
 import { registerIpc } from './ipc'
 import { startAutoCheckIfEnabled } from './appupdate'
-import { loadSettings, startConfigWatchers, readDiskSettings } from './settings'
+import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme } from './settings'
 import { createShellWindow, createTray, showMainWindow } from './ui'
 import { resolveInstall } from './kernel'
-import { restart, killServer, killAllChildren } from './dsh'
-import { getTray, isQuitting, setQuitting, destroyTray } from './runtime'
+import { restart, killServer, killAllChildren, stopDshGracefully } from './dsh'
+import { getTray, getMainWindow, setQuitting, destroyTray } from './runtime'
+import { registerShellWindow } from './windowreg'
 
 // ---------------------------------------------------------------------------
 // Dev vs release isolation. A dev run must not grab the installed release's
@@ -55,12 +56,17 @@ if (!gotLock) {
   // Boot: wire IPC, start the external-config watchers, open the window/tray,
   // and launch dsh when the kernel is present.
   app.whenReady().then(async () => {
+    const cfg = loadSettings()
+    syncNativeTheme(cfg.theme) // 建窗前先让 webview 深浅色与外壳一致
     registerIpc()
     startConfigWatchers()
     createShellWindow()
+    {
+      const mw = getMainWindow()
+      if (mw) registerShellWindow(mw, true) // 首个窗口为核心
+    }
     createTray()
 
-    const cfg = loadSettings()
     // Launch dsh only if the kernel is present. When missing we do not show a
     // native prompt anymore — the renderer detects it on load and shows the
     // in-app install mask (installKernel starts dsh after a successful install).
@@ -83,21 +89,43 @@ if (!gotLock) {
     if (!getTray()) app.quit()
   })
 
-  app.on('before-quit', () => {
-    if (!isQuitting()) setQuitting(true)
-    killServer()
-    killAllChildren() // also reap any in-flight npm / leftover watchdog trees
+  // 优雅退出：先让 dsh 收到 SIGTERM 并等待其清场（落会话/释放插件），超时才强杀兜底。
+  // `before-quit` 是同步事件、无法 await——用 preventDefault 拦截首轮退出，异步完成
+  // 清理后再 app.quit()；此时 cleanExitDone 已置位，`before-quit` 放行，真正退出。
+  let cleanExitDone = false
+  async function cleanExit(): Promise<void> {
+    if (cleanExitDone) return
+    cleanExitDone = true
+    setQuitting(true)
+    try {
+      await stopDshGracefully()
+    } catch {
+      /* best effort; the force cleanup below covers any stragglers */
+    }
+    killAllChildren() // 收尾其余在跑子进程（如正在进行的 npm）
     destroyTray()
+  }
+  const requestCleanExit = (): void => {
+    if (cleanExitDone) {
+      app.quit()
+      return
+    }
+    void cleanExit().then(() => app.quit())
+  }
+
+  app.on('before-quit', (e) => {
+    if (cleanExitDone) return // second pass: let the real quit proceed
+    e.preventDefault()
+    requestCleanExit()
   })
 
+  // 最后一道兜底：真正退出时不留孤儿进程（dsh 通常已在上面的优雅停中退出）。
   process.on('exit', () => {
     killServer()
     killAllChildren()
   })
   process.on('SIGINT', () => {
     setQuitting(true)
-    killServer()
-    killAllChildren()
-    app.quit()
+    requestCleanExit()
   })
 }

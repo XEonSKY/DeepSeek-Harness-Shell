@@ -35,6 +35,7 @@ const WATCHDOG_CODE = `
 const { spawn, spawnSync } = require("child_process");
 const IS_WIN = process.platform === "win32";
 let child = null;
+let stopping = false;
 function killTree(pid) {
   if (!pid) return;
   try {
@@ -42,7 +43,18 @@ function killTree(pid) {
     else { try { process.kill(-pid, "SIGKILL"); } catch (_) { try { process.kill(pid, "SIGKILL"); } catch (__) {} } }
   } catch (_) {}
 }
-function shutdown() { if (child) { killTree(child.pid); child = null; } process.exit(0); }
+function forceShutdown() { if (child) { killTree(child.pid); child = null; } try { process.exit(0); } catch (_) {} }
+// Graceful stop: SIGTERM the dsh child (letting it flush sessions / dispose
+// plugins), then force-kill only if it has not exited within the grace ms.
+function gracefulStop(grace) {
+  if (stopping) return;
+  stopping = true;
+  if (!child) { try { process.exit(0); } catch (_) {} return; }
+  const g = (typeof grace === "number" && grace > 0) ? grace : 5000;
+  const timer = setTimeout(function () { killTree(child.pid); child = null; try { process.exit(0); } catch (_) {} }, g);
+  child.on("exit", function () { clearTimeout(timer); try { process.exit(0); } catch (_) {} });
+  try { child.kill("SIGTERM"); } catch (_) {} // best effort; graceful where the OS/dsh supports it
+}
 let launch = null;
 try { launch = JSON.parse(process.argv[1] || "null"); } catch (_) { launch = null; }
 if (!launch || typeof launch.entry !== "string") { console.error("watchdog: bad launch descriptor"); process.exit(2); }
@@ -56,12 +68,27 @@ child = spawn(process.execPath, ['--expose-internals', launch.entry].concat(laun
 });
 child.stdout.pipe(process.stdout);
 child.stderr.pipe(process.stderr);
-child.on("exit", (code) => { try { process.exit(code == null ? 0 : code); } catch (_) {} });
+child.on("exit", (code) => { if (stopping) { try { process.exit(0); } catch (_) {} } else { try { process.exit(code == null ? 0 : code); } catch (_) {} } });
 child.on("error", () => { try { process.exit(1); } catch (_) {} });
-process.stdin.resume();
-process.stdin.on("end", shutdown);
-process.stdin.on("close", shutdown);
-["SIGINT", "SIGTERM", "SIGHUP"].forEach((s) => process.on(s, shutdown));
+// Control channel on stdin: a JSON line {"cmd":"stop","grace":N} asks for a
+// graceful stop of the dsh child. stdin EOF (shell gone) falls back to force.
+let stdinBuf = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", function (chunk) {
+  stdinBuf += chunk;
+  let idx;
+  while ((idx = stdinBuf.indexOf("\\n")) >= 0) {
+    const line = stdinBuf.slice(0, idx).trim();
+    stdinBuf = stdinBuf.slice(idx + 1);
+    if (!line) continue;
+    let cmd = null;
+    try { cmd = JSON.parse(line); } catch (_) { cmd = null; }
+    if (cmd && cmd.cmd === "stop") gracefulStop(cmd.grace);
+  }
+});
+process.stdin.on("end", function () { if (!stopping) forceShutdown(); });
+process.stdin.on("close", function () { if (!stopping) forceShutdown(); });
+["SIGINT", "SIGTERM", "SIGHUP"].forEach((s) => process.on(s, function () { if (!stopping) forceShutdown(); }));
 process.on("exit", () => { if (child) killTree(child.pid); });
 `
 
@@ -160,6 +187,54 @@ export function stopServer(): void {
   stopAllDsh()
   setCurrentUrl(null)
   broadcast('dsh:url', null)
+}
+
+// ---------------------------------------------------------------------------
+// Graceful stop
+// ---------------------------------------------------------------------------
+
+/** 优雅终止的宽限期：SIGTERM 后等 dsh 自行退出的最长时间（超时改强杀）。 */
+export const SHUTDOWN_GRACE_MS = 5000
+
+/**
+ * 让当前 dsh（watchdog 树）优雅退出：经 watchdog 的 stdin 控制通道发
+ * `{"cmd":"stop"}`，由 watchdog 给内核发 SIGTERM 并等待其清场；若 watchdog
+ * 迟迟不退（内核忽略信号等），超时后在此强杀兜底，避免残留孤儿进程。
+ */
+export function stopDshGracefully(graceMs: number = SHUTDOWN_GRACE_MS): Promise<void> {
+  const child = serverProcess
+  if (!child || !child.pid) {
+    killServer()
+    return Promise.resolve()
+  }
+  return new Promise<void>((resolve) => {
+    let settled = false
+    let timer: NodeJS.Timeout | null = null
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve()
+    }
+    child.once('exit', () => {
+      if (serverProcess === child) serverProcess = null
+      finish()
+    })
+    // Ask the watchdog to gracefully stop its dsh child.
+    try {
+      if (child.stdin && !child.stdin.destroyed) {
+        child.stdin.write(JSON.stringify({ cmd: 'stop', grace: graceMs }) + '\n')
+      }
+    } catch {
+      /* stdin already closed → fall straight to the hard-kill timer below */
+    }
+    timer = setTimeout(() => {
+      if (serverProcess === child) serverProcess = null
+      if (child.pid) killTree(child.pid) // force
+      childKilled = true
+      finish()
+    }, graceMs + 3000)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +373,8 @@ function spawnWatchdog(rt: NodeRuntime, launch: { entry: string; args: string[] 
   child.on('exit', (code) => {
     console.log('[Manager] dsh exited (code=', code, ')')
     clearTimeout(timer)
+    // 进程已结束就清掉当前句柄，避免 isDshRunning / 后续优雅停误判到已死/复用 PID。
+    if (serverProcess === child) serverProcess = null
     if (!settledUrl && !childKilled) {
       o.reject(new Error(`DeepSeek Harness exited before serving a URL (code=${code}).\n${stderrTail}`))
     }
@@ -314,6 +391,8 @@ function spawnWatchdog(rt: NodeRuntime, launch: { entry: string; args: string[] 
  */
 async function runOneRestart(): Promise<void> {
   try {
+    // 优雅停掉上一代 dsh（若有）再启动，避免反复强杀导致会话来不及落盘。
+    await stopDshGracefully()
     const effective = { ...loadSettings() }
     effective.port = await resolvePort(effective)
     const url = await launchServer(effective)

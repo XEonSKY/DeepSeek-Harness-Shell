@@ -1,4 +1,4 @@
-import { app, dialog } from 'electron'
+import { app, dialog, nativeTheme } from 'electron'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
@@ -179,7 +179,11 @@ export function loadSettings(): Settings {
     proxyScope: disk.proxyScope ?? DEFAULT_SETTINGS.proxyScope,
     zoomPercent: disk.zoomPercent ?? DEFAULT_SETTINGS.zoomPercent,
     ignoreSystemScale: disk.ignoreSystemScale ?? DEFAULT_SETTINGS.ignoreSystemScale,
-    funLocale: disk.funLocale ?? DEFAULT_SETTINGS.funLocale
+    funLocale: disk.funLocale ?? DEFAULT_SETTINGS.funLocale,
+    searchEngine: disk.searchEngine ?? DEFAULT_SETTINGS.searchEngine,
+    newTabMode: disk.newTabMode ?? DEFAULT_SETTINGS.newTabMode,
+    newTabUrl: disk.newTabUrl ?? DEFAULT_SETTINGS.newTabUrl,
+    shortcuts: Array.isArray(disk.shortcuts) ? disk.shortcuts : DEFAULT_SETTINGS.shortcuts
   }
 }
 
@@ -304,6 +308,12 @@ export function syncDshTheme(theme: string): void {
   }
 }
 
+/** 把外壳主题同步到 Electron 的 nativeTheme.themeSource，使所有内嵌 webview 的
+ * `prefers-color-scheme` 跟随外壳深浅色（支持深色的站点自动适配）。 */
+export function syncNativeTheme(theme: string): void {
+  if (theme === 'dark' || theme === 'light' || theme === 'system') nativeTheme.themeSource = theme
+}
+
 export function persistSettings(s: Settings): void {
   try {
     fs.mkdirSync(path.dirname(settingsFile()), { recursive: true })
@@ -366,7 +376,10 @@ export function startConfigWatchers(): void {
     try {
       const text = fs.readFileSync(dshSettingsFile(), 'utf8')
       const theme = readUiThemePref(text)
-      if (theme) broadcast('settings:theme', theme)
+      if (theme) {
+        syncNativeTheme(theme) // webview 深浅色随外壳
+        broadcast('settings:theme', theme)
+      }
       const localePref = readDshLocalePref(text)
       if (localePref) broadcast('settings:locale', localePref)
     } catch {

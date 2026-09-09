@@ -2,54 +2,162 @@
 import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, Document, Setting, Minus, FullScreen, Close, Refresh, Wallet, ChatDotRound, Download } from '@element-plus/icons-vue'
+import { Monitor, ChatDotRound, Wallet, Document, Setting, Minus, FullScreen, Close, Refresh, Plus, Star, StarFilled, Download } from '@element-plus/icons-vue'
+import { CodeFilled } from '@antdv-next/icons'
 import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
 import appIcon from './assets/icon.png'
 import { checkAndNotify } from './update'
 import { applyTheme } from './theme'
-import { appState } from './state'
 import { applyFunToZh } from './locales'
+import { webTabs, activeTab, findTab, activateTab, closeTab, openTab, openNewTab, toggleKeep, setCoreRole, FIXED_LABEL_KEY } from './tabs'
+import type { WebTab } from './tabs'
+import WebHost from './views/WebHost.vue'
+import { shellMeta } from './shellmeta'
 import type { EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
 
 const { t } = useI18n({ useScope: 'global' })
 
-type ViewKey = 'web' | 'chat' | 'platform' | 'log' | 'settings'
+type ViewKey = 'web' | 'log' | 'settings'
 
 const route = useRoute()
 const router = useRouter()
-/** 当前高亮的视图（/settings* 统一归入设置）。 */
+/** 当前高亮的视图（/settings* 统一归入设置）。web 内容由标签页承载。 */
 const view = computed<ViewKey>(() => {
   if (route.path.startsWith('/settings')) return 'settings'
-  if (route.path.startsWith('/chat')) return 'chat'
-  if (route.path.startsWith('/platform')) return 'platform'
   if (route.path.startsWith('/log')) return 'log'
   return 'web'
 })
 
-/** 跳转到某视图对应的路由。 */
-function go(k: ViewKey): void {
-  const path =
-    k === 'web' ? '/' : k === 'chat' ? '/chat' : k === 'platform' ? '/platform' : k === 'log' ? '/log' : '/settings'
+/** 若当前不在 web 宿主页，切到 '/' 以便显示标签页 webview。 */
+function ensureWebRoute(): void {
+  if (view.value !== 'web') void router.push('/')
+}
+
+/** 跳转到某非 web 视图对应的路由。 */
+function go(k: 'web' | 'log' | 'settings'): void {
+  const path = k === 'web' ? '/' : k === 'log' ? '/log' : '/settings'
   if (route.path !== path) void router.push(path)
 }
 
-/**
- * DeepSeek UI 导航点击：CTRL（或 Cmd）点击在系统浏览器打开当前 dsh 地址；
- * 否则普通切回内置 UI 页。
- */
-async function uiClick(e: MouseEvent): Promise<void> {
-  if ((e.ctrlKey || e.metaKey) && appState.url) {
-    await window.api.openExternal(appState.url)
-    return
-  }
-  go('web')
+/** 点击一个标签页：激活并确保显示在 web 宿主。 */
+function onTabClick(id: string): void {
+  activateTab(id)
+  ensureWebRoute()
 }
+
+/** 点击标签页关闭按钮。 */
+function onTabClose(id: string): void {
+  closeTab(id)
+}
+
+/** 点击“保活固定”按钮（仅动态标签页）。 */
+function onTabKeep(id: string): void {
+  toggleKeep(id)
+}
+
+/** 中键(mouse button 1)关闭标签页。 */
+function onTabMouseDown(id: string, e: MouseEvent): void {
+  if (e.button === 1) {
+    e.preventDefault()
+    closeTab(id)
+  }
+}
+
+/** 右键菜单状态：位置 + 目标标签。 */
+const ctx = ref<{ x: number; y: number; id: string } | null>(null)
+function onTabContext(id: string, e: MouseEvent): void {
+  ctx.value = { x: e.clientX, y: e.clientY, id }
+}
+function closeCtx(): void {
+  ctx.value = null
+}
+/** 复制标签页。 */
+function ctxDup(): void {
+  const t = ctx.value ? findTab(ctx.value.id) : undefined
+  closeCtx()
+  if (!t) return
+  if (t.kind === 'newtab') openNewTab()
+  else openTab(t.url ?? '', t.title)
+}
+/** 关闭标签页。 */
+function ctxClose(): void {
+  const id = ctx.value?.id
+  closeCtx()
+  if (id) closeTab(id)
+}
+
+/** 在新窗口打开：当前标签对应 URL 开到一个独立窗口（标签保留）。 */
+async function ctxOpenWindow(): Promise<void> {
+  const t = ctx.value ? findTab(ctx.value.id) : undefined
+  closeCtx()
+  if (t && t.url) await window.api.openWebWindow(t.url)
+}
+
+/** 移动到其它窗口：先在新窗口打开该 URL，再从本窗口移除该标签。 */
+async function ctxMove(): Promise<void> {
+  const id = ctx.value?.id
+  const t = ctx.value ? findTab(ctx.value.id) : undefined
+  closeCtx()
+  if (!t || !t.url) return
+  await window.api.openWebWindow(t.url)
+  closeTab(id)
+}
+
+/** 跳转到核心窗口（非核心窗口用；现阶段占位，后续经 IPC 聚焦核心窗口）。 */
+function jumpToCore(): void {
+  // TODO(多窗口): window.api.focusCoreWindow?.()
+}
+
+/** 滚轮滚动标签条时改为横向滚动。 */
+function onTabsWheel(e: WheelEvent): void {
+  const el = e.currentTarget as HTMLElement | null
+  if (!el || el.scrollWidth <= el.clientWidth) return
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+  if (delta === 0) return
+  el.scrollLeft += delta
+}
+
+/** 标签页文案：固定来源用友好名（i18n），动态/新标签页用真实标题或默认名。 */
+function labelOf(tab: WebTab): string {
+  if (tab.kind === 'home' || tab.kind === 'chat' || tab.kind === 'platform') {
+    return t(FIXED_LABEL_KEY[tab.kind])
+  }
+  return tab.title || t('app.tabs.new')
+}
+
+/** ＋ 新建：按设置开内置导航页或自定义 URL。 */
+async function onPlus(): Promise<void> {
+  try {
+    const s = await window.api.getSettings()
+    if (s.newTabMode === 'url' && s.newTabUrl) openTab(s.newTabUrl)
+    else openNewTab()
+  } catch {
+    openNewTab()
+  }
+  ensureWebRoute()
+}
+
+/** 动态/新标签页（由新开链接/＋ 产生）；固定三站以图标按钮呈现，不在此列。 */
+const dynamicTabs = computed(() => webTabs.list.filter((t) => t.kind === 'dynamic' || t.kind === 'newtab'))
+
+/** 某个 web 标签是否当前激活（仅 web 宿主视图内高亮）。 */
+function isWebActive(id: string): boolean {
+  return view.value === 'web' && webTabs.activeId === id
+}
+
+/** 当前激活的是否动态标签页（动态标签页才显示 WebHost 里的网址导航栏）。 */
+const navVisible = computed(() => view.value === 'web' && activeTab()?.kind === 'dynamic')
+/** 激活的是否三个固定站之一（固定站才显示标题栏旧版刷新按钮）。 */
+const fixedPageReload = computed(() => {
+  if (view.value !== 'web') return false
+  const k = activeTab()?.kind
+  return k === 'home' || k === 'chat' || k === 'platform'
+})
 
 const winMinimize = (): void => window.api.windowMinimize()
 const winMaximize = (): void => window.api.windowToggleMaximize()
 const winClose = (): void => window.api.windowClose()
 const winReload = (): void => window.api.reloadDsh()
-
 // Ctrl+T 在 DeepSeek UI 与终端之间切换（其它视图回到 UI）。
 function onToggle(): void {
   if (view.value === 'web') void router.push('/log')
@@ -87,8 +195,9 @@ async function askClosePrompt(): Promise<void> {
     // confirm => hide to tray
     window.api.resolveClose({ action: 'hide', remember: remember.value })
   } catch (err) {
-    // "直接退出" (cancel) => quit; Esc / X (close) => do nothing
-    if ((err as { action?: string }).action === 'cancel') {
+    // Element Plus MessageBox 拒绝值就是字符串 'cancel'/'close'（非 { action } 对象）：
+    // "直接退出" (cancel) => quit；Esc / X (close) => do nothing。
+    if (err === 'cancel') {
       window.api.resolveClose({ action: 'quit', remember: remember.value })
     }
   } finally {
@@ -101,6 +210,7 @@ let offAskClose: (() => void) | null = null
 let offMissing: (() => void) | null = null
 let offLog: (() => void) | null = null
 let offDeploy: (() => void) | null = null
+let offCore: (() => void) | null = null
 
 // ---- Kernel-not-installed overlay ------------------------------------------
 type Reg = 'npmjs' | 'npmmirror'
@@ -311,6 +421,14 @@ watch([showMissing, installPrerelease, installReg], () => {
 const quitShell = (): void => window.api.quit()
 
 onMounted(() => {
+  // 仅核心窗口保留三固定站；非核心窗口不显示内核UI/网页/用量固定标签
+  setCoreRole(shellMeta.isCore)
+  // 角色可能变化（如本窗口接管成为新核心）→ 更新固定标签并回到内核UI
+  offCore = window.api.onShellRole((isCore) => {
+    shellMeta.isCore = isCore
+    setCoreRole(isCore)
+    if (isCore) activateTab('home')
+  })
   offToggle = window.api.onToggleView(onToggle)
   offAskClose = window.api.onAskClose(() => void askClosePrompt())
   offMissing = window.api.onKernelMissing(() => {
@@ -353,67 +471,97 @@ onBeforeUnmount(() => {
   offMissing?.()
   offLog?.()
   offDeploy?.()
+  offCore?.()
 })
 </script>
 
 <template>
   <div class="shell">
     <!-- Custom (frameless) title bar: the whole bar is a drag region. -->
-    <header class="titlebar">
+    <header class="titlebar" :class="{ 'titlebar--flush': navVisible }">
       <div class="left">
         <img :src="appIcon" class="icon" alt="" draggable="false" />
         <span class="title">{{ $t('app.title') }}</span>
 
-        <!-- 界面 / 网页版 Chat / 充值平台 / 终端 live on the left as icon buttons -->
-        <nav class="nav">
-          <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
+        <!-- 核心窗口：显示固定三站图标；非核心窗口：显示“跳转核心窗口”按钮 -->
+        <div class="quick">
+          <template v-if="shellMeta.isCore">
+            <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
+              <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home')">
+                <el-icon><Monitor /></el-icon>
+              </button>
+            </el-tooltip>
+            <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
+              <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat')">
+                <el-icon><ChatDotRound /></el-icon>
+              </button>
+            </el-tooltip>
+            <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
+              <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform')">
+                <el-icon><Wallet /></el-icon>
+              </button>
+            </el-tooltip>
+          </template>
+          <template v-else>
+            <el-tooltip :content="$t('app.jumpCoreHint')" placement="bottom" :show-after="300">
+              <button class="icon-btn core-jump" type="button" @click="jumpToCore">
+                <el-icon :size="20"><Monitor /></el-icon>
+                <span class="core-jump__txt">{{ $t('app.jumpCore') }}</span>
+              </button>
+            </el-tooltip>
+          </template>
+          <span class="divider" />
+        </div>
+
+        <!-- 动态标签页条：可开很多，多标签时原生横向滚动；空白区可拖窗口 -->
+        <div class="tabs" @wheel="onTabsWheel">
+          <div
+            v-for="tab in dynamicTabs"
+            :key="tab.id"
+            class="tab"
+            :class="{ on: isWebActive(tab.id) }"
+            :title="tab.url ?? ''"
+            @click="onTabClick(tab.id)"
+            @mousedown="onTabMouseDown(tab.id, $event)"
+            @contextmenu.prevent="onTabContext(tab.id, $event)"
+          >
+            <span class="tab__label">{{ labelOf(tab) }}</span>
             <button
-              class="icon-btn"
-              :class="{ active: view === 'web' }"
+              v-if="tab.kind === 'dynamic'"
+              class="tab__pin"
+              :class="{ on: tab.keep }"
               type="button"
-              @click="uiClick"
+              :title="$t('app.tabs.keep')"
+              @click.stop="onTabKeep(tab.id)"
             >
-              <el-icon><Monitor /></el-icon>
+              <el-icon :size="11"><component :is="tab.keep ? StarFilled : Star" /></el-icon>
             </button>
-          </el-tooltip>
-          <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
             <button
-              class="icon-btn"
-              :class="{ active: view === 'chat' }"
+              class="tab__x"
               type="button"
-              @click="go('chat')"
+              :title="$t('app.tabs.close')"
+              @click.stop="onTabClose(tab.id)"
             >
-              <el-icon><ChatDotRound /></el-icon>
+              <el-icon :size="12"><Close /></el-icon>
             </button>
-          </el-tooltip>
-          <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
-            <button
-              class="icon-btn"
-              :class="{ active: view === 'platform' }"
-              type="button"
-              @click="go('platform')"
-            >
-              <el-icon><Wallet /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip :content="$t('app.nav.terminal')" placement="bottom" :show-after="300">
-            <button
-              class="icon-btn"
-              :class="{ active: view === 'log' }"
-              type="button"
-              @click="go('log')"
-            >
-              <el-icon><Document /></el-icon>
-            </button>
-          </el-tooltip>
-        </nav>
+          </div>
+
+          <button class="tab tab--add" type="button" :title="$t('app.tabs.new')" @click="onPlus">
+            <el-icon :size="16"><Plus /></el-icon>
+          </button>
+        </div>
       </div>
 
       <div class="right">
-        <!-- Refresh: on the DeepSeek UI (web), web Chat and DeepSeek platform pages -->
-        <el-tooltip v-if="view === 'web' || view === 'chat' || view === 'platform'" :content="$t('app.reload')" placement="bottom" :show-after="300">
+        <!-- 三个固定站(非动态标签页)：用旧版刷新按钮重载当前固定站 -->
+        <el-tooltip v-if="fixedPageReload" :content="$t('app.reload')" placement="bottom" :show-after="300">
           <button class="icon-btn" type="button" @click="winReload">
             <el-icon><Refresh /></el-icon>
+          </button>
+        </el-tooltip>
+        <el-tooltip :content="$t('app.nav.terminal')" placement="bottom" :show-after="300">
+          <button class="icon-btn" :class="{ active: view === 'log' }" type="button" @click="go('log')">
+            <CodeFilled style="font-size: 18px" />
           </button>
         </el-tooltip>
         <el-tooltip :content="$t('app.nav.settings')" placement="bottom" :show-after="300">
@@ -446,8 +594,23 @@ onBeforeUnmount(() => {
     </header>
 
     <main class="body">
-      <div class="pane"><router-view /></div>
+      <!-- 常驻 web 宿主：进入日志/设置也不卸载，标签页 webview 保持保活 -->
+      <div class="web-base"><WebHost /></div>
+      <!-- 覆盖层：日志 / 设置（盖在 web 宿主上） -->
+      <div v-if="view !== 'web'" class="web-overlay"><router-view /></div>
     </main>
+
+    <!-- 标签页右键菜单 -->
+    <template v-if="ctx">
+      <div class="ctx-bk" @mousedown="closeCtx" @contextmenu.prevent="closeCtx" />
+      <div class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+        <button type="button" @click="ctxDup">{{ $t('app.tabs.dup') }}</button>
+        <button type="button" @click="ctxClose">{{ $t('app.tabs.close') }}</button>
+        <span class="ctx__sep" />
+        <button type="button" @click="ctxOpenWindow">{{ $t('app.tabs.openWindow') }}</button>
+        <button type="button" @click="ctxMove">{{ $t('app.tabs.moveWindow') }}</button>
+      </div>
+    </template>
 
     <!-- Kernel-not-installed full-screen mask (4-step wizard) -->
     <div v-if="showMissing" class="missing-mask">
@@ -660,6 +823,10 @@ onBeforeUnmount(() => {
   background: var(--el-bg-color);
   user-select: none;
 }
+/* 动态标签页显示网址导航栏时，去掉标题栏下边框，使标题栏与网址栏无缝相连 */
+.titlebar--flush {
+  border-bottom: none;
+}
 .left {
   display: flex;
   align-items: center;
@@ -689,11 +856,14 @@ onBeforeUnmount(() => {
   margin-left: 8px;
 }
 .right {
-  -webkit-app-region: no-drag;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 4px;
+}
+/* 标题栏里的图标按钮可点不可拖；非按钮区域(分割线/空隙)随容器可拖 */
+.titlebar .icon-btn {
+  -webkit-app-region: no-drag;
 }
 .divider {
   width: 1px;
@@ -726,6 +896,110 @@ onBeforeUnmount(() => {
   background: var(--el-color-danger);
   color: #fff;
 }
+.icon-btn.core-jump {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 13px;
+}
+.core-jump__txt {
+  white-space: nowrap;
+}
+/* ---- 固定三站图标按钮区 + 浏览器标签条 ---- */
+.quick {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tabs {
+  /* 容器可拖窗口；空白（含标签少时右侧）即可拖动，多标签时原生横向滚动 */
+  -webkit-app-region: drag;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.tab {
+  -webkit-app-region: no-drag;
+  flex: 0 1 auto;
+  min-width: 110px;
+  max-width: 230px;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.tab:hover {
+  background: var(--el-fill-color);
+}
+.tab.on {
+  background: var(--el-bg-color);
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.tab__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 保活固定按钮（星标，点亮即保活且不计入名额） */
+.tab__pin {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--el-text-color-placeholder);
+  cursor: pointer;
+}
+.tab__pin:hover {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-primary);
+}
+.tab__pin.on {
+  color: var(--el-color-warning);
+}
+.tab__x {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--el-text-color-placeholder);
+  cursor: pointer;
+}
+.tab__x:hover {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-primary);
+}
+.tab--add {
+  -webkit-app-region: no-drag;
+  flex: 0 0 auto;
+  min-width: 0; /* 覆盖 .tab 的 min-width，＋ 按钮不做最小宽度 */
+  padding: 0 8px;
+}
 .body {
   flex: 1 1 auto;
   min-height: 0;
@@ -734,6 +1008,19 @@ onBeforeUnmount(() => {
 .pane {
   position: absolute;
   inset: 0;
+}
+/* 常驻 web 宿主（底层，永不卸载以保活 webview） */
+.web-base {
+  position: absolute;
+  inset: 0;
+}
+/* 日志/设置覆盖层：不透明盖在 web 宿主上 */
+.web-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--el-bg-color-page);
+  overflow: hidden;
 }
 .missing-mask {
   position: fixed;
@@ -1106,5 +1393,46 @@ onBeforeUnmount(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+/* ---- 标签页右键菜单 ---- */
+.ctx-bk {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+}
+.ctx {
+  position: fixed;
+  z-index: 3001;
+  min-width: 150px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  box-shadow: var(--el-box-shadow-light);
+}
+.ctx button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+}
+.ctx button:hover:not(:disabled) {
+  background: var(--el-fill-color);
+}
+.ctx button.ctx__disabled {
+  color: var(--el-text-color-placeholder);
+  cursor: default;
+}
+.ctx__sep {
+  height: 1px;
+  background: var(--el-border-color-lighter);
+  margin: 4px 0;
 }
 </style>

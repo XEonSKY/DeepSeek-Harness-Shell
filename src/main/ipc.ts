@@ -2,12 +2,13 @@ import { app, dialog, ipcMain, shell } from 'electron'
 import { DEFAULT_SETTINGS } from '@shared/types'
 import type { Settings, ResolvedLocale } from '@shared/types'
 import { resolveLocale, localeCodeOf } from '@shared/i18n'
-import { readDiskSettings, persistSettings, syncDshTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, normalizeNpmSource } from './settings'
+import { readDiskSettings, persistSettings, syncDshTheme, syncNativeTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, normalizeNpmSource } from './settings'
 import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from './kernel'
 import { getLogHistory, restart, isDshRunning, stopServer } from './dsh'
-import { checkAppSelfUpdate } from './updater'
 import { appMeta, triggerAppUpdate, restartAndInstall } from './appupdate'
 import { broadcast, getCurrentUrl, getMainWindow, setQuitting } from './runtime'
+import { isCoreWindow } from './windowreg'
+import { openStandaloneWindow } from './ui'
 import { findSystemNode, findSystemNpm, nodeVersionOf, localNodeExecPath } from './tools'
 import { deployLocalNode } from './nodeenv'
 
@@ -28,6 +29,7 @@ export function registerIpc(): void {
     const merged: Settings = { ...DEFAULT_SETTINGS, ...s }
     persistSettings(merged)
     syncDshTheme(merged.theme)
+    syncNativeTheme(merged.theme)
     return merged
   })
   // Explicit "apply": restart dsh so the persisted settings take effect.
@@ -39,6 +41,7 @@ export function registerIpc(): void {
     const d: Settings = { ...DEFAULT_SETTINGS }
     persistSettings(d)
     syncDshTheme(d.theme)
+    syncNativeTheme(d.theme)
     return d
   })
   ipcMain.handle('log:history', () => getLogHistory())
@@ -67,7 +70,6 @@ export function registerIpc(): void {
   ipcMain.handle('kernel:installed', () => kernelInstalled())
   ipcMain.handle('kernel:versions', (_e, opts) => listVersions(opts))
   ipcMain.handle('update:check', (_e, opts) => performUpdateCheck(loadSettings(), opts))
-  ipcMain.handle('appupdate:check', () => checkAppSelfUpdate())
   ipcMain.handle('appupdate:meta', () => appMeta())
   ipcMain.handle('appupdate:trigger', (_e, opts: { prerelease: boolean }) => triggerAppUpdate(opts))
   ipcMain.on('appupdate:restart', () => restartAndInstall())
@@ -93,6 +95,14 @@ export function registerIpc(): void {
   ipcMain.handle('configdir:get', () => configDirInfo())
   ipcMain.handle('configdir:set', (_e, dir: string | null) => {
     return setConfigDir(typeof dir === 'string' && dir ? dir : null)
+  })
+  // 本窗口元信息：winId + 是否核心窗口（核心窗口才承载 dsh 内核 UI）。
+  ipcMain.handle('shell:meta', (e) => {
+    return { winId: e.sender.id, isCore: isCoreWindow(e.sender.id) }
+  })
+  // 把一个 URL 开到独立窗口（右键“在新窗口打开 / 移动到其它窗口”）。
+  ipcMain.handle('shell:open-url', (_e, url: string) => {
+    openStandaloneWindow(typeof url === 'string' ? url : '')
   })
   ipcMain.handle('app:openExternal', async (_e, url: string) => {
     if (/^https?:/i.test(url)) await shell.openExternal(url)

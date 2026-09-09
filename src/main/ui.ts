@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { loadSettings, mt } from './settings'
@@ -18,6 +18,73 @@ function rendererIndex(): string {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) return devUrl
   return path.join(__dirname, '../renderer/index.html')
+}
+
+function clampPopupPx(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.max(300, Math.min(1600, Math.round(n)))
+}
+
+/** 从 window.open 的 features 提取宽高（默认用 900x720）。 */
+function parsePopupSize(features: string): { width: number; height: number } {
+  const out = { width: 900, height: 720 }
+  const mW = /(?:^|,)width=(\d+)/i.exec(features)
+  const mH = /(?:^|,)height=(\d+)/i.exec(features)
+  const w = mW ? clampPopupPx(Number(mW[1])) : 0
+  const h = mH ? clampPopupPx(Number(mH[1])) : 0
+  if (w) out.width = w
+  if (h) out.height = h
+  return out
+}
+
+/** 弹窗特征：带 frameName 或 features 视为真弹窗（开独立窗口），否则按普通新标签链接处理。 */
+function isPopupRequest(frameName: string, features: string): boolean {
+  return !!frameName || !!features
+}
+
+/**
+ * 真弹窗（window.open 带特征/命名）→ 用独立的 Electron BrowserWindow 承载，
+ * 否则普通 target=_blank 链接 → 在应用内开新标签页。
+ */
+function openWebWindow(url: string, frameName: string, features: string): void {
+  if (!/^https?:/i.test(url)) return
+  if (isPopupRequest(frameName, features)) {
+    createPopupWindow(url, features)
+  } else {
+    broadcast('ui:new-tab', url)
+  }
+}
+
+/** 建一个独立的网页窗口（真弹窗用）。 */
+function createPopupWindow(url: string, features: string): void {
+  const { width, height } = parsePopupSize(features)
+  const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
+  const win = new BrowserWindow({
+    width,
+    height,
+    autoHideMenuBar: true,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false
+    }
+  })
+  win.webContents.setWindowOpenHandler(({ url: u, frameName, features: f }) => {
+    openWebWindow(u, frameName, f)
+    return { action: 'deny' }
+  })
+  win.once('ready-to-show', () => win.show())
+  void win.loadURL(url).catch(() => {
+    if (!win.isDestroyed()) win.close()
+  })
+}
+
+/** 把某个标签页/URL 开到一个独立窗口（右键“在新窗口打开/移动”用）。 */
+export function openStandaloneWindow(url: string): void {
+  if (!/^https?:/i.test(url)) return
+  createPopupWindow(url, '')
 }
 
 export function createShellWindow(): void {
@@ -81,8 +148,10 @@ export function createShellWindow(): void {
         broadcast('ui:toggle-view')
       }
     })
-    guest.setWindowOpenHandler(({ url }) => {
-      if (/^https?:/i.test(url)) shell.openExternal(url)
+    guest.setWindowOpenHandler(({ url, frameName, features }) => {
+      // 真弹窗(带 frameName/features 的 window.open) → 独立 BrowserWindow；
+      // 普通 target=_blank 链接 → 应用内新标签页。
+      openWebWindow(url, frameName, features)
       return { action: 'deny' }
     })
   })

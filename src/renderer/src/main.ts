@@ -10,14 +10,15 @@ import App from './App.vue'
 import './assets/base.css'
 import { i18n } from './locales'
 import { router } from './router'
+import { loadShellMeta } from './shellmeta'
 import type { ResolvedLocale } from '@shared/types'
 
 /**
- * 启动：界面语言来自 dsh settings.yaml 的 locale.preference（zh/en），由主进程经
- * `getUiLocale` 解析返回；读不到时回退为跟随系统（zh/en）。据此挂载 vue-i18n
- * 与 Element Plus。
+ * 启动：读取本窗口元信息(是否核心窗口)与界面语言（dsh settings.yaml 的 locale.preference），
+ * 据此挂载 vue-i18n 与 Element Plus。
  */
 async function bootstrap(): Promise<void> {
+  await loadShellMeta()
   let resolved: ResolvedLocale = 'zh'
   try {
     resolved = await window.api.getUiLocale()

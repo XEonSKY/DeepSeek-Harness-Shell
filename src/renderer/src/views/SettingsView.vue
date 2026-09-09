@@ -65,11 +65,11 @@ onMounted(async () => {
     </aside>
 
     <div class="main">
-      <div v-loading="loading" class="main__scroll">
+      <el-scrollbar v-loading="loading" class="main__scroll">
         <div class="cols">
           <router-view />
         </div>
-      </div>
+      </el-scrollbar>
     </div>
   </div>
 </template>
@@ -135,9 +135,10 @@ onMounted(async () => {
 }
 .settings .main__scroll {
   flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 20px 22px;
   min-height: 0;
+}
+.settings .main__scroll :deep(.el-scrollbar__view) {
+  padding: 20px 22px;
 }
 .settings .cols {
   width: 100%;

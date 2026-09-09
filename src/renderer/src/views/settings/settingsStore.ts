@@ -1,6 +1,5 @@
-import type { AppUpdateResult, FunLocale, NpmRegistry, NpmSource, ProxyProtocol, ProxyScope, Settings, Theme, NodeRuntimeKind } from '@shared/types'
+import type { FunLocale, NewTabMode, NpmRegistry, NpmSource, ProxyProtocol, ProxyScope, SearchEngineId, Settings, Shortcut, Theme, NodeRuntimeKind } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/types'
-import type { InjectionKey } from 'vue'
 
 /** Short, friendly OS label (pure) used by the About header. */
 export function friendlyPlatform(p: string | null | undefined): string {
@@ -46,6 +45,14 @@ export interface SettingsState {
   zoomPercent: number
   ignoreSystemScale: boolean
   funLocale: FunLocale
+  /** 默认搜索引擎。 */
+  searchEngine: SearchEngineId
+  /** 新标签页内容模式。 */
+  newTabMode: NewTabMode
+  /** 新标签页自定义 URL。 */
+  newTabUrl: string
+  /** 导航页常用站点快捷方式。 */
+  shortcuts: Shortcut[]
   /** dsh 是否正在运行（仅 UI，不持久化）。 */
   dshRunning: boolean
   applying: boolean
@@ -57,10 +64,6 @@ export interface SettingsState {
   switchingKernel: boolean
   uninstalling: boolean
   selectedVersion: string
-  appChecking: boolean
-  appCheckResult: AppUpdateResult | null
-  appOpenUrl: string
-  appVersion: string | null
 }
 
 /** Every operation the settings panels can trigger. */
@@ -80,18 +83,8 @@ export interface SettingsActions {
   runUpdateKernel(): Promise<void>
   switchVersion(): Promise<void>
   confirmUninstall(): Promise<void>
-  runAppCheck(): Promise<void>
-  openAppRelease(): void
   fillFrom(s: Settings): void
 }
-
-/** Combined store handed to the shell and injected into each group panel. */
-export interface SettingsStore {
-  state: SettingsState
-  actions: SettingsActions
-}
-
-export const SettingsKey: InjectionKey<SettingsStore> = Symbol('settings-store')
 
 /** `Settings` payload assembled from the current form state. */
 export function payloadFrom(state: SettingsState): Settings {
@@ -120,6 +113,10 @@ export function payloadFrom(state: SettingsState): Settings {
     proxyScope: [...state.proxyScope],
     zoomPercent: state.zoomPercent,
     ignoreSystemScale: state.ignoreSystemScale,
-    funLocale: state.funLocale
+    funLocale: state.funLocale,
+    searchEngine: state.searchEngine,
+    newTabMode: state.newTabMode,
+    newTabUrl: state.newTabUrl,
+    shortcuts: state.shortcuts.map((s) => ({ title: s.title, url: s.url }))
   }
 }

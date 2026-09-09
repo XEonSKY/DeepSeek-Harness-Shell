@@ -1,4 +1,5 @@
 import type { BrowserWindow, Tray } from 'electron'
+import { listWindows } from './windowreg'
 
 /**
  * Lowest-level cross-cutting runtime state shared by every main-process module.
@@ -61,9 +62,13 @@ export function destroyTray(): void {
   tray = null
 }
 
-/** Send an event to the renderer if the window is still alive. */
+/** Send an event to all alive shell windows' renderers (falls back to the single main window). */
 export function broadcast(channel: string, payload?: unknown): void {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send(channel, payload)
+  const wins = listWindows()
+  const targets = wins.length > 0 ? wins : mainWindow ? [mainWindow] : []
+  for (const w of targets) {
+    if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) {
+      w.webContents.send(channel, payload)
+    }
   }
 }

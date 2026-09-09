@@ -15,9 +15,21 @@ export default {
       settings: 'Settings'
     },
     reload: 'Reload',
+    jumpCore: 'Core',
+    jumpCoreHint: 'Go to the core window',
     minimize: 'Minimize',
     maximize: 'Maximize / Restore',
-    closeHint: 'Close (hide to tray or quit)'
+    closeHint: 'Close (hide to tray or quit)',
+    tabs: {
+      new: 'New tab',
+      close: 'Close tab',
+      keep: 'Pin (keep alive, not counted toward the recent 3)',
+      dup: 'Duplicate tab',
+      openWindow: 'Open in new window',
+      moveWindow: 'Move to another window',
+      promptTitle: 'Enter a URL',
+      promptPlaceholder: 'https://…'
+    }
   },
   closeAsk: {
     title: 'DeepSeek Harness Shell',
@@ -97,6 +109,20 @@ export default {
     versionPlaceholder: 'Choose a version to install (latest by default)',
     versionHint: 'With “Include pre-releases” off, only stable versions are listed and the newest stable is installed by default. Turning it on also lists and installs pre-releases (rc / beta). Clearing the selection installs the newest version within the current scope.'
   },
+  engine: {
+    baidu: 'Baidu',
+    sogou: 'Sogou',
+    q360: '360',
+    bing: 'Bing',
+    google: 'Google',
+    duckduckgo: 'DuckDuckGo'
+  },
+  navPage: {
+    placeholder: 'Search or enter address',
+    search: 'Search',
+    quick: 'Quick links',
+    engineLabel: 'Search engine'
+  },
   update: {
     okTitle: 'Up to date',
     updateTitle: 'Update available',
@@ -138,6 +164,18 @@ export default {
       portAuto: 'Auto (recommended)',
       portManual: 'Manual',
       portHint: 'Picks the first free port starting at 3080.',
+      engineLabel: 'Default search engine',
+      newTabTitle: 'New tab',
+      newTabModeBuiltin: 'Built-in navigation page',
+      newTabModeUrl: 'Custom URL',
+      newTabUrlLabel: 'URL',
+      newTabUrlPlaceholder: 'https://example.com',
+      shortcuts: 'Quick links',
+      shortcutTitle: 'Name',
+      shortcutUrl: 'URL',
+      shortcutAdd: 'Add',
+      shortcutRemove: 'Remove',
+      shortcutHint: 'Shown on the new-tab page; click to open directly.',
       closeBehavior: 'Close button behavior',
       closeTray: 'Hide to system tray',
       closeQuit: 'Quit',
@@ -275,9 +313,6 @@ export default {
     uninstallFail: 'Uninstall failed: {err}',
     uninstallOk: 'Kernel uninstalled. The install wizard will be shown.',
     updateKernelFail: 'Kernel update failed: {err}',
-    checkFailed: 'Update check failed.',
-    updateAvailable: 'A new version is available.',
-    upToDate: 'Already up to date.',
     uninstallBoxTitle: 'Uninstall kernel',
     uninstallBoxText: 'This uninstalls the DeepSeek Harness kernel ({pkg}) and stops any running dsh first. You will need to reinstall it to use DeepSeek Harness again. Continue?',
     uninstallOkBtn: 'Uninstall',
@@ -321,12 +356,6 @@ export default {
       uninstallReasonRemoved: 'The module files were removed; the failure likely happened while cleaning the command entry (.cmd / bin). Check write permission on the npm prefix directory.'
     },
     appUpdate: {
-      noneReleased: 'This repository has not published any releases yet.',
-      httpErr: 'Update check failed (GitHub HTTP {status}).',
-      latestReadFail: 'Could not read the latest version.',
-      foundNew: 'New version found: {current} → {latest}',
-      upToDate: 'Already the latest version {latest}.',
-      netErr: 'Update check failed, could not reach GitHub.',
       onlyPackaged: 'Automatic updates are only supported in packaged builds.'
     },
     tray: {

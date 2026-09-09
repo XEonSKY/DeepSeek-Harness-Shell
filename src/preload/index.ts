@@ -27,7 +27,6 @@ const api: RendererApi = {
   getKernelInstalled: () => ipcRenderer.invoke('kernel:installed'),
   listVersions: (opts) => ipcRenderer.invoke('kernel:versions', opts),
   checkForUpdates: (opts) => ipcRenderer.invoke('update:check', opts),
-  checkAppUpdate: () => ipcRenderer.invoke('appupdate:check'),
   getAppMeta: () => ipcRenderer.invoke('appupdate:meta'),
   triggerAppUpdate: (opts) => ipcRenderer.invoke('appupdate:trigger', opts),
   restartAndInstall: () => ipcRenderer.send('appupdate:restart'),
@@ -88,6 +87,18 @@ const api: RendererApi = {
     return () => ipcRenderer.removeListener('kernel:missing', listener)
   },
 
+  onNewTab(cb) {
+    const listener = (_e: unknown, url: string): void => cb(url)
+    ipcRenderer.on('ui:new-tab', listener)
+    return () => ipcRenderer.removeListener('ui:new-tab', listener)
+  },
+
+  onShellRole(cb) {
+    const listener = (_e: unknown, isCore: boolean): void => cb(isCore)
+    ipcRenderer.on('shell:core', listener)
+    return () => ipcRenderer.removeListener('shell:core', listener)
+  },
+
   resolveClose: (decision) => ipcRenderer.send('win:close-resolve', decision),
 
   reloadDsh: () => ipcRenderer.send('web:reload'),
@@ -104,6 +115,8 @@ const api: RendererApi = {
   deployLocalNode: () => ipcRenderer.invoke('nodeenv:deploy'),
   getConfigDir: () => ipcRenderer.invoke('configdir:get'),
   setConfigDir: (dir) => ipcRenderer.invoke('configdir:set', dir),
+  getShellMeta: () => ipcRenderer.invoke('shell:meta'),
+  openWebWindow: (url) => ipcRenderer.invoke('shell:open-url', url),
   quit: () => ipcRenderer.send('app:quit'),
 
   windowMinimize: () => ipcRenderer.send('win:minimize'),

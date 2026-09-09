@@ -70,6 +70,14 @@ export interface Settings {
   ignoreSystemScale: boolean
   /** 扩展翻译风格/区域变体（仅当前语言生效）：off ｜ anime/wenyan/hant(zh) ｜ pirate/shakespeare(en)。 */
   funLocale: FunLocale
+  /** 默认搜索引擎（地址栏/新标签页搜索用）。 */
+  searchEngine: SearchEngineId
+  /** 新标签页模式：'builtin'(内置导航页) ｜ 'url'(加载 newTabUrl)。 */
+  newTabMode: NewTabMode
+  /** 新标签页自定义 URL（newTabMode='url' 时生效）。 */
+  newTabUrl: string
+  /** 新标签页内置导航页的常用站点快捷方式。 */
+  shortcuts: Shortcut[]
 }
 
 /** 扩展翻译：关闭、语言风格项（anime/wenyan 属 zh；pirate/shakespeare 属 en），
@@ -92,6 +100,18 @@ export type NpmSource = 'system' | 'bundled' | 'localnode'
 export type NpmRegistry = 'npmjs' | 'npmmirror'
 
 export type Theme = 'system' | 'light' | 'dark'
+
+/** 支持的搜索引擎。 */
+export type SearchEngineId = 'baidu' | 'sogou' | '360' | 'bing' | 'google' | 'duckduckgo'
+
+/** 新标签页内容：内置导航页 ｜ 自定义 URL。 */
+export type NewTabMode = 'builtin' | 'url'
+
+/** 常用站点快捷方式（标题 + URL）。 */
+export interface Shortcut {
+  title: string
+  url: string
+}
 
 /**
  * dsh `settings.yaml` 里 `locale.preference` 使用的两字母语言码。
@@ -127,7 +147,11 @@ export const DEFAULT_SETTINGS: Settings = {
   proxyScope: ['npm', 'node', 'update'],
   zoomPercent: 100,
   ignoreSystemScale: false,
-  funLocale: 'off'
+  funLocale: 'off',
+  searchEngine: 'bing',
+  newTabMode: 'builtin',
+  newTabUrl: '',
+  shortcuts: []
 }
 
 /** Result of a kernel install / uninstall action. */
@@ -152,27 +176,6 @@ export interface UpdateResult {
   latest: string | null
   message: string
   command?: string
-}
-
-/**
- * Result of checking whether the shell app *itself* has a newer release on
- * GitHub (compared against the running app version, e.g. from package.json).
- */
-export interface AppUpdateResult {
-  /** update = a newer release exists; ok = already latest; error = check failed. */
-  status: 'ok' | 'update' | 'error'
-  /** The currently running shell version (could be null in an unusual env). */
-  current: string | null
-  /** The newest release tag from GitHub (leading "v" stripped), or null. */
-  latest: string | null
-  /** Human-readable status line (localized). */
-  message: string
-  /** URL to open for download/release notes. */
-  releaseUrl: string | null
-  /** Architecture of the currently running shell (e.g. x64 / arm64 / ia32). */
-  arch: string | null
-  /** OS of the running shell (e.g. win32 / darwin / linux). */
-  platform: string | null
 }
 
 /** 运行环境元信息（关于页展示当前版本/架构）。 */
@@ -260,8 +263,6 @@ export interface RendererApi {
    * version (runs `npm install -g`). Resolves when the install finishes.
    */
   updateKernel(opts?: { registry?: NpmRegistry }): Promise<KernelAction>
-  /** Check whether the shell app itself has a newer GitHub release. */
-  checkAppUpdate(): Promise<AppUpdateResult>
   /** 运行环境元信息（关于页显示当前版本/架构）。 */
   getAppMeta(): Promise<AppMeta>
   /** 触发一次 app 自动更新检查；有可用更新时由主进程后台自动下载。 */
@@ -296,6 +297,10 @@ export interface RendererApi {
   onToggleView(cb: () => void): () => void
   /** Main asks the renderer to show the (Element Plus) close-behaviour prompt. */
   onAskClose(cb: () => void): () => void
+  /** A webview asked to open a URL in a new window/tab; the shell opens an in-app tab. */
+  onNewTab(cb: (url: string) => void): () => void
+  /** Main informs this window its role changed (e.g. it became the new core window). */
+  onShellRole(cb: (isCore: boolean) => void): () => void
   /** Renderer reports the user's close decision back to the main process. */
   resolveClose(decision: { action: 'hide' | 'quit'; remember: boolean }): void
   /** Main detected that the kernel was removed/never installed; show the install mask. */
@@ -321,6 +326,10 @@ export interface RendererApi {
   getConfigDir(): Promise<{ current: string; default: string }>
   /** 设置自选配置目录（传 null 恢复默认）；返回新的当前有效目录。 */
   setConfigDir(dir: string | null): Promise<string>
+  /** 本窗口元信息：窗口 id 与是否核心窗口（核心窗口才承载 dsh 内核 UI）。 */
+  getShellMeta(): Promise<{ winId: number; isCore: boolean }>
+  /** 把一个 URL 开到一个独立窗口（右键“在新窗口打开 / 移动”）。 */
+  openWebWindow(url: string): Promise<void>
   quit(): void
 
   // Frameless-window controls (drawn by the renderer's custom title bar).

@@ -300,7 +300,11 @@ export default {
       downloadedDesc: 'Installs automatically after restart.',
       restartNow: 'Restart & install now',
       notAvailable: 'Already up to date.',
-      unavailable: 'No update available right now.'
+      unavailable: 'No update available right now.',
+      links: 'Project',
+      github: 'GitHub repository',
+      githubDesc: 'Browse the source, report issues and suggest features.',
+      openGithub: 'Open repository',
     }
   },
   msg: {

@@ -309,7 +309,11 @@ export default {
       downloadedDesc: '重启后自动安装。',
       restartNow: '立即重启并安装',
       notAvailable: '已是最新版本。',
-      unavailable: '当前无可用更新。'
+      unavailable: '当前无可用更新。',
+      links: '项目',
+      github: 'GitHub 主页',
+      githubDesc: '查看源码、提交问题与功能建议。',
+      openGithub: '打开主页',
     }
   },
   /** 即时反馈（ElMessage / ElMessageBox 内文案） */

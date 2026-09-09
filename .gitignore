@@ -6,3 +6,5 @@ release/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+.workbuddy
+AGENT.md

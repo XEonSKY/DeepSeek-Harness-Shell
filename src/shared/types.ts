@@ -328,12 +328,44 @@ export interface RendererApi {
   setConfigDir(dir: string | null): Promise<string>
   /** 本窗口元信息：窗口 id 与是否核心窗口（核心窗口才承载 dsh 内核 UI）。 */
   getShellMeta(): Promise<{ winId: number; isCore: boolean }>
-  /** 把一个 URL 开到一个独立窗口（右键“在新窗口打开 / 移动”）。 */
+  /** 把一个 URL 开到一个独立（副）窗口（右键“在新窗口打开 / 移动”）。 */
   openWebWindow(url: string): Promise<void>
+  /** 聚焦核心窗口（副窗口“跳转核心窗口”按钮）；无核心窗口时重建一个。 */
+  focusCoreWindow(): Promise<void>
+  /** 取走本窗口的“开页意图”（创建副窗口时若带 URL，据此开一个动态标签页）。 */
+  takeOpenIntent(): Promise<string | null>
+  /** 把本窗口“当前标签页标题”同步给主进程，用于命名本（副）窗口为：<标题> - 软件名。 */
+  setShellTitle(title: string): void
+  /** “移动到其它窗口”：主进程弹目标选择（其它壳窗口）。true=已移走（本窗口应移除对应标签）；false=取消。 */
+  moveTabToWindow(url: string): Promise<boolean>
+  /** 跨窗口拖标签：源窗口开始拖拽某标签，登记并取回“其它壳窗口”的屏幕几何供算落点。target 为 URL 或内置导航页伪链接。 */
+  tabDragBegin(target: string): Promise<Array<{ id: number; x: number; y: number; w: number; h: number }>>
+  /** 源窗口报告当前“指针悬停的目标窗口 id”（null=没有）。主进程让那个窗口亮起可接收遮罩。 */
+  tabDragHover(targetId: number | null): void
+  /** 结束/取消拖拽（源窗口未移入其它窗口时）。 */
+  tabDragEnd(): void
+  /** 源窗口决定把被拖标签移入某目标窗口。 */
+  tabDragDropTo(targetId: number): void
+  /** 主进程通知源窗口：被拖标签已移入其它窗口，应移除本地那个标签。 */
+  onTabDragMoved(cb: () => void): () => void
+  /** 主进程通知本窗口：是否正被某跨窗口拖拽“悬停”为目标（用于亮可接收遮罩）。 */
+  onTabDragHover(cb: (on: boolean) => void): () => void
   quit(): void
 
   // Frameless-window controls (drawn by the renderer's custom title bar).
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void
+}
+
+/**
+ * 内置「新建标签页」（导航页）在窗口间流转时的伪链接。它不是一个可加载的网址，而是表示
+ * “在这里打开一个内置导航页”。当把一个 newtab 标签“在新窗口/其它窗口打开”或移入其它窗口时，
+ * 就以这个值作为目标传递；收到方据此开一个内置导航页（而非 webview URL）。
+ */
+export const NEWTAB_URL = 'dssh://about:blank'
+
+/** 目标是否表示“打开内置导航页”（NEWTAB_URL）。 */
+export function isNewTabTarget(target: string | null | undefined): boolean {
+  return typeof target === 'string' && target === NEWTAB_URL
 }

@@ -6,8 +6,7 @@ import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme } 
 import { createShellWindow, createTray, showMainWindow } from './ui'
 import { resolveInstall } from './kernel'
 import { restart, killServer, killAllChildren, stopDshGracefully } from './dsh'
-import { getTray, getMainWindow, setQuitting, destroyTray } from './runtime'
-import { registerShellWindow } from './windowreg'
+import { getTray, setQuitting, destroyTray } from './runtime'
 
 // ---------------------------------------------------------------------------
 // Dev vs release isolation. A dev run must not grab the installed release's
@@ -60,11 +59,7 @@ if (!gotLock) {
     syncNativeTheme(cfg.theme) // 建窗前先让 webview 深浅色与外壳一致
     registerIpc()
     startConfigWatchers()
-    createShellWindow()
-    {
-      const mw = getMainWindow()
-      if (mw) registerShellWindow(mw, true) // 首个窗口为核心
-    }
+    createShellWindow() // 首个窗口注册为核心窗口（内部登记角色并设为主窗口）
     createTray()
 
     // Launch dsh only if the kernel is present. When missing we do not show a

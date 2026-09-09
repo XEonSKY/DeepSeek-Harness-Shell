@@ -163,6 +163,13 @@ export default {
   sv: {
     cap: '设置',
     nav: { general: '常规', appearance: '外观', network: '网络', dsh: '内核', about: '关于' },
+    intro: {
+      general: '工作目录、端口与标签页/搜索等基础行为。',
+      appearance: '界面语言、主题与缩放等观感设置。',
+      network: '代理连接与网络作用范围。',
+      dsh: 'dsh 内核的来源、Node/npm 环境与更新。',
+      about: '关于应用与内核，以及更新检查。'
+    },
     general: {
       run: '运行',
       workspace: '工作目录',

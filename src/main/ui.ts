@@ -1,9 +1,9 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { NEWTAB_URL, isNewTabTarget } from '@shared/types'
 import { loadSettings, mt } from './settings'
 import {
-  broadcast,
   getCurrentUrl,
   getMainWindow,
   setMainWindow,
@@ -11,8 +11,18 @@ import {
   setTray,
   isQuitting,
   setQuitting,
-  destroyTray
+  destroyTray,
+  sendToWindow,
+  sendToWcId,
+  sendCore
 } from './runtime'
+import {
+  registerShellWindow,
+  hasCoreWindow,
+  promoteNextToCore,
+  windowByContentsId,
+  listWindows
+} from './windowreg'
 
 function rendererIndex(): string {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -43,19 +53,23 @@ function isPopupRequest(frameName: string, features: string): boolean {
 }
 
 /**
- * 真弹窗（window.open 带特征/命名）→ 用独立的 Electron BrowserWindow 承载，
- * 否则普通 target=_blank 链接 → 在应用内开新标签页。
+ * 某 webview 内发生的 target=_blank / window.open：
+ * - 真弹窗（带 frameName/features）→ 独立轻量 BrowserWindow（不入壳窗口册）。
+ * - 普通 target=_blank → 应用内新标签页，但只定向到“发起者所在的那个壳窗口”
+ *   （多窗口下不再群发给所有窗口）。owner 为发起窗口；缺省（如弹窗内再点普通链接）回退到核心窗口。
  */
-function openWebWindow(url: string, frameName: string, features: string): void {
+function openWebWindow(url: string, frameName: string, features: string, owner?: BrowserWindow | null): void {
   if (!/^https?:/i.test(url)) return
   if (isPopupRequest(frameName, features)) {
     createPopupWindow(url, features)
+  } else if (owner && !owner.isDestroyed()) {
+    sendToWindow(owner, 'ui:new-tab', url)
   } else {
-    broadcast('ui:new-tab', url)
+    sendCore('ui:new-tab', url)
   }
 }
 
-/** 建一个独立的网页窗口（真弹窗用）。 */
+/** 建一个独立的网页窗口（真弹窗用）。不属于壳窗口，不入册、不参与核心接管。 */
 function createPopupWindow(url: string, features: string): void {
   const { width, height } = parsePopupSize(features)
   const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
@@ -72,6 +86,7 @@ function createPopupWindow(url: string, features: string): void {
     }
   })
   win.webContents.setWindowOpenHandler(({ url: u, frameName, features: f }) => {
+    // 弹窗内再要新开：普通链接交给核心窗口（无明确发起壳窗口）；真弹窗继续开弹窗。
     openWebWindow(u, frameName, f)
     return { action: 'deny' }
   })
@@ -81,13 +96,50 @@ function createPopupWindow(url: string, features: string): void {
   })
 }
 
-/** 把某个标签页/URL 开到一个独立窗口（右键“在新窗口打开/移动”用）。 */
-export function openStandaloneWindow(url: string): void {
-  if (!/^https?:/i.test(url)) return
-  createPopupWindow(url, '')
+// ---------------------------------------------------------------------------
+// Shell-window lifecycle helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * 一个壳窗口被真正销毁后的收尾：若它正是当前“主(核心)窗口”则清空句柄；随后若已无核心
+ * 但仍有多余壳窗口存活，则把核心角色移交给“现存最早”的副窗口，设为主窗口并告诉它：
+ *   - shell:core(true)  → renderer 补上三固定站并回到内核 UI；
+ *   - dsh:url           → 新核心此前未收过内核地址，补发当前 dsh URL。
+ */
+function finalizeWindowClosed(win: BrowserWindow): void {
+  if (getMainWindow() === win) setMainWindow(null)
+  if (isQuitting()) return // 真退出：不把角色递给同样在关闭的窗口
+  if (hasCoreWindow()) return // 还有别的核心窗口在跑（例如刚创建的新核心）
+  const nextId = promoteNextToCore()
+  if (nextId == null) return // 已无其它壳窗口
+  const next = windowByContentsId(nextId)
+  if (!next) return
+  setMainWindow(next)
+  sendToWcId(nextId, 'shell:core', true)
+  const url = getCurrentUrl()
+  if (url) sendToWcId(nextId, 'dsh:url', url)
 }
 
-export function createShellWindow(): void {
+/**
+ * 副窗口“首次打开的 URL”暂存：主进程在创建带 initialUrl 的副窗口时放入，渲染层挂载后
+ * 用 shell:take-open-intent 取走并据此开一个动态标签页。用“取走”而非 did-finish-load 里
+ * 直接发 ui:new-tab，是为了避免与渲染层订阅 onNewTab 的时序竞态（漏掉初始 URL）。
+ */
+const openIntent = new Map<number, string>()
+
+/** 取走并清除某窗口的开页意图；无则 null。 */
+export function takeOpenIntent(wcId: number): string | null {
+  if (wcId == null) return null
+  const u = openIntent.get(wcId) ?? null
+  openIntent.delete(wcId)
+  return u
+}
+
+/**
+ * 建一个壳窗口（核心或副窗口）并挂上所有与角色/多窗口相关的处理。核心窗口承载 dsh 内核
+ * UI；副窗口是带完整标签条的浏览器窗口，但无内核 UI 固定站，且 UI 事件均只发回本窗口。
+ */
+function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
   Menu.setApplicationMenu(null)
   const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
 
@@ -105,30 +157,40 @@ export function createShellWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webviewTag: true, // dsh Web UI is embedded with <webview>
+      webviewTag: true, // dsh Web UI / 站点均以 <webview> 内嵌
       preload: path.join(__dirname, '../preload/index.js')
     }
   })
-  setMainWindow(win)
 
-  win.once('ready-to-show', () => win.show())
+  registerShellWindow(win, core)
+  const wcId = win.webContents.id // 捕获 id：'closed' 后 webContents 已销毁，届时不能再访问 win.webContents
+  if (core) setMainWindow(win) // 主窗口语义 = 当前核心窗口（托盘/对话框回退等用它）
+  if (!core && initialUrl) openIntent.set(wcId, initialUrl)
+  // 核心窗口首个 ready-to-show 再显形避免白屏；副窗口立即 show()（有些环境 ready-to-show
+  // 对后开的窗口不触发，会导致窗口一直隐藏、看起来“没出现”）。ready-to-show 到达时再 show 一次也无害。
+  if (core) win.once('ready-to-show', () => win.show())
+  else win.show()
   const wc = win.webContents
 
-  // Fixed window title.
+  // Fixed window title: page titles never rename the shell window. 核心窗口恒为软件名；
+  // 副窗口默认软件名，之后由渲染层用 shell:set-title 推“<当前标签页标题> - 软件名”驱动。
+  const APP_TITLE = 'DeepSeek Harness'
   wc.on('page-title-updated', (e) => e.preventDefault())
   win.on('page-title-updated', (e) => e.preventDefault())
-  const enforceTitle = (): void => { if (!win.isDestroyed()) win.setTitle('DeepSeek Harness') }
-  win.once('ready-to-show', enforceTitle)
-  wc.on('did-navigate', enforceTitle)
+  if (core) {
+    const enforceTitle = (): void => { if (!win.isDestroyed()) win.setTitle(APP_TITLE) }
+    win.once('ready-to-show', enforceTitle)
+    wc.on('did-navigate', enforceTitle)
+  }
 
-  // Ctrl+T toggles Web <-> log views. Also catch keys typed inside the guest.
+  // Ctrl+T toggles Web <-> log views in THIS window (not every window).
   const isCtrlT = (k: { type: string; key?: string; control: boolean; meta: boolean }): boolean => {
     const mod = process.platform === 'darwin' ? k.meta : k.control
     return k.type === 'keyDown' && mod && (k.key || '').toLowerCase() === 't'
   }
+  const toggleViewHere = (): void => sendToWindow(win, 'ui:toggle-view')
   wc.on('before-input-event', (event, input) => {
-    // F12 打开/关闭主界面（Vue UI）的 DevTools 控制台。仅当「开发模式」开启
-    // （设置 → 关于 → 开发模式，settings.json 的 devMode）时才生效，否则忽略。
+    // F12 开关本窗口的 DevTools（仅设置“开发模式”开启时）。
     if (input.type === 'keyDown' && (input.key || '') === 'F12') {
       event.preventDefault()
       if (!loadSettings().devMode) return
@@ -138,39 +200,42 @@ export function createShellWindow(): void {
     }
     if (isCtrlT(input)) {
       event.preventDefault()
-      broadcast('ui:toggle-view')
+      toggleViewHere()
     }
   })
   wc.on('did-attach-webview', (_event, guest) => {
     guest.on('before-input-event', (gEvent, input) => {
       if (isCtrlT(input)) {
         gEvent.preventDefault()
-        broadcast('ui:toggle-view')
+        toggleViewHere()
       }
     })
     guest.setWindowOpenHandler(({ url, frameName, features }) => {
-      // 真弹窗(带 frameName/features 的 window.open) → 独立 BrowserWindow；
-      // 普通 target=_blank 链接 → 应用内新标签页。
-      openWebWindow(url, frameName, features)
+      // 本窗口的 webview 里新开：普通链接 → 本窗口新标签；真弹窗 → 独立窗口。
+      openWebWindow(url, frameName, features, win)
       return { action: 'deny' }
     })
   })
 
-  // Push any URL that became ready before the renderer loaded.
+  // 渲染层加载完成后：核心窗口若在它加载前 dsh 已就绪则补发地址（初始开页意图由渲染层
+  // 挂载后经 shell:take-open-intent 取走，避免时序竞态）。
   wc.on('did-finish-load', () => {
-    const url = getCurrentUrl()
-    if (url) broadcast('dsh:url', url)
+    if (core) {
+      const url = getCurrentUrl()
+      if (url) sendToWindow(win, 'dsh:url', url)
+    }
   })
 
-  // Close behaviour: if a remembered choice exists apply it; otherwise ask the
-  // renderer, which shows an Element Plus MessageBox (not a native dialog).
+  // Close behaviour：
+  // - 若这是最后一个壳窗口且存在托盘 → 隐藏到托盘 / 应用记忆的选择 / 询问（询问只发回本窗口）。
+  // - 否则（有托盘且有其它窗口、或根本没有托盘）→ 让窗口真正关闭。若关掉的是核心且仍有副窗口，
+  //   会在 closed 里把角色移交给最早的副窗口（见 finalizeWindowClosed），而不是退出整个应用。
   win.on('close', (e) => {
     if (isQuitting()) return // real quit (tray "退出" / close-resolve quit) — let it close
-    if (!getTray()) {
-      // No tray available: closing really quits (window-all-closed handles it).
-      setQuitting(true)
-      return
-    }
+    const others = listWindows().filter((w) => w !== win)
+    const lastWithTray = getTray() && others.length === 0
+    if (!lastWithTray) return // not the final window (or no tray) → allow real close
+
     e.preventDefault()
 
     const s = loadSettings()
@@ -182,11 +247,13 @@ export function createShellWindow(): void {
         app.quit()
       }
     } else {
-      broadcast('ui:ask-close') // renderer shows the Element Plus prompt
+      sendToWindow(win, 'ui:ask-close') // 本窗口 renderer 弹 Element Plus 询问
     }
   })
+
   win.on('closed', () => {
-    setMainWindow(null)
+    openIntent.delete(wcId)
+    finalizeWindowClosed(win)
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -195,9 +262,55 @@ export function createShellWindow(): void {
   } else {
     void wc.loadFile(rendererIndex())
   }
+  return win
 }
 
-/** Show the main window, or recreate it if it was destroyed. */
+/**
+ * 首个（核心）壳窗口。dsh 内核 UI 固定站只在此窗口出现；它在关闭（且无托盘或非最后窗口）
+ * 时被真正销毁，若有副窗口则会把核心角色移交给它们。
+ */
+export function createShellWindow(): void {
+  buildShellWindow(true)
+}
+
+/**
+ * 新建一个副窗口（完整壳、带标签条、isCore=false）。url 为 http(s) 时，加载后在其中开一个
+ * 动态标签页承载之；url 为内置导航页伪链接(dssh://about:blank)时，在其中开一个内置导航页。
+ */
+export function createSecondaryShellWindow(url?: string): BrowserWindow | null {
+  const okHttp = typeof url === 'string' && /^https?:/i.test(url)
+  const okNewtab = isNewTabTarget(url)
+  if (!okHttp && !okNewtab) return null // 只接受 http(s) 或内置导航页伪链接
+  const initial = okNewtab ? NEWTAB_URL : (url as string)
+  try {
+    const win = buildShellWindow(false, initial)
+    console.log('[shell] created secondary window wcId=', win.webContents.id, 'target=', initial ?? '(none)')
+    return win
+  } catch (err) {
+    console.error('[shell] failed to create secondary window:', err)
+    return null
+  }
+}
+
+/**
+ * 把某个标签页/URL 开到一个新副窗口（右键“在新窗口打开 / 移动到其它窗口”用）。
+ */
+export function openStandaloneWindow(url: string): BrowserWindow | null {
+  return createSecondaryShellWindow(url)
+}
+
+/** 聚焦核心窗口（副窗口“跳转核心窗口”按钮用）；无核心则重建一个。 */
+export function focusCoreWindow(): void {
+  const core = getMainWindow()
+  if (core && !core.isDestroyed()) {
+    if (!core.isVisible()) core.show()
+    core.focus()
+    return
+  }
+  createShellWindow()
+}
+
+/** Show the main (core) window, or recreate it if it was destroyed. */
 export function showMainWindow(): void {
   const w = getMainWindow()
   if (w && !w.isDestroyed()) {
@@ -208,7 +321,7 @@ export function showMainWindow(): void {
   }
 }
 
-/** System tray: close hides the window here; "退出" really quits (and stops dsh). */
+/** System tray: close hides the (core) window here; "退出" really quits (and stops dsh). */
 export function createTray(): void {
   try {
     const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
@@ -242,8 +355,7 @@ export function createTray(): void {
       else showMainWindow()
     })
   } catch (err) {
-    // Tray may be unavailable (e.g. some Linux setups). Degrade gracefully:
-    // closing the window then falls back to the previous hide-to-tray-less path.
+    // Tray may be unavailable (e.g. some Linux setups). Degrade gracefully.
     console.error('[Manager] failed to create tray:', err)
     setTray(null)
   }

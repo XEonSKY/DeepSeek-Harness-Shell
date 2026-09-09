@@ -1,16 +1,39 @@
-import { app, dialog, ipcMain, shell } from 'electron'
-import { DEFAULT_SETTINGS } from '@shared/types'
+import { app, dialog, ipcMain, shell, Menu } from 'electron'
+import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
+import { DEFAULT_SETTINGS, NEWTAB_URL } from '@shared/types'
 import type { Settings, ResolvedLocale } from '@shared/types'
 import { resolveLocale, localeCodeOf } from '@shared/i18n'
 import { readDiskSettings, persistSettings, syncDshTheme, syncNativeTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, normalizeNpmSource } from './settings'
 import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from './kernel'
 import { getLogHistory, restart, isDshRunning, stopServer } from './dsh'
 import { appMeta, triggerAppUpdate, restartAndInstall } from './appupdate'
-import { broadcast, getCurrentUrl, getMainWindow, setQuitting } from './runtime'
-import { isCoreWindow } from './windowreg'
-import { openStandaloneWindow } from './ui'
+import { broadcast, getCurrentUrl, getMainWindow, setQuitting, sendCore, sendToWindow, sendToWcId } from './runtime'
+import { isCoreWindow, windowByContentsId, listWindows } from './windowreg'
+import { openStandaloneWindow, focusCoreWindow, takeOpenIntent, createSecondaryShellWindow } from './ui'
 import { findSystemNode, findSystemNpm, nodeVersionOf, localNodeExecPath } from './tools'
 import { deployLocalNode } from './nodeenv'
+
+/** 窗口显示名用的“软件名”后缀（与建窗时的默认标题保持一致）。 */
+const APP_TITLE = 'DeepSeek Harness'
+
+/**
+ * 多窗口下定位“发起这次 IPC 的那个壳窗口”：取 e.sender(webContents) 所属的壳窗口；
+ * 异常环境退回当前主(核心)窗口。窗口级操作(缩放/最小化/关闭/对话框)都应作用到该窗口，
+ * 而不是总用主窗口——否则副窗口点“关闭”会误关核心窗口。
+ */
+function windowOfSender(e: { sender: { id: number } }): BrowserWindow | null {
+  const w = windowByContentsId(e.sender.id)
+  return w && !w.isDestroyed() ? w : (getMainWindow() && !getMainWindow()!.isDestroyed() ? getMainWindow() : null)
+}
+
+/** 聚焦某个壳窗口（若最小化先还原、不可见先显示），常用于“标签移入/新开后的接收窗口”。 */
+function focusWindowById(wcId: number): void {
+  const w = windowByContentsId(wcId)
+  if (!w || w.isDestroyed()) return
+  if (w.isMinimized()) w.restore()
+  if (!w.isVisible()) w.show()
+  w.focus()
+}
 
 export function registerIpc(): void {
   ipcMain.handle('settings:get', () => {
@@ -56,8 +79,8 @@ export function registerIpc(): void {
   ipcMain.handle('dsh:restart', () => {
     void restart()
   })
-  ipcMain.handle('zoom:set', (_e, percent: number) => {
-    const w = getMainWindow()
+  ipcMain.handle('zoom:set', (e, percent: number) => {
+    const w = windowOfSender(e)
     if (!w) return
     const p = Math.max(50, Math.min(200, Number(percent) || 100))
     w.webContents.setZoomFactor(p / 100)
@@ -104,11 +127,124 @@ export function registerIpc(): void {
   ipcMain.handle('shell:open-url', (_e, url: string) => {
     openStandaloneWindow(typeof url === 'string' ? url : '')
   })
+  // 副窗口“跳转核心窗口”：聚焦核心窗口（无核心则重建一个）。
+  ipcMain.handle('shell:focus-core', () => {
+    focusCoreWindow()
+  })
+  // 副窗口挂载后取走本窗口的“开页意图”（创建时若带了 URL，会据此开一个动态标签页）。
+  ipcMain.handle('shell:take-open-intent', (e) => takeOpenIntent(e.sender.id))
+
+  // ---- 跨窗口拖标签移动（由“源窗口”自行跟踪指针，屏幕坐标决定落点）----
+  let dragCtx: { sourceId: number; target: string } | null = null
+  let hoveredWc: number | null = null
+  const setHover = (id: number | null): void => {
+    if (hoveredWc === id) return
+    if (hoveredWc != null) sendToWcId(hoveredWc, 'tab-drag-hover', false)
+    hoveredWc = id
+    if (id != null) sendToWcId(id, 'tab-drag-hover', true)
+  }
+  // 源窗口开始拖拽：登记 ctx，并返回“其它壳窗口”的屏幕几何，供源窗口用指针屏幕坐标算落点。
+  ipcMain.handle('tab-drag:begin', (e, payload: unknown) => {
+    const p = payload as { target?: unknown } | null
+    const target = p && typeof p.target === 'string' && p.target ? p.target : ''
+    dragCtx = target ? { sourceId: e.sender.id, target } : null
+    setHover(null)
+    if (!dragCtx) return []
+    return listWindows()
+      .filter((w) => w !== windowByContentsId(e.sender.id) && !w.isDestroyed())
+      .map((w) => {
+        const b = w.getBounds()
+        return { id: w.webContents.id, x: b.x, y: b.y, w: b.width, h: b.height }
+      })
+  })
+  // 源窗口报告当前“指针悬停的目标窗口 id”（主进程只把高亮发给那个窗口）。
+  ipcMain.on('tab-drag:hover', (_e, payload: unknown) => {
+    const p = payload as { targetId?: unknown } | null
+    const id = p && typeof p.targetId === 'number' ? (p.targetId as number) : null
+    setHover(id)
+  })
+  // 取消：清除拖拽上下文并收起所有高亮。
+  ipcMain.on('tab-drag:end', () => {
+    dragCtx = null
+    setHover(null)
+  })
+  // 源窗口决定把标签移入某目标窗口。
+  ipcMain.on('tab-drag:drop-to', (_e, payload: unknown) => {
+    const ctx = dragCtx
+    const p = payload as { targetId?: unknown } | null
+    const id = p && typeof p.targetId === 'number' ? (p.targetId as number) : -1
+    dragCtx = null
+    setHover(null)
+    if (!ctx || id < 0) return
+    sendToWcId(id, 'ui:new-tab', ctx.target) // 目标窗口开该标签（含内置导航页伪链接）
+    sendToWcId(ctx.sourceId, 'tab-drag:moved') // 通知源窗口移除被拖标签
+    focusWindowById(id) // 释放后聚焦“接收窗口”
+  })
+  // 副窗口把“当前标签页标题”同步给主进程，主进程据此命名窗口：<标签页标题> - 软件名。
+  ipcMain.on('shell:set-title', (e, title: unknown) => {
+    const w = windowOfSender(e)
+    if (!w) return
+    const label = typeof title === 'string' && title.trim() ? title.trim() : ''
+    w.setTitle(label ? `${label} - ${APP_TITLE}` : APP_TITLE)
+  })
+  // “移动到其它窗口”：弹一个原生菜单列出其它壳窗口供用户选择目标；选中的目标窗口开一个
+  // 动态标签页承载 url，随后源窗口移除其标签。若当前没有其它窗口则回退到新开一个副窗口。
+  // resolve true 表示确实移走了（源窗口应关闭对应标签）；false 表示用户取消（保留标签）。
+  ipcMain.handle(
+    'shell:move-tab',
+    (e, url: unknown) =>
+      new Promise<boolean>((resolve) => {
+        const src = windowOfSender(e)
+        const u = typeof url === 'string' ? url : ''
+        const okHttp = /^https?:/i.test(u)
+        const okNewtab = u === NEWTAB_URL
+        if (!u || (!okHttp && !okNewtab)) {
+          resolve(false)
+          return
+        }
+        const doOpen = (target: BrowserWindow | null): BrowserWindow | null => {
+          if (target && !target.isDestroyed()) {
+            sendToWindow(target, 'ui:new-tab', u)
+            return target
+          }
+          return createSecondaryShellWindow(u)
+        }
+        const candidates = listWindows().filter((w) => w !== src && !w.isDestroyed())
+        let settled = false
+        const finish = (ok: boolean): void => {
+          if (settled) return
+          settled = true
+          resolve(ok)
+        }
+        const pick = (w: BrowserWindow | null): void => {
+          const opened = doOpen(w)
+          if (opened && !opened.isDestroyed()) focusWindowById(opened.webContents.id)
+          finish(true)
+        }
+        if (candidates.length === 0) {
+          pick(null) // 没有其它窗口 → 直接新开
+          return
+        }
+        const items: MenuItemConstructorOptions[] = candidates.map((w) => ({
+          label: (w.getTitle() || APP_TITLE).trim(),
+          click: () => pick(w)
+        }))
+        items.push({ type: 'separator' })
+        items.push({ label: '＋ 新窗口', click: () => pick(null) })
+        const menu = Menu.buildFromTemplate(items)
+        const anchor = src && !src.isDestroyed() ? src : undefined
+        menu.popup({
+          window: anchor,
+          // 菜单被关闭（取消或 Esc）而无选择 → 视为取消
+          callback: () => finish(false)
+        })
+      })
+  )
   ipcMain.handle('app:openExternal', async (_e, url: string) => {
     if (/^https?:/i.test(url)) await shell.openExternal(url)
   })
-  ipcMain.handle('dialog:openDirectory', async () => {
-    const w = getMainWindow()
+  ipcMain.handle('dialog:openDirectory', async (e) => {
+    const w = windowOfSender(e)
     if (!w) return null
     const r = await dialog.showOpenDialog(w, {
       title: '选择工作目录',
@@ -116,8 +252,8 @@ export function registerIpc(): void {
     })
     return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0]
   })
-  ipcMain.handle('dialog:openFile', async () => {
-    const w = getMainWindow()
+  ipcMain.handle('dialog:openFile', async (e) => {
+    const w = windowOfSender(e)
     if (!w) return null
     const r = await dialog.showOpenDialog(w, {
       title: '选择启动器文件',
@@ -131,24 +267,24 @@ export function registerIpc(): void {
   })
   ipcMain.on('app:quit', () => app.quit())
 
-  // Frameless-window controls driven by the renderer's custom title bar.
-  ipcMain.on('win:minimize', () => getMainWindow()?.minimize())
-  ipcMain.on('win:maximize-toggle', () => {
-    const w = getMainWindow()
+  // Frameless-window controls driven by each window's own custom title bar.
+  ipcMain.on('win:minimize', (e) => windowOfSender(e)?.minimize())
+  ipcMain.on('win:maximize-toggle', (e) => {
+    const w = windowOfSender(e)
     if (!w) return
     if (w.isMaximized()) w.unmaximize()
     else w.maximize()
   })
-  ipcMain.on('win:close', () => getMainWindow()?.close())
+  ipcMain.on('win:close', (e) => windowOfSender(e)?.close())
 
-  // Title-bar refresh: ask the renderer to reload the dsh UI.
-  ipcMain.on('web:reload', () => broadcast('ui:reload-dsh'))
+  // Title-bar refresh: ask the (core) window that hosts the dsh UI to reload it.
+  ipcMain.on('web:reload', () => sendCore('ui:reload-dsh'))
 
-  // Renderer answered the Element Plus close prompt.
+  // Renderer answered the Element Plus close prompt (origin window closes/quits).
   ipcMain.on(
     'win:close-resolve',
-    (_e, decision: { action: 'hide' | 'quit'; remember: boolean }) => {
-      const w = getMainWindow()
+    (e, decision: { action: 'hide' | 'quit'; remember: boolean }) => {
+      const w = windowOfSender(e)
       if (!w) return
       if (decision.remember) saveCloseChoice({ closeToTray: decision.action === 'hide', rememberClose: true })
       if (decision.action === 'hide') {

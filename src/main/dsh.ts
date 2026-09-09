@@ -6,7 +6,8 @@ import os from 'node:os'
 import fs from 'node:fs'
 import { createInterface } from 'node:readline'
 import type { LogEntry, Settings } from '@shared/types'
-import { IS_WIN, broadcast, getMainWindow, setCurrentUrl } from './runtime'
+import { IS_WIN, broadcast, sendCore, setCurrentUrl } from './runtime'
+import { listWindows } from './windowreg'
 import type { NodeRuntime } from './tools'
 import { resolveKernel, nodeRuntimeForCfg } from './tools'
 import { loadSettings, mt } from './settings'
@@ -182,11 +183,11 @@ export function stopAllDsh(): boolean {
   return wasRunning
 }
 
-/** 主动停止 dsh：关停并清空当前 URL，广播给渲染层。 */
+/** 主动停止 dsh：关停并清空当前 URL，广播给渲染层（仅核心窗口承载内核 UI）。 */
 export function stopServer(): void {
   stopAllDsh()
   setCurrentUrl(null)
-  broadcast('dsh:url', null)
+  sendCore('dsh:url', null)
 }
 
 // ---------------------------------------------------------------------------
@@ -397,11 +398,11 @@ async function runOneRestart(): Promise<void> {
     effective.port = await resolvePort(effective)
     const url = await launchServer(effective)
     setCurrentUrl(url)
-    broadcast('dsh:url', url)
+    sendCore('dsh:url', url) // 只通知核心窗口：内核 UI 由核心窗口承载
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     dialog.showErrorBox(mt('m.dialogs.startFailedTitle'), msg)
-    if (!getMainWindow()) app.quit()
+    if (listWindows().length === 0) app.quit()
   }
 }
 

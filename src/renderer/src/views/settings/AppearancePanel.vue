@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { Moon } from '@element-plus/icons-vue'
+import { Brush, Moon } from '@element-plus/icons-vue'
 import { i18n, setLocale, applyFunToZh } from '../../locales'
 import { useSettingsStore } from './useSettingsStore'
-import PanelCard from './PanelCard.vue'
 import type { FunLocale, ResolvedLocale } from '@shared/types'
 
 const { state } = useSettingsStore()
 
+const open = ref(['appearance-main'])
 const ZOOMS = [50, 75, 100, 125, 150, 175, 200]
 
 // 界面语言单一来源是 dsh settings.yaml 的 locale.preference（zh/en）。
@@ -78,44 +78,53 @@ async function onSysScale(v: boolean): Promise<void> {
 
 <template>
   <div class="panel">
-    <PanelCard id="appearance-main">
-      <template #header>
-        <div class="sec__title"><el-icon><Moon /></el-icon> {{ $t('sv.appearance.title') }}</div>
-      </template>
+    <div class="dsh-brand">
+      <div class="dsh-brand__icon"><el-icon :size="34"><Brush /></el-icon></div>
+      <div class="dsh-brand__txt">
+        <div class="dsh-brand__name">{{ $t('sv.nav.appearance') }}</div>
+        <div class="dsh-brand__desc">{{ $t('sv.intro.appearance') }}</div>
+      </div>
+    </div>
+    <el-collapse v-model="open">
+      <el-collapse-item name="appearance-main">
+        <template #title>
+          <div class="sec__title"><el-icon><Moon /></el-icon> {{ $t('sv.appearance.title') }}</div>
+        </template>
 
-      <el-form label-position="top">
-        <el-form-item :label="$t('sv.appearance.theme')">
-          <el-radio-group v-model="state.theme">
-            <el-radio-button :value="'system'">{{ $t('sv.appearance.themeSystem') }}</el-radio-button>
-            <el-radio-button :value="'light'">{{ $t('sv.appearance.themeLight') }}</el-radio-button>
-            <el-radio-button :value="'dark'">{{ $t('sv.appearance.themeDark') }}</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
+        <el-form label-position="top">
+          <el-form-item :label="$t('sv.appearance.theme')">
+            <el-radio-group v-model="state.theme">
+              <el-radio-button :value="'system'">{{ $t('sv.appearance.themeSystem') }}</el-radio-button>
+              <el-radio-button :value="'light'">{{ $t('sv.appearance.themeLight') }}</el-radio-button>
+              <el-radio-button :value="'dark'">{{ $t('sv.appearance.themeDark') }}</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
 
-        <el-form-item :label="$t('sv.appearance.zoom')">
-          <el-select v-model="state.zoomPercent" class="zoom-sel">
-            <el-option v-for="z in ZOOMS" :key="z" :label="z + '%'" :value="z" />
-          </el-select>
-          <div class="hint">{{ $t('sv.appearance.zoomHint') }}</div>
-        </el-form-item>
+          <el-form-item :label="$t('sv.appearance.zoom')">
+            <el-select v-model="state.zoomPercent" class="zoom-sel">
+              <el-option v-for="z in ZOOMS" :key="z" :label="z + '%'" :value="z" />
+            </el-select>
+            <div class="hint">{{ $t('sv.appearance.zoomHint') }}</div>
+          </el-form-item>
 
-        <el-form-item :label="$t('sv.appearance.ignoreScale')">
-          <el-switch :model-value="state.ignoreSystemScale" @update:model-value="onSysScale" />
-          <div class="hint">{{ $t('sv.appearance.ignoreScaleHint') }}</div>
-        </el-form-item>
+          <el-form-item :label="$t('sv.appearance.ignoreScale')">
+            <el-switch :model-value="state.ignoreSystemScale" @update:model-value="onSysScale" />
+            <div class="hint">{{ $t('sv.appearance.ignoreScaleHint') }}</div>
+          </el-form-item>
 
-        <el-form-item :label="$t('sv.appearance.language')">
-          <el-cascader
-            :options="langOptions"
-            :model-value="langCascader"
-            class="lang-casc"
-            :placeholder="$t('sv.appearance.language')"
-            @change="onLangCascader"
-          />
-          <div class="hint">{{ $t('sv.appearance.funHint') }}</div>
-        </el-form-item>
-      </el-form>
-    </PanelCard>
+          <el-form-item :label="$t('sv.appearance.language')">
+            <el-cascader
+              :options="langOptions"
+              :model-value="langCascader"
+              class="lang-casc"
+              :placeholder="$t('sv.appearance.language')"
+              @change="onLangCascader"
+            />
+            <div class="hint">{{ $t('sv.appearance.funHint') }}</div>
+          </el-form-item>
+        </el-form>
+      </el-collapse-item>
+    </el-collapse>
   </div>
 </template>
 

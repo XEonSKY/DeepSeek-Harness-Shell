@@ -9,10 +9,12 @@ import appIcon from './assets/icon.png'
 import { checkAndNotify } from './update'
 import { applyTheme } from './theme'
 import { applyFunToZh } from './locales'
-import { webTabs, activeTab, findTab, activateTab, closeTab, openTab, openNewTab, toggleKeep, setCoreRole, FIXED_LABEL_KEY } from './tabs'
+import { webTabs, activeTab, findTab, activateTab, closeTab, openTab, openNewTab, openTarget, toggleKeep, setCoreRole, FIXED_LABEL_KEY } from './tabs'
 import type { WebTab } from './tabs'
 import WebHost from './views/WebHost.vue'
 import { shellMeta } from './shellmeta'
+import { useTabDrag } from './useTabDrag'
+import { NEWTAB_URL } from '@shared/types'
 import type { EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -21,6 +23,8 @@ type ViewKey = 'web' | 'log' | 'settings'
 
 const route = useRoute()
 const router = useRouter()
+// 标签页拖拽：同窗口内拖动=排序；拖到其它窗口（其顶部标签栏亮浅蓝遮罩可接收）=把标签移过去。
+const { bindTabsBar, onTabPointerDown, draggingTabId, slotBeforeId, hoverMask, ghost } = useTabDrag()
 /** 当前高亮的视图（/settings* 统一归入设置）。web 内容由标签页承载。 */
 const view = computed<ViewKey>(() => {
   if (route.path.startsWith('/settings')) return 'settings'
@@ -39,8 +43,20 @@ function go(k: 'web' | 'log' | 'settings'): void {
   if (route.path !== path) void router.push(path)
 }
 
-/** 点击一个标签页：激活并确保显示在 web 宿主。 */
-function onTabClick(id: string): void {
+/**
+ * 点击一个标签页：激活并确保显示在 web 宿主。
+ * Ctrl/⌘+点击则改用系统浏览器打开该标签网址（与普通点击一致的处理入口）。
+ */
+function onTabClick(id: string, ev?: MouseEvent): void {
+  // Ctrl/⌘+点击 = 在系统默认浏览器打开该标签的目标网址（无网址的标签忽略，回落普通切换）。
+  if (ev && (ev.ctrlKey || ev.metaKey)) {
+    const tab = findTab(id)
+    if (tab?.url) {
+      ev.preventDefault()
+      void window.api.openExternal(tab.url)
+      return
+    }
+  }
   activateTab(id)
   ensureWebRoute()
 }
@@ -86,26 +102,29 @@ function ctxClose(): void {
   if (id) closeTab(id)
 }
 
-/** 在新窗口打开：当前标签对应 URL 开到一个独立窗口（标签保留）。 */
+/** 在新窗口打开：把该标签目标（动态页 URL，或内置导航页伪链接 dssh://about:blank）开到一个独立窗口。 */
 async function ctxOpenWindow(): Promise<void> {
   const t = ctx.value ? findTab(ctx.value.id) : undefined
   closeCtx()
-  if (t && t.url) await window.api.openWebWindow(t.url)
+  if (!t) return
+  const target = t.kind === 'newtab' ? NEWTAB_URL : t.url
+  if (target) await window.api.openWebWindow(target)
 }
 
-/** 移动到其它窗口：先在新窗口打开该 URL，再从本窗口移除该标签。 */
+/** 移动到其它窗口：弹出目标窗口选择；目标开该标签（含内置导航页），再从本窗口移除；取消则保留。 */
 async function ctxMove(): Promise<void> {
-  const id = ctx.value?.id
   const t = ctx.value ? findTab(ctx.value.id) : undefined
   closeCtx()
-  if (!t || !t.url) return
-  await window.api.openWebWindow(t.url)
-  closeTab(id)
+  if (!t) return
+  const target = t.kind === 'newtab' ? NEWTAB_URL : t.url
+  if (!target) return
+  const moved = await window.api.moveTabToWindow(target)
+  if (moved) closeTab(t.id)
 }
 
-/** 跳转到核心窗口（非核心窗口用；现阶段占位，后续经 IPC 聚焦核心窗口）。 */
-function jumpToCore(): void {
-  // TODO(多窗口): window.api.focusCoreWindow?.()
+/** 跳转到核心窗口（副窗口用）：经 IPC 聚焦当前核心窗口；无核心则主进程重建一个。 */
+async function jumpToCore(): Promise<void> {
+  await window.api.focusCoreWindow()
 }
 
 /** 滚轮滚动标签条时改为横向滚动。 */
@@ -136,6 +155,21 @@ async function onPlus(): Promise<void> {
   }
   ensureWebRoute()
 }
+
+/**
+ * 副窗口把“当前标签页标题”同步给主进程，用于把本窗口命名为“<标题> - 软件名”（例如任务栏/窗口
+ * 切换器/“移动到其它窗口”的选择器里可见）。核心窗口保持软件名不推送。
+ */
+function pushShellTitle(): void {
+  if (shellMeta.isCore) return
+  const a = activeTab()
+  window.api.setShellTitle(a ? labelOf(a) : '')
+}
+watch(
+  [() => webTabs.activeId, () => activeTab()?.title, () => activeTab()?.kind],
+  () => pushShellTitle(),
+  { flush: 'post' }
+)
 
 /** 动态/新标签页（由新开链接/＋ 产生）；固定三站以图标按钮呈现，不在此列。 */
 const dynamicTabs = computed(() => webTabs.list.filter((t) => t.kind === 'dynamic' || t.kind === 'newtab'))
@@ -423,6 +457,20 @@ const quitShell = (): void => window.api.quit()
 onMounted(() => {
   // 仅核心窗口保留三固定站；非核心窗口不显示内核UI/网页/用量固定标签
   setCoreRole(shellMeta.isCore)
+  pushShellTitle() // 副窗口初始命名（如空则回落到软件名）
+  // 副窗口若带“开页意图”（创建时主进程给了 URL），挂载后开一个动态标签页承载之。
+  if (!shellMeta.isCore) {
+    void window.api
+      .takeOpenIntent()
+      .then((u) => {
+        if (u) {
+          openTarget(u)
+          ensureWebRoute()
+          pushShellTitle()
+        }
+      })
+      .catch(() => {})
+  }
   // 角色可能变化（如本窗口接管成为新核心）→ 更新固定标签并回到内核UI
   offCore = window.api.onShellRole((isCore) => {
     shellMeta.isCore = isCore
@@ -487,17 +535,17 @@ onBeforeUnmount(() => {
         <div class="quick">
           <template v-if="shellMeta.isCore">
             <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
-              <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home')">
+              <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home', $event)">
                 <el-icon><Monitor /></el-icon>
               </button>
             </el-tooltip>
             <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
-              <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat')">
+              <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat', $event)">
                 <el-icon><ChatDotRound /></el-icon>
               </button>
             </el-tooltip>
             <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
-              <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform')">
+              <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform', $event)">
                 <el-icon><Wallet /></el-icon>
               </button>
             </el-tooltip>
@@ -514,16 +562,17 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 动态标签页条：可开很多，多标签时原生横向滚动；空白区可拖窗口 -->
-        <div class="tabs" @wheel="onTabsWheel">
+        <div class="tabs" :ref="bindTabsBar" @wheel="onTabsWheel">
           <div
             v-for="tab in dynamicTabs"
             :key="tab.id"
             class="tab"
-            :class="{ on: isWebActive(tab.id) }"
+            :class="{ on: isWebActive(tab.id), dragging: draggingTabId === tab.id, slot: slotBeforeId === tab.id }"
             :title="tab.url ?? ''"
-            @click="onTabClick(tab.id)"
+            @click="onTabClick(tab.id, $event)"
             @mousedown="onTabMouseDown(tab.id, $event)"
             @contextmenu.prevent="onTabContext(tab.id, $event)"
+            @pointerdown="onTabPointerDown(tab, $event)"
           >
             <span class="tab__label">{{ labelOf(tab) }}</span>
             <button
@@ -592,6 +641,13 @@ onBeforeUnmount(() => {
         </el-tooltip>
       </div>
     </header>
+
+    <!-- 跨窗口拖拽：本窗口被悬停为目标 → 顶部标签栏浅蓝遮罩表示可接收 -->
+    <div v-if="hoverMask" class="tab-drop-mask"></div>
+    <!-- 拖动中的半透明“幽灵”标签，跟随指针 -->
+    <div v-if="ghost.visible" class="tab-ghost" :style="{ left: ghost.x + 'px', top: ghost.y + 'px' }">
+      {{ ghost.text }}
+    </div>
 
     <main class="body">
       <!-- 常驻 web 宿主：进入日志/设置也不卸载，标签页 webview 保持保活 -->
@@ -999,6 +1055,48 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   min-width: 0; /* 覆盖 .tab 的 min-width，＋ 按钮不做最小宽度 */
   padding: 0 8px;
+}
+/* ---- 拖拽：正在拖的标签、本地插入位置、跨窗可接收遮罩、幽灵标签 ---- */
+.tab {
+  touch-action: none;
+}
+.tab.dragging {
+  opacity: 0.5;
+}
+.tab.slot {
+  box-shadow: -2px 0 0 0 var(--el-color-primary);
+}
+/* 跨窗口拖拽时，目标窗口顶部的“可接收”浅蓝遮罩带 */
+.tab-drop-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  z-index: 60;
+  pointer-events: none;
+  background: rgba(64, 158, 255, 0.16);
+  border-bottom: 1px dashed rgba(64, 158, 255, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.3);
+}
+/* 拖动时跟随指针的半透明幽灵标签 */
+.tab-ghost {
+  position: fixed;
+  z-index: 3000;
+  max-width: 240px;
+  padding: 5px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(255, 255, 255, 0.92);
+  color: #303133;
+  border: 1px solid rgba(64, 158, 255, 0.6);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0.92;
 }
 .body {
   flex: 1 1 auto;

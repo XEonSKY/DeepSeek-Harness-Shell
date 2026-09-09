@@ -154,6 +154,13 @@ export default {
   sv: {
     cap: 'Settings',
     nav: { general: 'General', appearance: 'Appearance', network: 'Network', dsh: 'Kernel', about: 'About' },
+    intro: {
+      general: 'Working directory, port, tabs and search basics.',
+      appearance: 'Interface language, theme and zoom.',
+      network: 'Proxy connection and scope.',
+      dsh: 'Kernel source, Node / npm environment and updates.',
+      about: 'About the app and kernel, plus update checks.'
+    },
     general: {
       run: 'Run',
       workspace: 'Working directory',

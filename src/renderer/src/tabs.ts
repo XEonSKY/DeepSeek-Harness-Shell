@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { isNewTabTarget } from '@shared/types'
 
 /**
  * 标题栏「浏览器标签页」模型（渲染层单例）。
@@ -202,6 +203,16 @@ export function openTab(url: string, title?: string): WebTab {
   webTabs.list.push(tab)
   webTabs.activeId = tab.id
   return tab
+}
+
+/**
+ * 按“目标”打开标签页：target 为内置导航页伪链接(dssh://about:blank)时开一个内置导航页，
+ * 否则视为普通 URL 开动态标签页。无目标返回 null。
+ */
+export function openTarget(target: string | null | undefined): WebTab | null {
+  if (!target) return null
+  if (isNewTabTarget(target)) return openNewTab()
+  return openTab(target)
 }
 
 /**

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, ArrowRight, Refresh, Loading } from '@element-plus/icons-vue'
-import { webTabs, activeTab, openTab, setHomeUrl, keptTabIds } from '../tabs'
+import { webTabs, activeTab, openTarget, setHomeUrl, keptTabIds } from '../tabs'
 import type { WebTab } from '../tabs'
 import NewTab from './NewTab.vue'
 import { buildSearchUrl } from '../engines'
 import type { SearchEngineId } from '@shared/types'
+import { shellMeta } from '../shellmeta'
 
 /**
  * 「/」路由宿主：标签页模式的 web 内容区。
@@ -263,8 +264,10 @@ onMounted(async () => {
     zoomPct = 100
   }
 
+  // dsh:url 只定向发给“核心窗口”，但这里始终订阅：若本窗口稍后被提升为新的核心窗口，
+  // 主进程会在提升后补发 dsh:url，让内核 UI 固定站能及时拿到地址。
   offUrl = window.api.onDshUrl((u) => setHomeUrl(u))
-  offNewTab = window.api.onNewTab((url) => openTab(url))
+  offNewTab = window.api.onNewTab((url) => { openTarget(url) })
   offReload = window.api.onReloadDsh(reloadActive)
   offSettings = window.api.onSettingsChanged((s) => {
     zoomPct = s.zoomPercent ?? 100
@@ -272,12 +275,15 @@ onMounted(async () => {
     for (const wv of wvById.values()) applyZoom(wv)
   })
 
-  // 初始拉取 dsh URL；拿不到则轮询。
+  // 初始拉取 dsh URL 只对核心窗口做（内核 UI 固定站只在核心窗口）；副窗口由主进程以
+  // ui:new-tab 定向给一个动态标签页，不需 home。
   ensureActive()
   syncNavFrom(activeWv())
-  const u = await window.api.getDshUrl()
-  if (u) setHomeUrl(u)
-  else startPolling()
+  if (shellMeta.isCore) {
+    const u = await window.api.getDshUrl()
+    if (u) setHomeUrl(u)
+    else startPolling()
+  }
 })
 
 onBeforeUnmount(() => {

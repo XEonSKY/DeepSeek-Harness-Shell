@@ -117,6 +117,25 @@ const api: RendererApi = {
   setConfigDir: (dir) => ipcRenderer.invoke('configdir:set', dir),
   getShellMeta: () => ipcRenderer.invoke('shell:meta'),
   openWebWindow: (url) => ipcRenderer.invoke('shell:open-url', url),
+  focusCoreWindow: () => ipcRenderer.invoke('shell:focus-core'),
+  takeOpenIntent: () => ipcRenderer.invoke('shell:take-open-intent'),
+  setShellTitle: (title) => ipcRenderer.send('shell:set-title', title),
+  moveTabToWindow: (url) => ipcRenderer.invoke('shell:move-tab', url),
+
+  tabDragBegin: (target) => ipcRenderer.invoke('tab-drag:begin', { target }),
+  tabDragHover: (targetId) => ipcRenderer.send('tab-drag:hover', { targetId }),
+  tabDragEnd: () => ipcRenderer.send('tab-drag:end'),
+  tabDragDropTo: (targetId) => ipcRenderer.send('tab-drag:drop-to', { targetId }),
+  onTabDragMoved(cb) {
+    const listener = (): void => cb()
+    ipcRenderer.on('tab-drag:moved', listener)
+    return () => ipcRenderer.removeListener('tab-drag:moved', listener)
+  },
+  onTabDragHover(cb) {
+    const listener = (_e: unknown, on: boolean): void => cb(!!on)
+    ipcRenderer.on('tab-drag-hover', listener)
+    return () => ipcRenderer.removeListener('tab-drag-hover', listener)
+  },
   quit: () => ipcRenderer.send('app:quit'),
 
   windowMinimize: () => ipcRenderer.send('win:minimize'),

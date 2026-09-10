@@ -138,9 +138,22 @@ function restart(): void {
 }
 
 let offEvent: (() => void) | null = null
+/** 是否已收到过实时事件：用于避免「补齐状态」把更新的实时状态覆盖成旧值。 */
+let gotLiveEvent = false
 
 onMounted(async () => {
-  offEvent = window.api.onAppUpdateEvent(onEvent)
+  offEvent = window.api.onAppUpdateEvent((e) => {
+    gotLiveEvent = true
+    onEvent(e)
+  })
+  // 启动期的静默检查/下载发生在本页挂载之前，先订阅再补一次最近状态；
+  // 若期间已收到实时事件，则以下载/完成等实时状态为准，不用缓存覆盖。
+  try {
+    const last = await window.api.getAppUpdateState()
+    if (last && !gotLiveEvent) onEvent(last)
+  } catch {
+    /* ignore */
+  }
   try {
     const m = await window.api.getAppMeta()
     meta.value = m

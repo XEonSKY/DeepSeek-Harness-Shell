@@ -168,6 +168,7 @@ export function loadSettings(): Settings {
     npmRegistry: disk.npmRegistry ?? DEFAULT_SETTINGS.npmRegistry,
     appAutoUpdate: disk.appAutoUpdate ?? DEFAULT_SETTINGS.appAutoUpdate,
     appCheckPrerelease: disk.appCheckPrerelease ?? DEFAULT_SETTINGS.appCheckPrerelease,
+    updateMirrorUrl: disk.updateMirrorUrl ?? DEFAULT_SETTINGS.updateMirrorUrl,
     devMode: disk.devMode ?? DEFAULT_SETTINGS.devMode,
     kernelSource: disk.kernelSource ?? DEFAULT_SETTINGS.kernelSource,
     nodeRuntime: disk.nodeRuntime ?? DEFAULT_SETTINGS.nodeRuntime,

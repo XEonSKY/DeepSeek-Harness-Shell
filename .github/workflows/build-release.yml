@@ -1,13 +1,18 @@
 name: Build & Release
 
 # 用 GitHub Actions 在三个平台自动构建 Electron 应用；推送 v* 标签时把产物
-# 发布到 GitHub Release（默认创建草稿）。对应 samuelmeuli/action-electron-builder
-# 的用途，但使用官方 runners + electron-builder 直接发布（该旧 action 已停更，
-# 且其 node-version:10 无法安装本项目 Electron 44）。
+# 发布到 GitHub Release（标记为 prerelease，见 package.json 的 build.publish.releaseType；
+# 不能停在 draft —— electron-updater 读不到草稿，会导致自动更新永久失效）。
+# 对应 samuelmeuli/action-electron-builder 的用途，但使用官方 runners + electron-builder
+# 直接发布（该旧 action 已停更，且其 node-version:10 无法安装本项目 Electron 44）。
 
 on:
   push:
+    # 只在 main 分支与版本标签上构建（dev/alpha 不再触发，避免无谓的三平台打包）。
+    branches: [main]
+    tags: ['v*']
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -48,10 +53,22 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      # 标签必须与 package.json 的 version 一致：electron-builder 用 version 生成 release 的
+      # tag，不一致会把产物发到与代码不匹配的 Release，更新器也就找不到对应版本。
+      - name: Verify tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$expected" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json ${expected}"
+            exit 1
+          fi
+
       - name: Compile the app (electron-vite build)
         run: npm run build
 
-      # 仅当推送的是 v* 标签时才发布（生成 draft release，供下载/编辑）。
+      # 仅当推送的是 v* 标签时才发布（生成 prerelease，供下载；必须是已发布状态）。
       - name: Package & publish to GitHub Release (tagged)
         if: startsWith(github.ref, 'refs/tags/v')
         run: npx electron-builder --publish always

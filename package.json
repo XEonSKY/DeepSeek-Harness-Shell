@@ -1,7 +1,7 @@
 {
   "name": "deepseek-harness-shell",
   "productName": "DeepSeek Harness Shell",
-  "version": "0.1.5-alpha-2",
+  "version": "0.1.5-alpha-3",
   "description": "DeepSeek Harness Shell —— 基于 Electron + Vite + Vue3 + Element Plus 的桌面外壳，通过 `dsh web` 启动 DeepSeek Harness Web UI 并用 <webview> 内嵌展示。",
   "license": "Apache-2.0",
   "author": "XEonSKY Studio",
@@ -57,7 +57,8 @@
     "publish": {
       "provider": "github",
       "owner": "XEonSKY",
-      "repo": "DeepSeek-Harness-Shell"
+      "repo": "DeepSeek-Harness-Shell",
+      "releaseType": "prerelease"
     },
     "directories": {
       "output": "dist",
@@ -79,13 +80,6 @@
             "x64",
             "arm64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
         }
       ],
       "icon": "resources/icon.png"
@@ -97,13 +91,17 @@
       "artifactName": "DeepSeek-Harness-Shell-${version}-win-${arch}-setup.${ext}",
       "shortcutName": "DeepSeek Harness Shell"
     },
-    "portable": {
-      "artifactName": "DeepSeek-Harness-Shell-${version}-win-${arch}-portable.${ext}"
-    },
     "mac": {
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64",
             "arm64"

@@ -31,6 +31,12 @@ export interface Settings {
   appAutoUpdate: boolean
   /** App 更新检查也把预发布版本当作候选（默认关）。 */
   appCheckPrerelease: boolean
+  /**
+   * App 自更新下载所用的 GitHub 公共镜像前缀（如 `https://ghproxy.com`）。
+   * 空串 = 官方直连。只改写 GitHub **发布资产**的请求（安装包 / latest.yml / blockmap），
+   * 版本元数据仍走官方 —— 这样即使镜像不支持 GitHub API 也不会让检查整体失效。
+   */
+  updateMirrorUrl: string
   /** 开发模式：开启后 F12 才允许打开 DevTools 控制台（默认关）。 */
   devMode: boolean
   /**
@@ -136,6 +142,7 @@ export const DEFAULT_SETTINGS: Settings = {
   npmRegistry: 'npmjs',
   appAutoUpdate: true,
   appCheckPrerelease: false,
+  updateMirrorUrl: '',
   devMode: false,
   kernelSource: 'local',
   nodeRuntime: 'electron',
@@ -267,6 +274,8 @@ export interface RendererApi {
   getAppMeta(): Promise<AppMeta>
   /** 触发一次 app 自动更新检查；有可用更新时由主进程后台自动下载。 */
   triggerAppUpdate(opts: { prerelease: boolean }): Promise<{ ok: boolean; message: string }>
+  /** 最近一次自动更新状态；页面挂载晚于事件时据此补齐（从未有过事件则为 null）。 */
+  getAppUpdateState(): Promise<AppUpdateEvent | null>
   /** 订阅主进程的自动更新事件（检查中/可用/下载进度/下载完成/出错）。 */
   onAppUpdateEvent(cb: (e: AppUpdateEvent) => void): () => void
   /** 立即重启并安装已下载的更新。 */

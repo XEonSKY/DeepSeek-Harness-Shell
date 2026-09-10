@@ -30,6 +30,8 @@ export interface SettingsState {
   npmRegistry: NpmRegistry
   appAutoUpdate: boolean
   appCheckPrerelease: boolean
+  /** App 更新下载的 GitHub 公共镜像前缀；空串 = 官方直连。 */
+  updateMirrorUrl: string
   devMode: boolean
   /** 内核来源：'local'（内置/默认）｜ 'global'（使用全局安装）。 */
   kernelSource: 'local' | 'global'
@@ -102,6 +104,7 @@ export function payloadFrom(state: SettingsState): Settings {
     npmRegistry: state.npmRegistry,
     appAutoUpdate: state.appAutoUpdate,
     appCheckPrerelease: state.appCheckPrerelease,
+    updateMirrorUrl: state.updateMirrorUrl,
     devMode: state.devMode,
     kernelSource: state.kernelSource,
     nodeRuntime: state.nodeRuntime,

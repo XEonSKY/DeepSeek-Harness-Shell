@@ -238,7 +238,11 @@ export default {
       scopeNpm: 'npm 安装 / 下载',
       scopeNode: 'Node 下载部署',
       scopeUpdate: '内核更新检查',
-      scopeHint: '仅在勾选范围内使用代理。'
+      scopeHint: '仅在勾选范围内使用代理。',
+      mirror: 'GitHub 镜像',
+      mirrorUrl: '镜像前缀',
+      mirrorHint: '留空则直连 GitHub。填入公共镜像前缀（如 https://ghproxy.com）后，应用更新的安装包下载会经其加速；版本查询等元数据仍走官方，因此镜像不支持 GitHub API 也不会让更新检查失效。',
+      mirrorBroken: '镜像失效时清空此项即可恢复直连。'
     },
     dsh: {
       kernelVersion: '内核版本',
@@ -379,7 +383,8 @@ export default {
       uninstallReasonRemoved: '模块文件已移除，失败可能发生在清理命令入口（.cmd / bin）时，请检查 npm 前缀目录的写权限。'
     },
     appUpdate: {
-      onlyPackaged: '仅打包安装的应用支持自动更新。'
+      onlyPackaged: '仅打包安装的应用支持自动更新。',
+      portable: '免安装（portable）版不支持自动更新，请改用安装版。'
     },
     tray: {
       showHide: '显示 / 隐藏窗口',

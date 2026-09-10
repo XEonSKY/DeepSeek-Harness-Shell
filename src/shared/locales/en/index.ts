@@ -229,7 +229,11 @@ export default {
       scopeNpm: 'npm installs / downloads',
       scopeNode: 'Node download & deploy',
       scopeUpdate: 'Kernel update checks',
-      scopeHint: 'Uses the proxy only for the checked scopes.'
+      scopeHint: 'Uses the proxy only for the checked scopes.',
+      mirror: 'GitHub mirror',
+      mirrorUrl: 'Mirror prefix',
+      mirrorHint: 'Leave empty to use GitHub directly. When set to a public mirror prefix (e.g. https://ghproxy.com), app-update installer downloads go through it; release metadata still uses GitHub, so a mirror that does not proxy the GitHub API cannot break update checks.',
+      mirrorBroken: 'If the mirror dies, clear this field to fall back to a direct connection.'
     },
     dsh: {
       kernelVersion: 'Kernel version',
@@ -368,7 +372,8 @@ export default {
       uninstallReasonRemoved: 'The module files were removed; the failure likely happened while cleaning the command entry (.cmd / bin). Check write permission on the npm prefix directory.'
     },
     appUpdate: {
-      onlyPackaged: 'Automatic updates are only supported in packaged builds.'
+      onlyPackaged: 'Automatic updates are only supported in packaged builds.',
+      portable: 'The portable build cannot auto-update; please use the installer version.'
     },
     tray: {
       showHide: 'Show / hide window',

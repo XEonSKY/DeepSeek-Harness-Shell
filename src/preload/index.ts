@@ -47,6 +47,7 @@ const api: RendererApi = {
   listVersions: (opts) => ipcRenderer.invoke('kernel:versions', opts),
   checkForUpdates: (opts) => ipcRenderer.invoke('update:check', opts),
   getAppMeta: () => ipcRenderer.invoke('appupdate:meta'),
+  getAppUpdateState: () => ipcRenderer.invoke('appupdate:state'),
   triggerAppUpdate: (opts) => ipcRenderer.invoke('appupdate:trigger', opts),
   restartAndInstall: () => ipcRenderer.send('appupdate:restart'),
   updateKernel: (opts) => ipcRenderer.invoke('kernel:update', opts),

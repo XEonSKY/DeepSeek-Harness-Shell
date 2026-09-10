@@ -8,3 +8,5 @@ release/
 !.vscode/extensions.json
 .workbuddy
 AGENT.md
+# TypeScript 增量构建缓存（composite 项目，由 typecheck 重新生成，不应入库）
+*.tsbuildinfo

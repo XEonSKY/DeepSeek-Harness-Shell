@@ -392,7 +392,7 @@ export const useSettingsStore = defineStore('settings', () => {
     ],
     scheduleSave
   )
-  // 缩放即时生效（写主进程窗口 zoom；webview 缩放由 HomeView 订阅设置同步）。
+  // 缩放即时生效（写主进程窗口 zoom；webview 缩放由 WebHost 订阅 settings:changed 同步）。
   watch(() => state.zoomPercent, (v) => void window.api.setWindowZoom(v))
   // 主题即时生效（dsh 自己 watch 同步的 settings.yaml，无需手动刷新）。
   watch(() => state.theme, (t: Theme) => applyTheme(t))
@@ -409,12 +409,23 @@ export const useSettingsStore = defineStore('settings', () => {
     applyTheme(t)
   })
 
-  /** 卸载/重置时释放外部订阅并清理防抖。 */
+  /**
+   * 释放外部订阅并清理防抖。
+   *
+   * 注意：本 store 是 Pinia setup store，setup 体只在**渲染进程**内执行一次（不是每次
+   * 组件挂载），所以订阅与 store 同寿。因此**不能**在 SettingsView 的 onBeforeUnmount 里
+   * 调用它——那会在用户离开设置页后永久掐断主题/外部 settings.json 同步。
+   * 真正的终点是本窗口（渲染进程）销毁，故在此把 dispose 接到 beforeunload 上。
+   */
+  let disposeDone = false
   function dispose(): void {
+    if (disposeDone) return
+    disposeDone = true
     if (debounce) window.clearTimeout(debounce)
     offSettingsChanged()
     offThemeChanged()
   }
+  window.addEventListener('beforeunload', dispose, { once: true })
 
   return { state, actions, dispose }
 })

@@ -291,6 +291,7 @@ export default {
     },
     about: {
       appVersion: 'App version',
+      devUnlocked: 'Developer mode is now on',
       currentTag: 'Current',
       options: 'Updates & development',
       autoUpdate: 'Automatic updates',

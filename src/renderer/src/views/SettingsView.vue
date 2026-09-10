@@ -273,6 +273,36 @@ html.dark .settings .side {
   padding: 1px 6px;
   border-radius: 6px;
 }
+/* 应用版本彩蛋：点击爆炸粒子 */
+.settings .dsh-brand__ver {
+  position: relative;
+}
+.settings .dsh-brand__ver code.app-ver {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+.settings .dsh-brand__ver code.app-ver:hover {
+  background: var(--el-color-primary-light-8);
+}
+.settings .kv-burst {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  animation: kv-burst-fly 0.55s ease-out forwards;
+}
+@keyframes kv-burst-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.2);
+    opacity: 0;
+  }
+}
 .settings .ver-tag {
   font-variant-numeric: tabular-nums;
 }

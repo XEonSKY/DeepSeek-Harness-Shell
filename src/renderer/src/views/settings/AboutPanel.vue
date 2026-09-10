@@ -1,12 +1,81 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { Promotion, Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useSettingsStore } from './useSettingsStore'
 import { friendlyPlatform } from './settingsStore'
 import type { AppMeta, AppUpdateEvent } from '@shared/types'
 import aboutIcon from '../../assets/icon.png'
+import { i18n } from '../../locales'
 
 const { state } = useSettingsStore()
+
+/** 开发模式彩蛋：连点应用版本 5 次解锁。 */
+const DEV_UNLOCK_TAPS = 5
+const DEV_TAP_WINDOW_MS = 1500
+
+let tapCount = 0
+let tapTimer: number | undefined
+let burstHost: HTMLElement | null = null
+
+function tt(key: string, named?: Record<string, unknown>): string {
+  return named ? i18n.global.t(key, named) : i18n.global.t(key)
+}
+
+/** 从点击点炸出一圈彩色粒子。 */
+function spawnBurst(el: HTMLElement, e: MouseEvent): void {
+  burstHost ??= el.parentElement ?? el
+  const hostRect = burstHost.getBoundingClientRect()
+  const x = e.clientX - hostRect.left
+  const y = e.clientY - hostRect.top
+  const colors = [
+    'var(--el-color-primary)',
+    'var(--el-color-primary-light-3)',
+    'var(--el-color-warning)',
+    'var(--el-color-success)',
+    'var(--el-color-danger)'
+  ]
+
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('i')
+    const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.4
+    const dist = 18 + Math.random() * 22
+    const size = 3 + Math.random() * 3
+    p.className = 'kv-burst'
+    p.style.cssText = [
+      `left:${x}px`,
+      `top:${y}px`,
+      `width:${size}px`,
+      `height:${size}px`,
+      `background:${colors[i % colors.length]}`,
+      `--dx:${Math.cos(angle) * dist}px`,
+      `--dy:${Math.sin(angle) * dist}px`,
+      `--rot:${Math.random() * 360}deg`
+    ].join(';')
+    burstHost.appendChild(p)
+    p.addEventListener('animationend', () => p.remove(), { once: true })
+  }
+}
+
+function onAppVerClick(e: MouseEvent): void {
+  const el = e.currentTarget as HTMLElement
+  spawnBurst(el, e)
+
+  if (state.devMode) return
+
+  if (tapTimer) window.clearTimeout(tapTimer)
+  tapCount += 1
+  if (tapCount >= DEV_UNLOCK_TAPS) {
+    tapCount = 0
+    state.devMode = true
+    ElMessage.success(tt('sv.about.devUnlocked'))
+    return
+  }
+
+  tapTimer = window.setTimeout(() => {
+    tapCount = 0
+  }, DEV_TAP_WINDOW_MS)
+}
 
 const open = ref(['about-options', 'about-links', 'about-check'])
 
@@ -86,7 +155,10 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => offEvent?.())
+onBeforeUnmount(() => {
+  offEvent?.()
+  if (tapTimer) window.clearTimeout(tapTimer)
+})
 </script>
 
 <template>
@@ -96,7 +168,10 @@ onBeforeUnmount(() => offEvent?.())
       <div class="dsh-brand__txt">
         <div class="dsh-brand__name">DeepSeek Harness Shell</div>
         <div class="dsh-brand__ver">
-          {{ $t('sv.about.appVersion') }}&nbsp;<code>{{ meta?.version ? 'v' + meta.version : '—' }}</code>
+          {{ $t('sv.about.appVersion') }}&nbsp;<code
+            class="app-ver"
+            @click="onAppVerClick"
+          >{{ meta?.version ? 'v' + meta.version : '—' }}</code>
           <span v-if="envLabel" class="env-badge">{{ envLabel }}</span>
         </div>
       </div>
@@ -123,7 +198,8 @@ onBeforeUnmount(() => offEvent?.())
             </div>
             <el-switch v-model="state.appCheckPrerelease" />
           </div>
-          <div class="au">
+          <!-- 开发模式默认隐藏：在内核页连点「内核版本」5 次解锁；开启后才显示，关闭即再隐藏 -->
+          <div v-if="state.devMode" class="au">
             <div class="au__txt">
               <div class="au__t">{{ $t('sv.about.devMode') }}</div>
               <div class="au__desc">{{ $t('sv.about.devModeDesc') }}</div>

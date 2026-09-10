@@ -12,14 +12,14 @@ export default {
       ui: 'DeepSeek UI',
       chat: 'DeepSeek 网页版对话',
       platform: 'DeepSeek 用量 / 充值',
-      terminal: 'DeepSeek Harness 终端',
       settings: '设置'
     },
     reload: '重新加载',
     jumpCore: '核心窗口',
     jumpCoreHint: '跳转到核心窗口',
     minimize: '最小化',
-    maximize: '最大化 / 还原',
+    maximize: '最大化',
+    restore: '还原',
     closeHint: '关闭（隐藏到托盘或退出）',
     tabs: {
       new: '新建标签页',
@@ -125,6 +125,8 @@ export default {
     placeholder: '搜索或输入网址',
     search: '搜索',
     quick: '常用站点',
+    noShortcuts: '还没有常用站点。',
+    addInSettings: '去设置添加',
     engineLabel: '搜索引擎'
   },
   /** 内核更新通知 */
@@ -146,9 +148,8 @@ export default {
       en: 'English'
     }
   },
-  /** 日志视图 */
+  /** 终端面板（标题/说明在 sv.nav.log / sv.intro.log，这里只有工具条与占位文案） */
   log: {
-    title: 'DeepSeek Harness 进程输出（stdout / stderr）',
     lineCount: '{count} 行',
     autoScroll: '自动滚动',
     clear: '清空显示',
@@ -162,12 +163,16 @@ export default {
   /** 设置页（sv = Settings View） */
   sv: {
     cap: '设置',
-    nav: { general: '常规', appearance: '外观', network: '网络', dsh: '内核', about: '关于' },
+    nav: { general: '常规', appearance: '外观', network: '网络', env: '环境', dsh: '内核', log: '终端', hotkeys: '快捷键', webview: 'Webview', about: '关于' },
     intro: {
       general: '工作目录、端口与标签页/搜索等基础行为。',
       appearance: '界面语言、主题与缩放等观感设置。',
       network: '代理连接与网络作用范围。',
-      dsh: 'dsh 内核的来源、Node/npm 环境与更新。',
+      env: '运行内核所用的 Node 与 npm 来自哪里，以及各来源的版本。',
+      dsh: 'dsh 内核的来源、npm 来源与更新。',
+      log: 'DeepSeek Harness 的实时输出（stdout / stderr）。',
+      hotkeys: '键盘快捷键：系统全局的与常用的操作。',
+      webview: '内嵌页面的渲染方式与浏览器标识。',
       about: '关于应用与内核，以及更新检查。'
     },
     general: {
@@ -208,6 +213,17 @@ export default {
       themeSystem: '跟随系统',
       themeLight: '浅色',
       themeDark: '深色',
+      schemeLabel: '配色方案',
+      schemeHint: '方案同时决定主色与页面 / 侧栏底色（深浅两套会自动适配）；明暗仍由上面的「主题」控制。',
+      scheme: {
+        default: '默认蓝',
+        purple: '极客紫',
+        green: '森林绿',
+        cyan: '青碧',
+        orange: '暖橙',
+        rose: '玫瑰红',
+        graphite: '石墨灰'
+      },
       language: '语言',
       zoom: '界面缩放',
       zoomHint: '缩放生效于外壳与内嵌页面。',
@@ -259,16 +275,6 @@ export default {
       kernelGlobal: '使用全局安装',
       kernelLocalHint: '装到应用目录，用内置 Node 运行。',
       kernelGlobalHint: '使用系统 npm install -g 安装的内核。',
-      npmSource: 'npm 来源（本地内核用）',
-      npmSystem: '系统 npm',
-      npmBundled: '内置 npm（下载）',
-      npmLocalNode: '本地 Node 自带 npm',
-      npmSourceHint: '系统用本机；内置需首次下载；本地需先部署本地 Node。',
-      nodeRuntime: 'Node 运行时',
-      nodeElectron: 'Electron 自带',
-      nodeSystem: '系统（≥20）',
-      nodeLocal: '本地部署',
-      nodeRuntimeHint: 'Electron 自带最省事；系统需 ≥20；本地需先部署。改动后重启生效。',
       timeout: '启动超时（毫秒）',
       timeoutHint: '等待 dsh 打印地址的毫秒数。',
       applyTitle: '应用到 DeepSeek Harness',
@@ -302,6 +308,89 @@ export default {
       uninstallTxt: '移除 {pkg}（会先停止 dsh）。',
       uninstall: '卸载 DeepSeek Harness'
     },
+    env: {
+      nodeRuntime: 'Node 运行时',
+      nodeElectron: '程序内置',
+      nodeSystem: '系统自带',
+      nodeLocal: '本地部署',
+      nodeRuntimeHint: '三个来源任选其一；改动后需重启生效。',
+      applyTxt: '改完 Node 运行环境后，点右侧立即重启 dsh 生效。',
+      applyBtn: '立即应用',
+      runtimeUnusable: '当前选中的运行时不可用：未检测到可用的 Node（系统来源需 ≥ {major}，本地来源需先部署）。应用后 dsh 无法启动。',
+      builtinChrome: 'Chromium',
+      builtinHint: '两者都随应用一起升级，不能单独更新。',
+      currentVersion: '当前版本',
+      latestLts: '最新 LTS',
+      notDetected: '未检测到',
+      notDeployed: '尚未部署',
+      upToDate: '已是最新',
+      outdated: '有新版本',
+      latestUnknown: '无法获取最新版本，请检查网络或代理设置。',
+      systemUpdate: '前往下载',
+      systemUpdateHint: '系统安装的 Node 由你自行升级（安装包 / winget / nvm / brew 等）；也可以切到「本地部署」，让应用代管。',
+      localDeploy: '部署 Node',
+      localUpdate: '更新到 {version}',
+      localHint: '把最新 LTS 下载并解压到配置目录，由应用代管；内核用「本地部署」时跑的就是它。',
+      deploying: '正在下载并部署 Node…',
+      deployOk: 'Node {version} 已部署。',
+      deployFail: '部署 Node 失败。',
+      selectVersion: '选择要安装的版本',
+      selectPlaceholder: '选择版本',
+      includeNonLts: '包含非 LTS（Current）',
+      refresh: '刷新',
+      installVersion: '安装此版本',
+      currentSuffix: '（当前）',
+      versionListHint: '列表来自 nodejs.org 的发行索引（新 → 旧）；安装会整体替换配置目录里已部署的那份 Node。',
+      tooOld: '该版本低于内核要求的最低主版本（Node {major}），装了也跑不起内核。',
+      npmSource: 'npm 来源',
+      npmBundled: '程序内置',
+      npmSystem: '系统自带',
+      npmLocalNode: '本机 Node 自带',
+      npmBundledHint: '首次使用时从 registry 下载并缓存到配置目录，由应用代管。',
+      npmSystemHint: '使用系统安装的 npm。更新会对所选版本做一次全局安装 —— 会真实改动系统的全局 npm。',
+      npmLocalNodeHint: '使用本地部署的 Node 自带的 npm；更新会装进配置目录里的那个 Node，由应用代管。',
+      npmNotDownloaded: '尚未下载',
+      npmDownload: '下载 npm',
+      npmUpdate: '更新 npm',
+      npmWorking: '正在处理…',
+      npmGlobalNote: '「npm 来源」只在「内核来源 = 内置」时装内核会用到。',
+      npmNoRestart: 'npm 来源在下次安装 / 更新内核时生效，不需要重启 dsh。',
+      npmOk: 'npm {version} 已就绪。',
+      npmFail: 'npm 更新失败。',
+      latestVersion: '最新版本',
+      includePrerelease: '包含预发布',
+      npmListHint: '列表来自当前 registry（新 → 旧）；安装作用于上方选中的标签对应的来源。'
+    },
+    hotkeys: {
+      title: '快捷键设置',
+      global: '系统全局',
+      focusWindow: '返回主窗口',
+      focusWindowHint: '在任何程序里按下都会把本应用主窗口调到前台（最小化或隐藏到托盘也能拉回来）。可能与其它程序冲突。',
+      toggleTerminal: '切换终端视图',
+      toggleTerminalHint: '在 DeepSeek UI 与「设置 · 终端」之间切换；只在本应用窗口内生效。',
+      devTools: 'DevTools 控制台',
+      devToolsHint: '仅在「关于 → 开发模式」开启时生效。',
+      change: '修改',
+      clear: '清空',
+      reset: '恢复默认',
+      none: '未设置',
+      recording: '请按组合键…',
+      cleared: '已清空（相当于禁用）',
+      busy: '{accel} 已被其它程序占用，请换一个组合键。',
+      hint: '点「修改」后按下组合键即可（Esc 取消）。只支持字母 / 数字 / F1–F24，且至少带一个修饰键 —— 否则打字时会被抢走。'
+    },
+    webview: {
+      title: '渲染与标识',
+      hwAccel: '硬件加速',
+      hwAccelHint: '用 GPU 渲染内嵌页面。关闭后资源占用更低、对老旧驱动的兼容性更好，但滚动与动画会变卡。',
+      hwAccelText: '硬件加速只能在应用启动时决定，改动需要重启应用才能生效。现在重启吗？',
+      restartNow: '立即重启',
+      ua: 'UserAgent',
+      uaHint: '留空即使用下面的默认 UA。作用于内核 UI、网页对话与所有动态标签；改动后新请求立即采用，已加载的页面需要刷新（或重启）才带上新 UA。',
+      uaDefault: '默认 UA',
+      uaCurrent: '当前生效',
+      uaReset: '恢复默认'
+    },
     about: {
       appVersion: '应用版本',
       devUnlocked: '开发者模式已开启',
@@ -321,11 +410,19 @@ export default {
       downloadedDesc: '重启后自动安装。',
       restartNow: '立即重启并安装',
       notAvailable: '已是最新版本。',
+      notAvailableWith: '已是最新版本（远端最新：{version}）。',
       unavailable: '当前无可用更新。',
       links: '项目',
       github: 'GitHub 主页',
       githubDesc: '查看源码、提交问题与功能建议。',
       openGithub: '打开主页',
+      tttTitle: '井字棋',
+      tttYourTurn: '你执 X，点格子落子。',
+      tttWon: '你赢了！',
+      tttLost: '电脑赢了。',
+      tttDraw: '平局。',
+      tttAgain: '再来一局',
+      tttMarks: '你 = X · 电脑 = O'
     }
   },
   /** 即时反馈（ElMessage / ElMessageBox 内文案） */
@@ -346,6 +443,7 @@ export default {
     dshRunningTitle: '需先关闭正在运行的 dsh',
     updateStopText: '升级内核前会先强制关闭正在运行的 dsh 服务，升级完成后会自动重启以运行新版本。确定继续吗？',
     switchStopText: '安装 / 切换到所选版本前会先强制关闭正在运行的 dsh 服务，完成后会自动重启以运行该版本。确定继续吗？',
+    nodeStopText: '安装 / 切换 Node 版本会替换配置目录里正在被 dsh 使用的那份 Node，需要先停止 dsh，装好后会自动重启。确定继续吗？',
     continueBtn: '继续'
   },
   /** main 进程文案（kernel/updater/托盘/对话框） */
@@ -389,6 +487,13 @@ export default {
     tray: {
       showHide: '显示 / 隐藏窗口',
       quitDsh: '退出（同时结束 dsh）'
+    },
+    /** 右键菜单（contextmenu.ts 的原生菜单） */
+    menu: {
+      cut: '剪切',
+      copy: '复制',
+      paste: '粘贴',
+      selectAll: '全选'
     },
     dialogs: {
       workspaceMissingTitle: '工作目录缺失',

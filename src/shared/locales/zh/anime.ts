@@ -8,12 +8,12 @@ export default {
       ui: 'DeepSeek UI',
       chat: '网页对话～',
       platform: '用量 / 充值',
-      terminal: '终端',
       settings: '设置'
     },
     reload: '重新加载喵',
     minimize: '缩小',
-    maximize: '放大 / 还原',
+    maximize: '放大',
+    restore: '还原',
     closeHint: '关闭（藏托盘或退出）'
   },
   closeAsk: {
@@ -28,7 +28,7 @@ export default {
   },
   sv: {
     cap: '设置',
-    nav: { general: '一般', appearance: '外观', network: '网络', dsh: '内核', about: '关于' },
+    nav: { general: '一般', appearance: '外观', network: '网络', env: '环境', dsh: '内核', log: '终端', hotkeys: '快捷键', webview: 'Webview', about: '关于' },
     general: {
       run: '执行',
       workspace: '工作目录',
@@ -99,16 +99,6 @@ export default {
       kernelGlobal: '使用全局安装',
       kernelLocalHint: '装到应用目录，用内置 Node 跑。',
       kernelGlobalHint: '用系统 npm install -g 装的内核。',
-      npmSource: 'npm 来源（本机内核用）',
-      npmSystem: '系统 npm',
-      npmBundled: '内置 npm（下载）',
-      npmLocalNode: '本机 Node 自带 npm',
-      npmSourceHint: '系统用本机；内置要先下载；本机要先部署本机 Node。',
-      nodeRuntime: 'Node 运行环境',
-      nodeElectron: 'Electron 内建',
-      nodeSystem: '系统（≥20）',
-      nodeLocal: '本机部署',
-      nodeRuntimeHint: 'Electron 内建最省事；系统要 ≥20；本机要先部署。改完重启才生效。',
       timeout: '启动超时（毫秒）',
       timeoutHint: '等 dsh 印出地址要多久。',
       applyTitle: '应用到 DeepSeek Harness',
@@ -139,6 +129,13 @@ export default {
       versionListHint: '按「包含测试版」过滤；随便装哪版都行。',
       uninstallTxt: '移除 {pkg}（会先停 dsh）。',
       uninstall: '卸载 DeepSeek Harness'
+    },
+    env: {
+      nodeRuntime: 'Node 运行环境',
+      nodeElectron: '程序内置',
+      nodeSystem: '系统自带',
+      nodeLocal: '本机部署',
+      nodeRuntimeHint: '程序内置最省事；系统自带要 ≥20；本机部署要先部署。改完重启才生效。'
     },
     about: {
       appVersion: '应用版本',

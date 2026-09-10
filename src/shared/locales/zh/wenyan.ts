@@ -8,12 +8,12 @@ export default {
       ui: '界面',
       chat: '网页对话',
       platform: '用量 / 充值',
-      terminal: '终端',
       settings: '设置'
     },
     reload: '重载',
     minimize: '缩小',
-    maximize: '放大 / 还原',
+    maximize: '放大',
+    restore: '还原',
     closeHint: '关闭（藏于托盘或退出）'
   },
   closeAsk: {
@@ -28,7 +28,7 @@ export default {
   },
   sv: {
     cap: '设置',
-    nav: { general: '通则', appearance: '仪容', network: '网络', dsh: '核心', about: '关于' },
+    nav: { general: '通则', appearance: '仪容', network: '网络', env: '环境', dsh: '核心', log: '终端', hotkeys: '捷径', webview: 'Webview', about: '关于' },
     general: {
       run: '运行',
       workspace: '作业之处',
@@ -99,16 +99,6 @@ export default {
       kernelGlobal: '用全域装',
       kernelLocalHint: '装于应用目录，以内置 Node 行。',
       kernelGlobalHint: '用系统 npm install -g 所装之核心。',
-      npmSource: 'npm 之来（本机核心用）',
-      npmSystem: '系统 npm',
-      npmBundled: '内置 npm（下）',
-      npmLocalNode: '本机 Node 自携 npm',
-      npmSourceHint: '系统用本机；内置须首下；本机须先部署本机 Node。',
-      nodeRuntime: 'Node 行境',
-      nodeElectron: 'Electron 内携',
-      nodeSystem: '系统（≥20）',
-      nodeLocal: '本机部署',
-      nodeRuntimeHint: 'Electron 内携最便；系统须 ≥20；本机须先部署。改后重启乃效。',
       timeout: '启动之限（毫秒）',
       timeoutHint: '俟 dsh 示其址之毫秒数。',
       applyTitle: '施于 DeepSeek Harness',
@@ -139,6 +129,13 @@ export default {
       versionListHint: '依「含试版」滤；可装任一版。',
       uninstallTxt: '去 {pkg}（先止 dsh）。',
       uninstall: '卸 DeepSeek Harness'
+    },
+    env: {
+      nodeRuntime: 'Node 行境',
+      nodeElectron: '程序内携',
+      nodeSystem: '系统自具',
+      nodeLocal: '本机部署',
+      nodeRuntimeHint: '程序内携最便；系统自具须 ≥20；本机部署须先为之。改后重启乃效。'
     },
     about: {
       appVersion: '应用之版',

@@ -1,8 +1,10 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, Tray, globalShortcut, nativeImage, nativeTheme } from 'electron'
 import type { NativeImage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { NEWTAB_URL, isNewTabTarget } from '@shared/types'
+import type { HotkeyState } from '@shared/types'
+import { matchesAccelerator } from '@shared/hotkeys'
 import { loadSettings, mt } from './settings'
 import { APP_TITLE } from './const'
 import {
@@ -14,17 +16,13 @@ import {
   isQuitting,
   setQuitting,
   destroyTray,
+  broadcast,
   sendToWindow,
   sendToWcId,
   sendCore
 } from './runtime'
-import {
-  registerShellWindow,
-  hasCoreWindow,
-  promoteNextToCore,
-  windowByContentsId,
-  listWindows
-} from './windowreg'
+import { registerShellWindow, hasCoreWindow, promoteNextToCore, windowByContentsId, listWindows } from './windowreg'
+import { attachContextMenu } from './contextmenu'
 
 function rendererIndex(): string {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -215,6 +213,14 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
   else win.show()
   const wc = win.webContents
 
+  // 最大化状态定向推给本窗口：自定义标题栏的「最大化 / 还原」按钮要按状态换图标与提示。
+  // 除按钮外，双击拖动区、系统快捷键、Aero Snap 都会改变状态，所以监听窗口事件而不是只靠按钮回传。
+  const pushMaximized = (): void => {
+    if (!win.isDestroyed()) sendToWindow(win, 'win:maximized', win.isMaximized())
+  }
+  win.on('maximize', pushMaximized)
+  win.on('unmaximize', pushMaximized)
+
   // Fixed window title: page titles never rename the shell window. 核心窗口恒为软件名；
   // 副窗口默认软件名，之后由渲染层用 shell:set-title 推“<当前标签页标题> - 软件名”驱动。
   wc.on('page-title-updated', (e) => e.preventDefault())
@@ -225,33 +231,43 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
     wc.on('did-navigate', enforceTitle)
   }
 
-  // Ctrl+T toggles Web <-> log views in THIS window (not every window).
-  const isCtrlT = (k: { type: string; key?: string; control: boolean; meta: boolean }): boolean => {
-    const mod = process.platform === 'darwin' ? k.meta : k.control
-    return k.type === 'keyDown' && mod && (k.key || '').toLowerCase() === 't'
-  }
+  // 应用内快捷键（可在设置 → 快捷键里改；匹配规则见 shared/hotkeys.ts，修饰键必须完全一致）。
+  const isMac = process.platform === 'darwin'
   const toggleViewHere = (): void => sendToWindow(win, 'ui:toggle-view')
-  wc.on('before-input-event', (event, input) => {
-    // F12 开关本窗口的 DevTools（仅设置“开发模式”开启时）。
-    if (input.type === 'keyDown' && (input.key || '') === 'F12') {
-      event.preventDefault()
-      if (!loadSettings().devMode) return
-      if (wc.isDevToolsOpened()) wc.closeDevTools()
-      else wc.openDevTools({ mode: 'detach' })
-      return
-    }
-    if (isCtrlT(input)) {
+  /** 本窗口是否要吃掉这个按键：命中「切换终端视图」或「DevTools」即吃掉。 */
+  const handleHotkey = (
+    input: { type: string; key: string; control: boolean; meta: boolean; alt: boolean; shift: boolean },
+    event: { preventDefault: () => void }
+  ): boolean => {
+    if (input.type !== 'keyDown') return false
+    const s = loadSettings()
+    const ev = { key: input.key, control: input.control, meta: input.meta, alt: input.alt, shift: input.shift }
+    if (matchesAccelerator(s.hotkeyToggleTerminal, ev, isMac)) {
       event.preventDefault()
       toggleViewHere()
+      return true
     }
+    // DevTools 快捷键：只在「开发模式」开启时生效（与 F12 的既有语义一致）。
+    if (matchesAccelerator(s.hotkeyDevTools, ev, isMac)) {
+      event.preventDefault()
+      if (!s.devMode) return true
+      if (wc.isDevToolsOpened()) wc.closeDevTools()
+      else wc.openDevTools({ mode: 'detach' })
+      return true
+    }
+    return false
+  }
+  wc.on('before-input-event', (event, input) => {
+    handleHotkey(input, event)
   })
+  // 右键菜单：外壳自己的 webContents（设置页输入框 / 页面里拖选的文本）
+  attachContextMenu(wc, win)
   wc.on('did-attach-webview', (_event, guest) => {
     guest.on('before-input-event', (gEvent, input) => {
-      if (isCtrlT(input)) {
-        gEvent.preventDefault()
-        toggleViewHere()
-      }
+      handleHotkey(input, gEvent)
     })
+    // 内嵌 webview（DeepSeek UI / 网页 / 动态标签）也要有复制粘贴菜单
+    attachContextMenu(guest, win)
     guest.setWindowOpenHandler(({ url, frameName, features }) => {
       // 本窗口的 webview 里新开：普通链接 → 本窗口新标签；真弹窗 → 独立窗口。
       openWebWindow(url, frameName, features, win)
@@ -345,6 +361,8 @@ export function openStandaloneWindow(url: string): BrowserWindow | null {
 export function focusCoreWindow(): void {
   const core = getMainWindow()
   if (core && !core.isDestroyed()) {
+    // 最小化时 isVisible() 仍为 true，只 show()+focus() 拉不回来，必须先 restore()。
+    if (core.isMinimized()) core.restore()
     if (!core.isVisible()) core.show()
     core.focus()
     return
@@ -356,11 +374,60 @@ export function focusCoreWindow(): void {
 export function showMainWindow(): void {
   const w = getMainWindow()
   if (w && !w.isDestroyed()) {
+    if (w.isMinimized()) w.restore()
     if (!w.isVisible()) w.show()
     w.focus()
   } else {
     createShellWindow()
   }
+}
+
+// ---------------------------------------------------------------------------
+// 系统全局快捷键（设置 → 快捷键）：任何程序里按下都回到主窗口
+// ---------------------------------------------------------------------------
+
+/** 当前已注册的全局 accelerator（空串 = 没有）。用于幂等：值没变就什么都不做。 */
+let registeredGlobalHotkey = ''
+
+/** 把主进程 globalShortcut 的真实状态告诉渲染层（设置页据此提示「被占用」）。 */
+function pushHotkeyState(state: HotkeyState): void {
+  broadcast('hotkey:state', state)
+}
+
+/** 当前全局快捷键状态（渲染层进入设置页时问一次）。 */
+export function globalHotkeyState(): HotkeyState {
+  const want = (loadSettings().hotkeyFocusWindow || '').trim()
+  return { accelerator: registeredGlobalHotkey || want, ok: !want || registeredGlobalHotkey === want }
+}
+
+/**
+ * 按设置注册「返回主窗口」的系统全局快捷键。**幂等**：值没变就直接返回（settings:save 每次落盘都会调它）。
+ * 注册可能失败（被别的程序占用），失败时广播 `hotkey:state`，设置页会给出提示。
+ * 必须在 `app.whenReady()` 之后调用。
+ */
+export function syncGlobalHotkey(): void {
+  const want = (loadSettings().hotkeyFocusWindow || '').trim()
+  if (want === registeredGlobalHotkey) return
+  if (registeredGlobalHotkey) {
+    try {
+      globalShortcut.unregister(registeredGlobalHotkey)
+    } catch {
+      /* 已经不在了 */
+    }
+    registeredGlobalHotkey = ''
+  }
+  if (!want) {
+    pushHotkeyState({ accelerator: '', ok: true })
+    return
+  }
+  let ok = false
+  try {
+    ok = globalShortcut.register(want, () => showMainWindow())
+  } catch {
+    ok = false
+  }
+  if (ok) registeredGlobalHotkey = want
+  pushHotkeyState({ accelerator: want, ok })
 }
 
 /** System tray: close hides the (core) window here; "退出" really quits (and stops dsh). */

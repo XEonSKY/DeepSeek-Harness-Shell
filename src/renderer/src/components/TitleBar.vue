@@ -1,7 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Monitor, ChatDotRound, Wallet, Setting, Minus, FullScreen, Close, Refresh, Plus, Star, StarFilled } from '@element-plus/icons-vue'
-import { CodeFilled } from '@antdv-next/icons'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import {
+  DeepSeekFilled,
+  MessageFilled,
+  WalletFilled,
+  SettingFilled,
+  MinusOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
+  CloseOutlined,
+  ReloadOutlined,
+  PlusOutlined,
+  StarOutlined,
+  StarFilled
+} from '@antdv-next/icons'
 import { useAppIcon } from '../lib/appIcon'
 import { useView, useGoView } from '../shell/viewnav'
 import { webTabs, activeTab, findTab, activateTab, closeTab, openTab, openNewTab, toggleKeep, tabLabel } from '../shell/tabs'
@@ -149,6 +161,28 @@ const winMinimize = (): void => window.api.windowMinimize()
 const winMaximize = (): void => window.api.windowToggleMaximize()
 const winClose = (): void => window.api.windowClose()
 const winReload = (): void => window.api.reloadDsh()
+
+/**
+ * 窗口是否最大化：决定右上角显示「最大化」（FullscreenOutlined）还是「还原」（FullscreenExitOutlined）。
+ * 必须订阅主进程事件而不是自己记状态 —— 双击拖动区、系统快捷键、Aero Snap 同样会改变最大化状态。
+ */
+const maximized = ref(false)
+let offMaximized: (() => void) | null = null
+
+onMounted(async () => {
+  try {
+    maximized.value = await window.api.isWindowMaximized()
+  } catch {
+    /* 取不到就按未最大化渲染 */
+  }
+  offMaximized = window.api.onWindowMaximized((v) => {
+    maximized.value = v
+  })
+})
+
+onBeforeUnmount(() => {
+  offMaximized?.()
+})
 </script>
 
 <template>
@@ -163,24 +197,24 @@ const winReload = (): void => window.api.reloadDsh()
         <template v-if="shellMeta.isCore">
           <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
             <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home', $event)">
-              <el-icon><Monitor /></el-icon>
+              <el-icon><DeepSeekFilled /></el-icon>
             </button>
           </el-tooltip>
           <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
             <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat', $event)">
-              <el-icon><ChatDotRound /></el-icon>
+              <el-icon><MessageFilled /></el-icon>
             </button>
           </el-tooltip>
           <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
             <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform', $event)">
-              <el-icon><Wallet /></el-icon>
+              <el-icon><WalletFilled /></el-icon>
             </button>
           </el-tooltip>
         </template>
         <template v-else>
           <el-tooltip :content="$t('app.jumpCoreHint')" placement="bottom" :show-after="300">
             <button class="icon-btn core-jump" type="button" @click="jumpToCore">
-              <el-icon :size="20"><Monitor /></el-icon>
+              <el-icon :size="18"><DeepSeekFilled /></el-icon>
               <span class="core-jump__txt">{{ $t('app.jumpCore') }}</span>
             </button>
           </el-tooltip>
@@ -210,7 +244,7 @@ const winReload = (): void => window.api.reloadDsh()
             :title="$t('app.tabs.keep')"
             @click.stop="onTabKeep(tab.id)"
           >
-            <el-icon :size="11"><component :is="tab.keep ? StarFilled : Star" /></el-icon>
+            <el-icon :size="11"><component :is="tab.keep ? StarFilled : StarOutlined" /></el-icon>
           </button>
           <button
             class="tab__x"
@@ -218,12 +252,12 @@ const winReload = (): void => window.api.reloadDsh()
             :title="$t('app.tabs.close')"
             @click.stop="onTabClose(tab.id)"
           >
-            <el-icon :size="12"><Close /></el-icon>
+            <el-icon :size="12"><CloseOutlined /></el-icon>
           </button>
         </div>
 
         <button class="tab tab--add" type="button" :title="$t('app.tabs.new')" @click="onPlus">
-          <el-icon :size="16"><Plus /></el-icon>
+          <el-icon :size="16"><PlusOutlined /></el-icon>
         </button>
       </div>
     </div>
@@ -232,12 +266,7 @@ const winReload = (): void => window.api.reloadDsh()
       <!-- 三个固定站(非动态标签页)：用旧版刷新按钮重载当前固定站 -->
       <el-tooltip v-if="fixedPageReload" :content="$t('app.reload')" placement="bottom" :show-after="300">
         <button class="icon-btn" type="button" @click="winReload">
-          <el-icon><Refresh /></el-icon>
-        </button>
-      </el-tooltip>
-      <el-tooltip :content="$t('app.nav.terminal')" placement="bottom" :show-after="300">
-        <button class="icon-btn" :class="{ active: view === 'log' }" type="button" @click="go('log')">
-          <CodeFilled style="font-size: 18px" />
+          <el-icon><ReloadOutlined /></el-icon>
         </button>
       </el-tooltip>
       <el-tooltip :content="$t('app.nav.settings')" placement="bottom" :show-after="300">
@@ -247,23 +276,23 @@ const winReload = (): void => window.api.reloadDsh()
           type="button"
           @click="go('settings')"
         >
-          <el-icon><Setting /></el-icon>
+          <el-icon><SettingFilled /></el-icon>
         </button>
       </el-tooltip>
       <span class="divider" />
       <el-tooltip :content="$t('app.minimize')" placement="bottom" :show-after="300">
         <button class="icon-btn" type="button" @click="winMinimize">
-          <el-icon><Minus /></el-icon>
+          <el-icon><MinusOutlined /></el-icon>
         </button>
       </el-tooltip>
-      <el-tooltip :content="$t('app.maximize')" placement="bottom" :show-after="300">
+      <el-tooltip :content="maximized ? $t('app.restore') : $t('app.maximize')" placement="bottom" :show-after="300">
         <button class="icon-btn" type="button" @click="winMaximize">
-          <el-icon><FullScreen /></el-icon>
+          <el-icon><component :is="maximized ? FullscreenExitOutlined : FullscreenOutlined" /></el-icon>
         </button>
       </el-tooltip>
       <el-tooltip :content="$t('app.closeHint')" placement="bottom" :show-after="300">
         <button class="icon-btn danger" type="button" @click="winClose">
-          <el-icon><Close /></el-icon>
+          <el-icon><CloseOutlined /></el-icon>
         </button>
       </el-tooltip>
     </div>
@@ -348,9 +377,10 @@ const winReload = (): void => window.api.reloadDsh()
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* 点击热区仍是 40×40，只把图标本身调小 —— antdv 图标按 1em 走，改 font-size 即可（见 AGENT.md §6）。 */
   width: 40px;
   height: 40px;
-  font-size: 22px;
+  font-size: 18px;
   border: none;
   border-radius: var(--el-border-radius-base);
   background: transparent;
@@ -492,9 +522,11 @@ const winReload = (): void => window.api.reloadDsh()
   height: 56px;
   z-index: 60;
   pointer-events: none;
-  background: rgba(64, 158, 255, 0.16);
-  border-bottom: 1px dashed rgba(64, 158, 255, 0.75);
-  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.3);
+  /* 跟随「配色方案」的主色（原来写死 Element 蓝，换方案时会突兀地残留蓝色）。
+     color-mix(in srgb, X N%, transparent) 等价于 X 的 N% 透明度。 */
+  background: color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--el-color-primary) 75%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 30%, transparent);
 }
 /* 拖动时跟随指针的半透明幽灵标签 */
 .tab-ghost {
@@ -507,9 +539,10 @@ const winReload = (): void => window.api.reloadDsh()
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: rgba(255, 255, 255, 0.92);
-  color: #303133;
-  border: 1px solid rgba(64, 158, 255, 0.6);
+  /* 半透明浮层：底色/文字跟随主题变量，深色下不再是一块刺眼的白药丸 */
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 60%, transparent);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   pointer-events: none;

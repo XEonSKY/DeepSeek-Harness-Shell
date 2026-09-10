@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { Delete } from '@element-plus/icons-vue'
+import { DeleteOutlined } from '@antdv-next/icons'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import type { LogEntry } from '@shared/types'
 
 /**
- * “终端”视图：用 xterm.js 渲染 dsh 的 stdout/stderr 流。
+ * 终端组件：用 xterm.js 渲染 dsh 的 stdout/stderr 流。
  * 相比原来的纯文本分行，xterm 能正确显示 dsh 输出的 ANSI 颜色/光标控制，且对“跨数据块被切开的
  * 半行”也能自然续写（不再把每个网络块误当一整行）。
+ *
+ * **不是路由视图**：终端现在是设置页的一个面板，由 `views/settings/LogPanel.vue` 渲染（标题与
+ * 定高卡片都在那边）。本组件只管「工具条 + xterm 画布」，高度填满父容器 —— 所以父级必须给确定高度。
  */
 
 const host = ref<HTMLDivElement | null>(null)
@@ -105,12 +108,11 @@ onBeforeUnmount(() => {
 <template>
   <div class="log">
     <div class="log__bar">
-      <span class="title">{{ $t('log.title') }}</span>
       <span class="meta">{{ $t('log.lineCount', { count: written }) }}</span>
       <div class="spacer" />
       <el-checkbox v-model="autoScroll">{{ $t('log.autoScroll') }}</el-checkbox>
       <el-button size="small" text type="danger" @click="clear">
-        <el-icon><Delete /></el-icon>
+        <el-icon><DeleteOutlined /></el-icon>
         <span>{{ $t('log.clear') }}</span>
       </el-button>
     </div>
@@ -135,9 +137,6 @@ onBeforeUnmount(() => {
   padding: 6px 14px;
   border-bottom: 1px solid var(--el-border-color-light);
   font-size: 13px;
-}
-.title {
-  font-weight: 600;
 }
 .meta {
   color: var(--el-text-color-secondary);

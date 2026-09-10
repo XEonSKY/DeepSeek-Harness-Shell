@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Connection, Link, Download } from '@element-plus/icons-vue'
+import { ApiOutlined, LinkOutlined, DownloadOutlined } from '@antdv-next/icons'
 import { useSettingsStore } from './useSettingsStore'
 import type { ProxyScope } from '@shared/types'
 
@@ -19,7 +19,7 @@ function toggleScope(s: ProxyScope): void {
 <template>
   <div class="panel">
     <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="34"><Connection /></el-icon></div>
+      <div class="dsh-brand__icon"><el-icon :size="34"><ApiOutlined /></el-icon></div>
       <div class="dsh-brand__txt">
         <div class="dsh-brand__name">{{ $t('sv.nav.network') }}</div>
         <div class="dsh-brand__desc">{{ $t('sv.intro.network') }}</div>
@@ -28,7 +28,7 @@ function toggleScope(s: ProxyScope): void {
     <el-collapse v-model="open">
       <el-collapse-item name="network-registry">
         <template #title>
-          <div class="sec__title"><el-icon><Connection /></el-icon> {{ $t('sv.network.registry') }}</div>
+          <div class="sec__title"><el-icon><ApiOutlined /></el-icon> {{ $t('sv.network.registry') }}</div>
         </template>
         <el-form label-position="top">
           <el-form-item :label="$t('sv.network.registry')">
@@ -43,7 +43,7 @@ function toggleScope(s: ProxyScope): void {
 
       <el-collapse-item name="network-proxy">
         <template #title>
-          <div class="sec__title"><el-icon><Link /></el-icon> {{ $t('sv.network.proxy') }}</div>
+          <div class="sec__title"><el-icon><LinkOutlined /></el-icon> {{ $t('sv.network.proxy') }}</div>
         </template>
         <el-form label-position="top">
           <el-form-item>
@@ -86,7 +86,7 @@ function toggleScope(s: ProxyScope): void {
 
       <el-collapse-item name="network-mirror">
         <template #title>
-          <div class="sec__title"><el-icon><Download /></el-icon> {{ $t('sv.network.mirror') }}</div>
+          <div class="sec__title"><el-icon><DownloadOutlined /></el-icon> {{ $t('sv.network.mirror') }}</div>
         </template>
         <el-form label-position="top">
           <el-form-item :label="$t('sv.network.mirrorUrl')">

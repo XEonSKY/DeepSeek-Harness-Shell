@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppUpdateEvent, LogEntry, NodeDeployProgress, RendererApi, Settings, Theme } from '@shared/types'
+import type { AppUpdateEvent, HotkeyState, LogEntry, NodeDeployProgress, RendererApi, Settings, Theme } from '@shared/types'
 
 /**
  * 订阅一个 main → renderer 频道，返回退订函数。
@@ -69,6 +69,8 @@ const api: RendererApi = {
   onKernelMissing: (cb) => subscribeVoid('kernel:missing', cb),
   onReloadDsh: (cb) => subscribeVoid('ui:reload-dsh', cb),
   onTabDragMoved: (cb) => subscribeVoid('tab-drag:moved', cb),
+  onWindowMaximized: (cb) => subscribe<boolean>('win:maximized', (on) => cb(!!on)),
+  onHotkeyState: (cb) => subscribe<HotkeyState>('hotkey:state', cb),
 
   resolveClose: (decision) => ipcRenderer.send('win:close-resolve', decision),
 
@@ -78,7 +80,14 @@ const api: RendererApi = {
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   probeEnv: () => ipcRenderer.invoke('env:probe'),
-  deployLocalNode: () => ipcRenderer.invoke('nodeenv:deploy'),
+  getNodeStatus: () => ipcRenderer.invoke('nodeenv:status'),
+  listNodeVersions: (opts) => ipcRenderer.invoke('nodeenv:versions', opts),
+  deployLocalNode: (opts) => ipcRenderer.invoke('nodeenv:deploy', opts),
+  getNpmStatus: () => ipcRenderer.invoke('npmenv:status'),
+  listNpmVersions: (opts) => ipcRenderer.invoke('npmenv:versions', opts),
+  updateNpm: (opts) => ipcRenderer.invoke('npmenv:update', opts),
+  getHotkeyState: () => ipcRenderer.invoke('hotkey:state'),
+  getWebviewInfo: () => ipcRenderer.invoke('webview:info'),
   getConfigDir: () => ipcRenderer.invoke('configdir:get'),
   setConfigDir: (dir) => ipcRenderer.invoke('configdir:set', dir),
   getShellMeta: () => ipcRenderer.invoke('shell:meta'),
@@ -97,7 +106,8 @@ const api: RendererApi = {
 
   windowMinimize: () => ipcRenderer.send('win:minimize'),
   windowToggleMaximize: () => ipcRenderer.send('win:maximize-toggle'),
-  windowClose: () => ipcRenderer.send('win:close')
+  windowClose: () => ipcRenderer.send('win:close'),
+  isWindowMaximized: () => ipcRenderer.invoke('win:is-maximized')
 }
 
 contextBridge.exposeInMainWorld('api', api)

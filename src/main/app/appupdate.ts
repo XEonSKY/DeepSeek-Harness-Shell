@@ -116,19 +116,26 @@ function normalizeMirror(raw: string | undefined): string | null {
 }
 
 /**
- * 只改写 **GitHub 发布资产** 的请求，形式为 `<mirror>/https://github.com/<owner>/<repo>/releases/...`
+ * 只改写 **GitHub 发布资产** 的请求，形式为 `<mirror>/https://github.com/<owner>/<repo>/releases/download/...`
  * —— 这正是 ghproxy 系公共镜像的约定（镜像把原始绝对 URL 接在自身路径之后）。
  *
- * 刻意**只匹配 `/releases/`**：版本元数据（`/<owner>/<repo>/releases.atom`、`/releases/latest`）
- * 由 GitHubProvider 从 github.com 取，若一并改写，镜像一旦不支持这些端点就会让整个检查失败。
- * 现在的取舍是：镜像只负责搬运大文件，元数据始终走官方。
+ * 刻意**只匹配 `/releases/download/`**：版本元数据必须留在官方 ——
+ *  - `/<owner>/<repo>/releases.atom`：`allowPrerelease` 为真时 GitHubProvider 用它解析 tag；
+ *  - `/<owner>/<repo>/releases/latest`：**正式版线**用它解析 tag（`getLatestTagName()`），
+ *    且是以 `Accept: application/json` 请求后 `JSON.parse` 的 —— 镜像一旦不支持该端点或
+ *    把请求重定向成 HTML，检查会直接抛 `ERR_UPDATER_LATEST_VERSION_NOT_FOUND`
+ *    （报错文案伪装成「找不到最新版本」），表现为**检测不到正式版**。
+ *
+ * ⚠️ 旧实现用的是 `/^\/[^/]+\/[^/]+\/releases\//`，它**会命中 `/releases/latest`**，
+ * 只有 `releases.atom` 因为「releases 后面少一个斜杠」才侥幸幸免 —— 与本节注释声称的
+ * 「元数据始终走官方」不符，已修正。镜像现在只搬运发布资产（安装包与 blockmap）。
  */
 function rewriteGithubAsset(options: ExecRequestOptions): void {
   const mirror = activeMirror
   if (!mirror) return
   if (options.hostname !== 'github.com') return
   const path = options.path ?? ''
-  if (!/^\/[^/]+\/[^/]+\/releases\//.test(path)) return
+  if (!/^\/[^/]+\/[^/]+\/releases\/download\//.test(path)) return
   let base: URL
   try {
     base = new URL(mirror)
@@ -191,7 +198,7 @@ function ensureInited(): void {
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.on('checking-for-update', () => emit({ kind: 'checking' }))
   autoUpdater.on('update-available', (info) => emit({ kind: 'available', version: info?.version ?? null }))
-  autoUpdater.on('update-not-available', () => emit({ kind: 'not-available' }))
+  autoUpdater.on('update-not-available', (info) => emit({ kind: 'not-available', version: info?.version ?? null }))
   autoUpdater.on('download-progress', (p) => emit({ kind: 'progress', percent: typeof p?.percent === 'number' ? p.percent : 0 }))
   autoUpdater.on('update-downloaded', (info) => emit({ kind: 'downloaded', version: info?.version ?? null }))
   autoUpdater.on('error', (err) => emit({ kind: 'error', message: err && err.message ? err.message : String(err) }))

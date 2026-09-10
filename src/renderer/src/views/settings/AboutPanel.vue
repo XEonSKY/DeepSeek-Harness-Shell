@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { Promotion, Refresh } from '@element-plus/icons-vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ReloadOutlined, SendOutlined, GithubOutlined } from '@antdv-next/icons'
 import { ElMessage } from 'element-plus'
 import { useSettingsStore } from './useSettingsStore'
 import { friendlyPlatform } from './settingsStore'
@@ -77,11 +77,129 @@ function onAppVerClick(e: MouseEvent): void {
 
 const open = ref(['about-options', 'about-links', 'about-check'])
 
+// ---------------------------------------------------------------------------
+// 彩蛋二：连点「系统架构」徽标 5 次 → 井字棋
+// ---------------------------------------------------------------------------
+
+/** 连点窗口与版本号彩蛋一致：两次点击间隔超过它，计数从头开始。 */
+const GAME_TAPS = 5
+const GAME_TAP_WINDOW_MS = 1500
+
+let gameTaps = 0
+let gameTapTimer: number | undefined
+const showGame = ref(false)
+
+function onEnvClick(e: MouseEvent): void {
+  if (gameTapTimer) window.clearTimeout(gameTapTimer)
+  gameTaps += 1
+  if (gameTaps >= GAME_TAPS) {
+    gameTaps = 0
+    spawnBurst(e.currentTarget as HTMLElement, e)
+    resetGame()
+    showGame.value = true
+    return
+  }
+  gameTapTimer = window.setTimeout(() => {
+    gameTaps = 0
+  }, GAME_TAP_WINDOW_MS)
+}
+
+type Cell = 'X' | 'O' | null
+type GameStatus = 'playing' | 'won' | 'lost' | 'draw'
+
+/** 玩家执 X、电脑执 O。 */
+const LINES: ReadonlyArray<readonly [number, number, number]> = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
+  [0, 4, 8],
+  [2, 4, 6]
+]
+
+const board = ref<Cell[]>(Array(9).fill(null))
+const gameStatus = ref<GameStatus>('playing')
+
+/** 状态文案的键后缀：在模板里拼成 `$t('sv.about.ttt' + statusKey)`，这样切语言也会跟着变。 */
+const statusKey = computed(() => {
+  if (gameStatus.value === 'won') return 'Won'
+  if (gameStatus.value === 'lost') return 'Lost'
+  if (gameStatus.value === 'draw') return 'Draw'
+  return 'YourTurn'
+})
+/** 电脑「思考」中的延时句柄：非空表示电脑该走子/正在走。 */
+let aiTimer: number | undefined
+
+function winnerOf(b: Cell[]): 'X' | 'O' | null {
+  for (const [a, c, d] of LINES) {
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a]
+  }
+  return null
+}
+
+function settle(): void {
+  const w = winnerOf(board.value)
+  if (w === 'X') gameStatus.value = 'won'
+  else if (w === 'O') gameStatus.value = 'lost'
+  else if (board.value.every(Boolean)) gameStatus.value = 'draw'
+}
+
+/** 电脑走子：能赢就赢 → 挡玩家 → 占中心 → 占角 → 占边。刻意留一点破绽，不至于无法取胜。 */
+function aiMove(b: Cell[]): number {
+  for (const me of ['O', 'X'] as const) {
+    for (const line of LINES) {
+      const mine = line.filter((i) => b[i] === me).length
+      const blank = line.filter((i) => !b[i])
+      if (mine === 2 && blank.length === 1) return blank[0]
+    }
+  }
+  if (!b[4]) return 4
+  const corners = [0, 2, 6, 8].filter((i) => !b[i])
+  if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)]
+  const empty = b.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0)
+  return empty.length > 0 ? empty[Math.floor(Math.random() * empty.length)] : -1
+}
+
+function stopAi(): void {
+  if (aiTimer !== undefined) {
+    window.clearTimeout(aiTimer)
+    aiTimer = undefined
+  }
+}
+
+function resetGame(): void {
+  stopAi()
+  board.value = Array(9).fill(null)
+  gameStatus.value = 'playing'
+}
+
+/** 玩家落子；落完若未分胜负则安排电脑走子。 */
+function play(i: number): void {
+  if (gameStatus.value !== 'playing' || board.value[i] || aiTimer !== undefined) return
+  board.value[i] = 'X'
+  settle()
+  if (gameStatus.value !== 'playing') return
+  aiTimer = window.setTimeout(() => {
+    aiTimer = undefined
+    const j = aiMove(board.value)
+    if (j >= 0) board.value[j] = 'O'
+    settle()
+  }, 320)
+}
+
 type Phase = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'none' | 'error'
 
 const meta = ref<AppMeta | null>(null)
 const phase = ref<Phase>('idle')
 const targetVersion = ref<string | null>(null)
+/**
+ * 「已是最新」时**远端实际解析到的版本**。
+ * 必须显示出来：本模块只比较版本号，若通道解析错了（例如正式版线拿到的是更旧的正式版），
+ * 界面只会说「已是最新」，完全无法与「确实没有新版」区分 —— 排查时只能靠猜。
+ */
+const remoteVersion = ref<string | null>(null)
 const percent = ref(0)
 const errMsg = ref('')
 
@@ -98,6 +216,7 @@ function onEvent(e: AppUpdateEvent): void {
   switch (e.kind) {
     case 'checking':
       phase.value = 'checking'
+      remoteVersion.value = null
       break
     case 'available':
       targetVersion.value = e.version ?? null
@@ -114,6 +233,7 @@ function onEvent(e: AppUpdateEvent): void {
       percent.value = 100
       break
     case 'not-available':
+      remoteVersion.value = e.version ?? null
       phase.value = 'none'
       break
     case 'error':
@@ -169,6 +289,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   offEvent?.()
   if (tapTimer) window.clearTimeout(tapTimer)
+  if (gameTapTimer) window.clearTimeout(gameTapTimer)
+  stopAi()
 })
 </script>
 
@@ -183,7 +305,7 @@ onBeforeUnmount(() => {
             class="app-ver"
             @click="onAppVerClick"
           >{{ meta?.version ? 'v' + meta.version : '—' }}</code>
-          <span v-if="envLabel" class="env-badge">{{ envLabel }}</span>
+          <span v-if="envLabel" class="env-badge env-tap" @click="onEnvClick">{{ envLabel }}</span>
         </div>
       </div>
     </div>
@@ -232,12 +354,7 @@ onBeforeUnmount(() => {
             <div class="repo-url">{{ REPO_URL }}</div>
           </div>
           <el-button class="repo-btn" @click="openRepo">
-            <svg class="gh-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path
-                fill="currentColor"
-                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
-              />
-            </svg>
+            <GithubOutlined class="gh-icon" />
             {{ $t('sv.about.openGithub') }}
           </el-button>
         </div>
@@ -246,13 +363,13 @@ onBeforeUnmount(() => {
       <!-- 更新操作区 -->
       <el-collapse-item name="about-check">
         <template #title>
-          <div class="sec__title"><el-icon><Refresh /></el-icon> {{ $t('sv.about.checkTitle') }}</div>
+          <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.about.checkTitle') }}</div>
         </template>
 
         <div class="au-row">
           <el-button
             type="primary"
-            :icon="Refresh"
+            :icon="ReloadOutlined"
             :loading="phase === 'checking'"
             :disabled="phase === 'checking' || phase === 'downloading'"
             @click="check"
@@ -262,7 +379,7 @@ onBeforeUnmount(() => {
           <el-button
             v-if="phase === 'downloaded'"
             type="success"
-            :icon="Promotion"
+            :icon="SendOutlined"
             @click="restart"
           >
             {{ $t('sv.about.restartNow') }}
@@ -286,7 +403,11 @@ onBeforeUnmount(() => {
         <el-alert
           v-else-if="phase === 'none'"
           class="about-result"
-          :title="$t('sv.about.notAvailable')"
+          :title="
+            remoteVersion
+              ? $t('sv.about.notAvailableWith', { version: remoteVersion })
+              : $t('sv.about.notAvailable')
+          "
           type="info"
           show-icon
           :closable="false"
@@ -301,6 +422,30 @@ onBeforeUnmount(() => {
         />
       </el-collapse-item>
     </el-collapse>
+
+    <!-- 彩蛋：连点系统架构徽标 5 次弹出的井字棋（el-dialog 会 teleport 到 body，放哪都一样） -->
+    <el-dialog v-model="showGame" :title="$t('sv.about.tttTitle')" width="320px" align-center>
+      <div class="ttt">
+        <div class="ttt__status">{{ $t('sv.about.ttt' + statusKey) }}</div>
+        <div class="ttt__grid">
+          <button
+            v-for="(c, i) in board"
+            :key="i"
+            class="ttt__cell"
+            :class="{ 'ttt__cell--x': c === 'X', 'ttt__cell--o': c === 'O' }"
+            type="button"
+            :disabled="!!c || gameStatus !== 'playing'"
+            @click="play(i)"
+          >
+            {{ c ?? '' }}
+          </button>
+        </div>
+        <div class="ttt__foot">
+          <el-button size="small" :icon="ReloadOutlined" @click="resetGame">{{ $t('sv.about.tttAgain') }}</el-button>
+          <span class="ttt__mark">{{ $t('sv.about.tttMarks') }}</span>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -332,11 +477,73 @@ onBeforeUnmount(() => {
 .repo-btn {
   flex: 0 0 auto;
 }
+/* antdv 图标按 1em 取尺寸（不是 svg 的 width/height），故用 font-size 控制大小 */
 .gh-icon {
-  width: 15px;
-  height: 15px;
+  font-size: 15px;
   margin-right: 6px;
   vertical-align: -2px;
-  display: inline-block;
+}
+
+/* 系统架构徽标：彩蛋入口（连点 5 次），给个可点的光标 */
+.env-tap {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ---- 井字棋（彩蛋） ---- */
+/* 注意：el-dialog 的内容会被 teleport 到 body，但仍是本组件的渲染作用域，
+   所以 scoped 样式照常生效，不需要 :deep() 之外的特殊处理。 */
+.ttt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.ttt__status {
+  font-size: 13px;
+  font-weight: 600;
+}
+.ttt__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  gap: 6px;
+}
+.ttt__cell {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ttt__cell:hover:not(:disabled) {
+  background: var(--el-fill-color-light);
+  border-color: var(--el-color-primary);
+}
+.ttt__cell:disabled {
+  cursor: default;
+}
+.ttt__cell--x {
+  color: var(--el-color-primary);
+}
+.ttt__cell--o {
+  color: var(--el-color-danger);
+}
+.ttt__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ttt__mark {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Close, Document, Download, Refresh } from '@element-plus/icons-vue'
+import { CloseOutlined, FileTextOutlined, DownloadOutlined, ReloadOutlined } from '@antdv-next/icons'
 import { ElMessage } from 'element-plus'
 import type { EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
+import { MIN_KERNEL_NODE_MAJOR, nodeMajor } from '@shared/version'
 import { useAppIcon } from '../lib/appIcon'
 
 /**
@@ -45,12 +46,12 @@ const step = ref(0)
 const envProbe = ref<EnvProbe | null>(null)
 const probingEnv = ref(false)
 
-/** 系统 Node 是否可用（存在且主版本 ≥ 20）。 */
+/** 系统 Node 是否可用（存在且主版本 ≥ 内核要求，阈值见 shared/version.ts）。 */
 const systemNodeOk = computed(() => {
   const v = envProbe.value?.node.version
   if (!envProbe.value?.node.present || !v) return false
-  const m = /^v?(\d+)/.exec(v.trim())
-  return !!m && parseInt(m[1], 10) >= 20
+  const major = nodeMajor(v)
+  return major !== null && major >= MIN_KERNEL_NODE_MAJOR
 })
 
 // 所选 Node 运行时（安装时随设置持久化）。
@@ -317,7 +318,7 @@ onBeforeUnmount(() => {
               <el-tag type="success" size="small" effect="plain">{{ $t('kernelMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}</el-tag>
               <div class="wiz-btn-row">
                 <el-button size="small" :loading="deployingNode" @click="deployNode">{{ $t('kernelMissing.node.redeploy') }}</el-button>
-                <el-button size="small" :icon="Refresh" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
+                <el-button size="small" :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
               </div>
             </template>
             <template v-else>
@@ -334,10 +335,10 @@ onBeforeUnmount(() => {
             />
             <template v-if="!envProbe?.local.present">
               <div class="wiz-btn-row">
-                <el-button type="primary" :icon="Download" :loading="deployingNode" @click="deployNode">
+                <el-button type="primary" :icon="DownloadOutlined" :loading="deployingNode" @click="deployNode">
                   {{ $t('kernelMissing.node.deploy') }}
                 </el-button>
-                <el-button :icon="Refresh" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
+                <el-button :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
               </div>
             </template>
           </div>
@@ -390,7 +391,7 @@ onBeforeUnmount(() => {
               >
                 <el-option v-for="v in installVersions" :key="v" :value="v" :label="v" />
               </el-select>
-              <el-button :icon="Refresh" circle :loading="versionsLoading" @click="loadInstallVersions" />
+              <el-button :icon="ReloadOutlined" circle :loading="versionsLoading" @click="loadInstallVersions" />
             </div>
             <div class="wiz-hint">{{ $t('kernelMissing.versionHint') }}</div>
           </div>
@@ -416,7 +417,7 @@ onBeforeUnmount(() => {
         <el-button text :disabled="installingKernel" @click="quitShell">{{ $t('kernelMissing.quit') }}</el-button>
         <div class="wiz-nav__right">
           <el-button v-if="step > 0" :disabled="installingKernel" @click="back">{{ $t('kernelMissing.prev') }}</el-button>
-          <el-button type="primary" :loading="installingKernel" :icon="Refresh" @click="runCurrentStep">
+          <el-button type="primary" :loading="installingKernel" :icon="ReloadOutlined" @click="runCurrentStep">
             {{ step < 3 ? $t('kernelMissing.runStep') : $t('kernelMissing.install') }}
           </el-button>
         </div>
@@ -424,7 +425,7 @@ onBeforeUnmount(() => {
 
       <!-- 右上角：全屏日志开关（向导打开即显示） -->
       <div class="log-toggle">
-        <el-button size="small" :icon="Document" @click="logFullscreen = true">{{ $t('kernelMissing.viewLog') }}</el-button>
+        <el-button size="small" :icon="FileTextOutlined" @click="logFullscreen = true">{{ $t('kernelMissing.viewLog') }}</el-button>
       </div>
 
       <!-- 全屏安装日志 -->
@@ -436,7 +437,7 @@ onBeforeUnmount(() => {
               <div v-if="installingKernel" class="log-full__mini">
                 <div class="activity-bar" />
               </div>
-              <el-button :icon="Close" text @click="logFullscreen = false">{{ $t('kernelMissing.closeLog') }}</el-button>
+              <el-button :icon="CloseOutlined" text @click="logFullscreen = false">{{ $t('kernelMissing.closeLog') }}</el-button>
             </div>
           </div>
           <pre class="log-full__body">{{ installLog.length ? installLog.join('\n') : $t('kernelMissing.logWaiting') }}</pre>

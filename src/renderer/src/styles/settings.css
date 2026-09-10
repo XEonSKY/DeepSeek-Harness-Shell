@@ -2,7 +2,7 @@
  * 设置页共享样式表。
  *
  * 从 SettingsView.vue 的 <style> 块原样搬出：它原本就是**非 scoped** 的全局样式——因为要同时
- * 作用于经 <router-view> 嵌套渲染的 5 个子面板（General / Appearance / Network / Dsh / About）。
+ * 作用于经 <router-view> 嵌套渲染的 6 个子面板（General / Appearance / Network / Env / Dsh / About）。
  * 放在 .vue 里既撑大了组件、又让「这些面板的样式其实来自父视图」这一依赖完全不可见。
  *
  * 所有选择器统一带 .settings 前缀，因此在设置页之外不会命中任何元素，可安全全局加载。
@@ -17,34 +17,34 @@
   display: flex;
   height: 100%;
 }
-/* 配色：浅色（默认） */
+/* 配色：页面 / 侧栏底色由「配色方案」决定（变量在 html 上，见 lib/theme.ts）。
+   这里保留明暗两套 fallback：变量还没写上去（脚本尚未执行）时也不会有白闪/黑闪。 */
 .settings {
-  background: #ffffff;
+  background: var(--scheme-page-bg, #ffffff);
   color: var(--el-text-color-primary);
 }
 .settings .side {
-  background: #f9fafb;
+  background: var(--scheme-side-bg, #f9fafb);
 }
 .settings .main {
   background: transparent;
 }
 /* 配色：深色（html.dark） */
 html.dark .settings {
-  background: #151517;
+  background: var(--scheme-page-bg, #151517);
 }
 html.dark .settings .side {
-  background: #1b1b1c;
+  background: var(--scheme-side-bg, #1b1b1c);
 }
 
 /* ---- 左侧导航 ---- */
 .settings .side {
-  flex: 0 0 218px;
+  flex: 0 0 248px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 16px 10px;
   border-right: 1px solid var(--el-border-color-light);
-  background: #f9fafb;
   overflow-y: auto;
 }
 .settings .side__cap {
@@ -153,6 +153,15 @@ html.dark .settings .side {
   line-height: 1.5;
   color: var(--el-text-color-secondary);
 }
+/* 警示文字（环境页 / 快捷键页共用；≥2 个组件用 → 按 §3 规则放这里而非各自 scoped） */
+.settings .warn {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-color-warning);
+}
+
+/* ---- 通用行：左侧说明 + 右侧动作 ---- */
 .settings .row {
   display: flex;
   gap: 8px;

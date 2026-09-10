@@ -8,12 +8,12 @@ export default {
       ui: 'DeepSeek UI',
       chat: 'DeepSeek 網頁版對話',
       platform: 'DeepSeek 用量 / 充值',
-      terminal: 'DeepSeek Harness 終端',
       settings: '設定'
     },
     reload: '重新載入',
     minimize: '最小化',
-    maximize: '最大化 / 還原',
+    maximize: '最大化',
+    restore: '還原',
     closeHint: '關閉（隱藏到系統匣或結束）'
   },
   closeAsk: {
@@ -28,7 +28,7 @@ export default {
   },
   sv: {
     cap: '設定',
-    nav: { general: '一般', appearance: '外觀', network: '網路', dsh: '核心', about: '關於' },
+    nav: { general: '一般', appearance: '外觀', network: '網路', env: '環境', dsh: '核心', log: '終端', hotkeys: '快速鍵', webview: 'Webview', about: '關於' },
     general: {
       run: '執行',
       workspace: '工作目錄',
@@ -99,16 +99,6 @@ export default {
       kernelGlobal: '使用全域安裝',
       kernelLocalHint: '裝到應用程式目錄，用內置 Node 執行。',
       kernelGlobalHint: '使用系統 npm install -g 安裝的核心。',
-      npmSource: 'npm 來源（本機核心用）',
-      npmSystem: '系統 npm',
-      npmBundled: '內置 npm（下載）',
-      npmLocalNode: '本機 Node 自帶 npm',
-      npmSourceHint: '系統用本機；內置需首次下載；本機需先部署本機 Node。',
-      nodeRuntime: 'Node 執行階段',
-      nodeElectron: 'Electron 內建',
-      nodeSystem: '系統（≥20）',
-      nodeLocal: '本機部署',
-      nodeRuntimeHint: 'Electron 內建最省事；系統需 ≥20；本機需先部署。改動後重啟生效。',
       timeout: '啟動逾時（毫秒）',
       timeoutHint: '等待 dsh 印出位址的毫秒數。',
       applyTitle: '套用到 DeepSeek Harness',
@@ -139,6 +129,13 @@ export default {
       versionListHint: '依「包含測試版」過濾；可安裝任一版本。',
       uninstallTxt: '移除 {pkg}（會先停止 dsh）。',
       uninstall: '解除安裝 DeepSeek Harness'
+    },
+    env: {
+      nodeRuntime: 'Node 執行階段',
+      nodeElectron: '程式內建',
+      nodeSystem: '系統自帶',
+      nodeLocal: '本機部署',
+      nodeRuntimeHint: '程式內建最省事；系統自帶需 ≥20；本機部署需先部署。改動後重啟生效。'
     },
     about: {
       appVersion: '應用程式版本',

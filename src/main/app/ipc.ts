@@ -9,9 +9,11 @@ import { getLogHistory, restart, isDshRunning, stopServer } from '../kernel/dsh'
 import { appMeta, appUpdateState, triggerAppUpdate, restartAndInstall } from './appupdate'
 import { broadcast, getCurrentUrl, getMainWindow, setQuitting, sendCore, sendToWindow, sendToWcId } from './runtime'
 import { isCoreWindow, windowByContentsId, listWindows } from './windowreg'
-import { openStandaloneWindow, focusCoreWindow, takeOpenIntent, createSecondaryShellWindow } from './ui'
+import { openStandaloneWindow, focusCoreWindow, takeOpenIntent, createSecondaryShellWindow, syncGlobalHotkey, globalHotkeyState } from './ui'
+import { applyWebviewUserAgent, defaultUserAgent, effectiveUserAgent } from './webview'
 import { findSystemNode, findSystemNpm, nodeVersionOf, localNodeExecPath } from '../kernel/tools'
-import { deployLocalNode } from '../kernel/nodeenv'
+import { deployLocalNode, listNodeVersions, nodeStatus } from '../kernel/nodeenv'
+import { listNpmVersions, npmStatus, updateNpm } from '../kernel/npmRunner'
 import { APP_TITLE } from './const'
 
 /**
@@ -51,6 +53,10 @@ export function registerIpc(): void {
     persistSettings(merged)
     syncDshTheme(merged.theme)
     syncNativeTheme(merged.theme)
+    // 快捷键改动要立刻生效（不用等 dsh 重启）：幂等，值没变时什么都不做。
+    syncGlobalHotkey()
+    // UA 同理：改完立刻对新请求生效（已加载的页面按新 UA 重新请求）。硬件加速改不了 —— 见 webview.ts。
+    applyWebviewUserAgent(merged)
     return merged
   })
   // Explicit "apply": restart dsh so the persisted settings take effect.
@@ -109,12 +115,34 @@ export function registerIpc(): void {
       local: { present: !!localPath, version: localPath ? await nodeVersionOf(localPath) : null }
     }
   })
-  ipcMain.handle('nodeenv:deploy', async () => {
-    return deployLocalNode((p) =>
-      broadcast('nodeenv:deploy-progress', { percent: Math.max(0, Math.min(100, Math.round(p.percent))), downloaded: p.downloaded, total: p.total })
+  ipcMain.handle('nodeenv:status', () => nodeStatus())
+  ipcMain.handle('nodeenv:versions', (_e, opts: { includeNonLts?: boolean } | undefined) =>
+    listNodeVersions(opts?.includeNonLts === true)
+  )
+  ipcMain.handle('nodeenv:deploy', async (_e, opts: { version?: string } | undefined) => {
+    const version = typeof opts?.version === 'string' && opts.version ? opts.version : undefined
+    return deployLocalNode(
+      (p) =>
+        broadcast('nodeenv:deploy-progress', { percent: Math.max(0, Math.min(100, Math.round(p.percent))), downloaded: p.downloaded, total: p.total }),
+      version
     )
   })
+  ipcMain.handle('npmenv:status', () => npmStatus())
+  ipcMain.handle('npmenv:versions', (_e, opts: { prerelease?: boolean } | undefined) =>
+    listNpmVersions(loadSettings(), opts?.prerelease === true)
+  )
+  ipcMain.handle('npmenv:update', (_e, opts: { source?: unknown; version?: unknown } | undefined) =>
+    updateNpm({
+      source: normalizeNpmSource(opts?.source),
+      version: typeof opts?.version === 'string' && opts.version ? opts.version : undefined
+    })
+  )
   ipcMain.handle('configdir:get', () => configDirInfo())
+  ipcMain.handle('hotkey:state', () => globalHotkeyState())
+  ipcMain.handle('webview:info', () => ({
+    defaultUserAgent: defaultUserAgent(),
+    currentUserAgent: effectiveUserAgent()
+  }))
   ipcMain.handle('configdir:set', (_e, dir: string | null) => {
     return setConfigDir(typeof dir === 'string' && dir ? dir : null)
   })
@@ -274,6 +302,8 @@ export function registerIpc(): void {
     if (w.isMaximized()) w.unmaximize()
     else w.maximize()
   })
+  // 自定义标题栏要按状态切换「最大化 / 还原」。这里给一次当前值；之后的变化由 ui.ts 的窗口事件定向推送。
+  ipcMain.handle('win:is-maximized', (e) => !!windowOfSender(e)?.isMaximized())
   ipcMain.on('win:close', (e) => windowOfSender(e)?.close())
 
   // Title-bar refresh: ask the (core) window that hosts the dsh UI to reload it.

@@ -1,4 +1,4 @@
-import type { FunLocale, NewTabMode, NpmRegistry, NpmSource, ProxyProtocol, ProxyScope, SearchEngineId, Settings, Shortcut, Theme, NodeRuntimeKind } from '@shared/types'
+import type { FunLocale, NewTabMode, NpmRegistry, NpmSource, ProxyProtocol, ProxyScope, SearchEngineId, Settings, Shortcut, Theme, NodeRuntimeKind, ColorSchemeId } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/types'
 
 /** Short, friendly OS label (pure) used by the About header. */
@@ -55,6 +55,18 @@ export interface SettingsState {
   newTabUrl: string
   /** 导航页常用站点快捷方式。 */
   shortcuts: Shortcut[]
+  /** 系统全局快捷键：任何程序里按下都回到主窗口（Electron accelerator，空串=禁用）。 */
+  hotkeyFocusWindow: string
+  /** 应用内快捷键：切换终端视图。 */
+  hotkeyToggleTerminal: string
+  /** 应用内快捷键：开关 DevTools（仅「开发模式」开启时生效）。 */
+  hotkeyDevTools: string
+  /** 内嵌 webview 是否启用硬件加速（改动需重启）。 */
+  hardwareAcceleration: boolean
+  /** 内嵌 webview 的 UserAgent；留空 = 默认。 */
+  webviewUserAgent: string
+  /** 配色方案 id（预制方案见 lib/theme.ts）。 */
+  colorScheme: ColorSchemeId
   /** dsh 是否正在运行（仅 UI，不持久化）。 */
   dshRunning: boolean
   applying: boolean
@@ -120,6 +132,12 @@ export function payloadFrom(state: SettingsState): Settings {
     searchEngine: state.searchEngine,
     newTabMode: state.newTabMode,
     newTabUrl: state.newTabUrl,
-    shortcuts: state.shortcuts.map((s) => ({ title: s.title, url: s.url }))
+    shortcuts: state.shortcuts.map((s) => ({ title: s.title, url: s.url })),
+    hotkeyFocusWindow: state.hotkeyFocusWindow,
+    hotkeyToggleTerminal: state.hotkeyToggleTerminal,
+    hotkeyDevTools: state.hotkeyDevTools,
+    hardwareAcceleration: state.hardwareAcceleration,
+    webviewUserAgent: state.webviewUserAgent,
+    colorScheme: state.colorScheme
   }
 }

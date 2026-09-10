@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { Brush, Moon } from '@element-plus/icons-vue'
+import { BgColorsOutlined, BulbOutlined } from '@antdv-next/icons'
 import { tt, setLocale, applyFunToZh, currentLocale } from '../../lib/locales'
+import { COLOR_SCHEMES, isDark, schemeBackgrounds } from '../../lib/theme'
 import { useSettingsStore } from './useSettingsStore'
 import type { FunLocale, ResolvedLocale } from '@shared/types'
 
@@ -10,6 +11,12 @@ const { state } = useSettingsStore()
 
 const open = ref(['appearance-main'])
 const ZOOMS = [50, 75, 100, 125, 150, 175, 200]
+
+/**
+ * 色块预览要按当前明暗取底色。`isDark` 是从 lib/theme.ts 导入的 ref，
+ * 这里包一层本地 computed，模板里的解包就一定成立（否则会把 Ref 对象当 truthy，永远按深色画）。
+ */
+const dark = computed(() => isDark.value)
 
 // 界面语言单一来源是 dsh settings.yaml 的 locale.preference（zh/en）。
 const lang = ref<ResolvedLocale>(currentLocale())
@@ -77,7 +84,7 @@ async function onSysScale(v: boolean): Promise<void> {
 <template>
   <div class="panel">
     <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="34"><Brush /></el-icon></div>
+      <div class="dsh-brand__icon"><el-icon :size="34"><BgColorsOutlined /></el-icon></div>
       <div class="dsh-brand__txt">
         <div class="dsh-brand__name">{{ $t('sv.nav.appearance') }}</div>
         <div class="dsh-brand__desc">{{ $t('sv.intro.appearance') }}</div>
@@ -86,7 +93,7 @@ async function onSysScale(v: boolean): Promise<void> {
     <el-collapse v-model="open">
       <el-collapse-item name="appearance-main">
         <template #title>
-          <div class="sec__title"><el-icon><Moon /></el-icon> {{ $t('sv.appearance.title') }}</div>
+          <div class="sec__title"><el-icon><BulbOutlined /></el-icon> {{ $t('sv.appearance.title') }}</div>
         </template>
 
         <el-form label-position="top">
@@ -96,6 +103,29 @@ async function onSysScale(v: boolean): Promise<void> {
               <el-radio-button :value="'light'">{{ $t('sv.appearance.themeLight') }}</el-radio-button>
               <el-radio-button :value="'dark'">{{ $t('sv.appearance.themeDark') }}</el-radio-button>
             </el-radio-group>
+          </el-form-item>
+
+          <el-form-item :label="$t('sv.appearance.schemeLabel')">
+            <div class="schemes">
+              <button
+                v-for="s in COLOR_SCHEMES"
+                :key="s.id"
+                type="button"
+                class="scheme"
+                :class="{ 'scheme--on': state.colorScheme === s.id }"
+                :title="$t('sv.appearance.scheme.' + s.id)"
+                @click="state.colorScheme = s.id"
+              >
+                <!-- 三个色块：页面底 / 侧栏底 / 主色 —— 一眼看出背景是否也成套 -->
+                <span class="scheme__chips">
+                  <i class="scheme__chip" :style="{ background: schemeBackgrounds(s.id, dark).page }" />
+                  <i class="scheme__chip" :style="{ background: schemeBackgrounds(s.id, dark).side }" />
+                  <i class="scheme__chip" :style="{ background: s.primary }" />
+                </span>
+                <span class="scheme__name">{{ $t('sv.appearance.scheme.' + s.id) }}</span>
+              </button>
+            </div>
+            <div class="hint">{{ $t('sv.appearance.schemeHint') }}</div>
           </el-form-item>
 
           <el-form-item :label="$t('sv.appearance.zoom')">
@@ -132,5 +162,55 @@ async function onSysScale(v: boolean): Promise<void> {
 }
 .lang-casc {
   width: 100%;
+}
+
+/* ---- 配色方案色板 ---- */
+.schemes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+.scheme {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.scheme:hover {
+  border-color: var(--el-color-primary);
+}
+.scheme--on {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+.scheme:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+/* 三个色块并排：页面底 / 侧栏底 / 主色 */
+.scheme__chips {
+  display: flex;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--el-border-color-lighter);
+}
+.scheme__chip {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.scheme__name {
+  white-space: nowrap;
 }
 </style>

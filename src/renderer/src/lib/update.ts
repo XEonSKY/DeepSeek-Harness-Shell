@@ -18,13 +18,19 @@ export interface KernelCheckState {
   latest: string | null
   /** Whether the found latest is a pre-release (rc / beta / …). */
   prerelease: boolean
+  /** 最近一次检查返回的当前版本（「已是最新」的界面回显用）。 */
+  current: string | null
+  /** 是否已经检查过至少一次 —— 决定要不要显示「已是最新」那一行。 */
+  checked: boolean
 }
 
 /** Latest kernel check result, so the 内核 page header can show it reactively. */
 export const kernelCheck = reactive<KernelCheckState>({
   found: false,
   latest: null,
-  prerelease: false
+  prerelease: false,
+  current: null,
+  checked: false
 })
 
 /** Build the notification body: current & latest versions shown as el-tag. */
@@ -70,6 +76,11 @@ export async function checkAndNotify(opts?: {
     kernelCheck.found = r.status === 'update' && !!r.latest
     kernelCheck.latest = r.latest
     kernelCheck.prerelease = r.latest ? isPrerelease(r.latest) : false
+    kernelCheck.current = r.current ?? null
+    kernelCheck.checked = true
+
+    // 「已是最新」不弹提示（只有真发现新版本才值得打断用户）：结果改在「内核」页里回显一行。
+    if (r.status === 'ok') return
 
     const titles: Record<UpdateResult['status'], string> = {
       ok: tt('update.okTitle'),

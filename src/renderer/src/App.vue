@@ -5,9 +5,9 @@ import { ElCheckbox, ElMessageBox } from 'element-plus'
 import KernelWizard from './components/KernelWizard.vue'
 import TitleBar from './components/TitleBar.vue'
 import { checkAndNotify } from './lib/update'
-import { applyTheme } from './lib/theme'
+import { applyTheme, applyColorScheme } from './lib/theme'
 import { applyFunToZh } from './lib/locales'
-import { useView, useGoView } from './shell/viewnav'
+import { useView, useGoView, useToggleTerminal } from './shell/viewnav'
 import { webTabs, activeTab, activateTab, openTarget, setCoreRole, tabLabel } from './shell/tabs'
 import WebHost from './views/WebHost.vue'
 import { shellMeta } from './shell/shellmeta'
@@ -32,10 +32,8 @@ watch(
   { flush: 'post' }
 )
 
-// Ctrl+T 在 DeepSeek UI 与终端之间切换（其它视图回到 UI）。
-function onToggle(): void {
-  go(view.value === 'web' ? 'log' : 'web')
-}
+// Ctrl+T 在 DeepSeek UI 与「设置 → 终端」之间切换（已在终端页则回 UI）。
+const onToggle = useToggleTerminal()
 
 // ---- Element Plus close prompt (requested by the main process) -------------
 const remember = ref(false)
@@ -117,6 +115,7 @@ onMounted(() => {
   void (async () => {
     const s = await window.api.getSettings()
     applyTheme(s.theme)
+    applyColorScheme(s.colorScheme)
     void window.api.setWindowZoom(s.zoomPercent ?? 100)
     applyFunToZh(s.funLocale ?? 'off')
     const ok = await window.api.getKernelInstalled()

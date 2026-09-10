@@ -68,7 +68,26 @@ jobs:
       - name: Compile the app (electron-vite build)
         run: npm run build
 
-      # 仅当推送的是 v* 标签时才发布（生成 prerelease，供下载；必须是已发布状态）。
+      # 发布类型**必须按版本号决定**，不能在 package.json 里写死：
+      # electron-updater 的正式版线用 `github.com/<owner>/<repo>/releases/latest` 解析 tag，
+      # 而该端点**不返回 prerelease**。若把 releaseType 固定为 prerelease，将来真正的
+      # 正式版也会被标成 prerelease ⇒ 正式版用户被永久钉死在最后一个正式版上，
+      # 表现为「检测不到最新正式版本」（且报错会伪装成「已是最新」）。
+      # 含 `-`（alpha / beta / rc）→ prerelease；否则 → release。
+      - name: Resolve release type from version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const releaseType = /-/.test(pkg.version) ? "prerelease" : "release";
+            pkg.build.publish.releaseType = releaseType;
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+            console.log(`version ${pkg.version} -> publish.releaseType = ${releaseType}`);
+          '
+
+      # 仅当推送的是 v* 标签时才发布（供下载；必须是已发布状态，不能停在 draft）。
       - name: Package & publish to GitHub Release (tagged)
         if: startsWith(github.ref, 'refs/tags/v')
         run: npx electron-builder --publish always

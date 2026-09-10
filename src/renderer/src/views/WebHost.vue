@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Refresh, Loading } from '@element-plus/icons-vue'
+import { ArrowLeftOutlined, ArrowRightOutlined, ReloadOutlined, LoadingOutlined } from '@antdv-next/icons'
 import { webTabs, activeTab, openTarget, setHomeUrl } from '../shell/tabs'
 import NewTab from './NewTab.vue'
 import { buildSearchUrl } from '../lib/engines'
@@ -199,13 +199,13 @@ onBeforeUnmount(() => {
     <!-- 浏览器式导航栏：仅在动态标签页激活时显示（三个固定站用标题栏旧版刷新按钮） -->
     <div v-if="showNav" class="wb-nav">
       <button class="wn" type="button" :disabled="!nav.canBack" title="←" @click="navBack">
-        <el-icon :size="16"><ArrowLeft /></el-icon>
+        <el-icon :size="16"><ArrowLeftOutlined /></el-icon>
       </button>
       <button class="wn" type="button" :disabled="!nav.canForward" title="→" @click="navForward">
-        <el-icon :size="16"><ArrowRight /></el-icon>
+        <el-icon :size="16"><ArrowRightOutlined /></el-icon>
       </button>
       <button class="wn" type="button" title="reload / stop" @click="navReload">
-        <el-icon :size="15" :class="{ spin: nav.loading }"><Refresh /></el-icon>
+        <el-icon :size="15" :class="{ spin: nav.loading }"><ReloadOutlined /></el-icon>
       </button>
       <div class="wn-addr pill-input">
         <el-input
@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
         <template v-else>
           <div class="whost__holder" :ref="(el) => setHolder(tab.id, el as HTMLDivElement | null)"></div>
           <div v-if="!tab.url" class="whost__wait">
-            <el-icon class="spin" :size="36"><Loading /></el-icon>
+            <el-icon class="spin" :size="36"><LoadingOutlined /></el-icon>
           </div>
         </template>
       </div>

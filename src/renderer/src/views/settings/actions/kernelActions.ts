@@ -90,6 +90,8 @@ export function createKernelActions(state: SettingsState): KernelActions {
         state.version = r.version
         kernelCheck.found = false
         kernelCheck.latest = null
+        // 装/切换完版本后清掉「检查过」标记：否则「内核」页会拿旧的检查结果继续显示「已是最新」。
+        kernelCheck.checked = false
         ElMessage.success(r.message)
       } else {
         ElMessage.error(r.message || '')
@@ -112,6 +114,8 @@ export function createKernelActions(state: SettingsState): KernelActions {
         state.version = r.version
         kernelCheck.found = false
         kernelCheck.latest = null
+        // 装/切换完版本后清掉「检查过」标记：否则「内核」页会拿旧的检查结果继续显示「已是最新」。
+        kernelCheck.checked = false
         await loadVersions()
         ElMessage.success(r.message)
       } else {

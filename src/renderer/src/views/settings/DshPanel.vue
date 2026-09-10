@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Cpu, Folder, Promotion, Refresh } from '@element-plus/icons-vue'
+import { ClusterOutlined, FolderOutlined, SendOutlined, ReloadOutlined } from '@antdv-next/icons'
 import { kernelCheck } from '../../lib/update'
 import { useSettingsStore } from './useSettingsStore'
 
@@ -16,7 +16,7 @@ onMounted(() => {
 <template>
   <div class="panel">
     <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="40"><Cpu /></el-icon></div>
+      <div class="dsh-brand__icon"><el-icon :size="40"><ClusterOutlined /></el-icon></div>
       <div class="dsh-brand__txt">
         <div class="dsh-brand__name">DeepSeek Harness</div>
         <div class="dsh-brand__ver">
@@ -38,7 +38,7 @@ onMounted(() => {
     <el-collapse v-model="open">
       <el-collapse-item name="dsh-startup">
         <template #title>
-          <div class="sec__title"><el-icon><Cpu /></el-icon> {{ $t('sv.dsh.startup') }}</div>
+          <div class="sec__title"><el-icon><ClusterOutlined /></el-icon> {{ $t('sv.dsh.startup') }}</div>
         </template>
         <el-form label-position="top">
           <el-form-item :label="$t('sv.dsh.timeout')">
@@ -58,27 +58,9 @@ onMounted(() => {
           <el-form-item v-if="state.kernelSource === 'global'" :label="$t('sv.dsh.launcherPath')">
             <div class="row">
               <el-input v-model="state.dshBin" readonly :placeholder="$t('sv.dsh.launcherPlaceholder')" />
-              <el-button :icon="Folder" @click="actions.browseDshBin()">{{ $t('sv.dsh.browseLauncher') }}</el-button>
+              <el-button :icon="FolderOutlined" @click="actions.browseDshBin()">{{ $t('sv.dsh.browseLauncher') }}</el-button>
             </div>
             <div class="hint">{{ $t('sv.dsh.launcherHint') }}</div>
-          </el-form-item>
-
-          <el-form-item :label="$t('sv.dsh.nodeRuntime')">
-            <el-select v-model="state.nodeRuntime" class="dd">
-              <el-option :value="'electron'" :label="$t('sv.dsh.nodeElectron')" />
-              <el-option :value="'system'" :label="$t('sv.dsh.nodeSystem')" />
-              <el-option :value="'local'" :label="$t('sv.dsh.nodeLocal')" />
-            </el-select>
-            <div class="hint">{{ $t('sv.dsh.nodeRuntimeHint') }}</div>
-          </el-form-item>
-
-          <el-form-item v-if="state.kernelSource === 'local'" :label="$t('sv.dsh.npmSource')">
-            <el-select v-model="state.npmSource" class="dd">
-              <el-option :value="'system'" :label="$t('sv.dsh.npmSystem')" />
-              <el-option :value="'bundled'" :label="$t('sv.dsh.npmBundled')" />
-              <el-option :value="'localnode'" :label="$t('sv.dsh.npmLocalNode')" />
-            </el-select>
-            <div class="hint">{{ $t('sv.dsh.npmSourceHint') }}</div>
           </el-form-item>
         </el-form>
 
@@ -100,7 +82,7 @@ onMounted(() => {
 
       <el-collapse-item name="dsh-update">
         <template #title>
-          <div class="sec__title"><el-icon><Refresh /></el-icon> {{ $t('sv.dsh.kernelUpdate') }}</div>
+          <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.dsh.kernelUpdate') }}</div>
         </template>
         <div class="kopt">
           <div class="au">
@@ -123,17 +105,23 @@ onMounted(() => {
         <div class="upd-sep" />
         <div class="dsh-update">
           <div class="dsh-update__text">
-            <div class="dsh-update__title"><el-icon><Refresh /></el-icon> {{ $t('sv.dsh.checkUpdateTitle') }}</div>
+            <div class="dsh-update__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.dsh.checkUpdateTitle') }}</div>
             <div class="dsh-update__desc">{{ $t('sv.dsh.checkUpdateDesc', { pkg: '@deepseek-ai/dsh' }) }}</div>
           </div>
           <div class="dsh-update__actions">
-            <el-button :icon="Refresh" :loading="state.updating" :disabled="state.updating || state.updatingKernel" @click="actions.runUpdateCheck()">
+            <el-button :icon="ReloadOutlined" :loading="state.updating" :disabled="state.updating || state.updatingKernel" @click="actions.runUpdateCheck()">
               {{ $t('sv.dsh.check') }}
             </el-button>
-            <el-button type="primary" :icon="Promotion" :loading="state.updatingKernel" :disabled="state.updatingKernel || state.updating || !kernelCheck.found" @click="actions.runUpdateKernel()">
+            <el-button type="primary" :icon="SendOutlined" :loading="state.updatingKernel" :disabled="state.updatingKernel || state.updating || !kernelCheck.found" @click="actions.runUpdateKernel()">
               {{ $t('sv.dsh.update') }}
             </el-button>
           </div>
+        </div>
+
+        <!-- 检查结果回显：发现新版本由标题栏的 tag 表示；「已是最新」不再弹 toast，改在这里说明 -->
+        <div v-if="kernelCheck.checked && !kernelCheck.found" class="au-note">
+          <el-tag size="small" type="success" effect="plain">{{ $t('update.okTitle') }}</el-tag>
+          <span v-if="kernelCheck.current" class="ver-tag">&nbsp;&nbsp;{{ kernelCheck.current }}</span>
         </div>
 
         <div class="upd-sep" />
@@ -143,8 +131,8 @@ onMounted(() => {
               <el-select v-model="state.selectedVersion" filterable :placeholder="$t('sv.dsh.selectPlaceholder')" class="vm-sel" :disabled="state.versionsLoading || state.switchingKernel">
                 <el-option v-for="v in state.versions" :key="v" :label="actions.versionLabel(v)" :value="v" />
               </el-select>
-              <el-button :icon="Refresh" :loading="state.versionsLoading" @click="actions.loadVersions()">{{ $t('sv.dsh.refresh') }}</el-button>
-              <el-button type="primary" :icon="Promotion" :loading="state.switchingKernel" :disabled="state.switchingKernel || state.versionsLoading || !state.selectedVersion || state.selectedVersion === state.version" @click="actions.switchVersion()">
+              <el-button :icon="ReloadOutlined" :loading="state.versionsLoading" @click="actions.loadVersions()">{{ $t('sv.dsh.refresh') }}</el-button>
+              <el-button type="primary" :icon="SendOutlined" :loading="state.switchingKernel" :disabled="state.switchingKernel || state.versionsLoading || !state.selectedVersion || state.selectedVersion === state.version" @click="actions.switchVersion()">
                 {{ $t('sv.dsh.installVersion') }}
               </el-button>
             </div>

@@ -3,7 +3,8 @@ import { app } from 'electron'
 import { registerIpc } from './app/ipc'
 import { startAutoCheckIfEnabled } from './app/appupdate'
 import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme } from './app/settings'
-import { createShellWindow, createTray, showMainWindow } from './app/ui'
+import { createShellWindow, createTray, showMainWindow, syncGlobalHotkey } from './app/ui'
+import { applyHardwareAcceleration, applyWebviewUserAgent } from './app/webview'
 import { resolveInstall } from './kernel/kernel'
 import { restart, killServer, killAllChildren, stopDshGracefully } from './kernel/dsh'
 import { getTray, setQuitting, destroyTray } from './app/runtime'
@@ -52,15 +53,26 @@ if (!gotLock) {
     showMainWindow()
   })
 
+  // 硬件加速必须在 app ready **之前**决定（Electron 限制）：先单独读一次设置。
+  // 读失败就按默认（开着加速）继续，不能让设置文件的问题拦住启动。
+  try {
+    applyHardwareAcceleration(loadSettings())
+  } catch {
+    /* 用默认值 */
+  }
+
   // Boot: wire IPC, start the external-config watchers, open the window/tray,
   // and launch dsh when the kernel is present.
   app.whenReady().then(async () => {
     const cfg = loadSettings()
     syncNativeTheme(cfg.theme) // 建窗前先让 webview 深浅色与外壳一致
+    // UA 只能在 ready 之后设（defaultSession 尚不存在），且必须早于建窗：webview 创建时就该拿到它。
+    applyWebviewUserAgent(cfg)
     registerIpc()
     startConfigWatchers()
     createShellWindow() // 首个窗口注册为核心窗口（内部登记角色并设为主窗口）
     createTray()
+    syncGlobalHotkey() // 系统全局快捷键（默认 Ctrl+Alt+H 回到主窗口）
 
     // Launch dsh only if the kernel is present. When missing we do not show a
     // native prompt anymore — the renderer detects it on load and shows the

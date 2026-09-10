@@ -84,6 +84,38 @@ export interface Settings {
   newTabUrl: string
   /** 新标签页内置导航页的常用站点快捷方式。 */
   shortcuts: Shortcut[]
+  /**
+   * 系统全局快捷键：任何程序里按下都回到本应用主窗口（Electron accelerator，空串=禁用）。
+   * 由主进程 `globalShortcut` 注册，可能被别的程序占用而注册失败。
+   */
+  hotkeyFocusWindow: string
+  /** 应用内快捷键：在 DeepSeek UI 与「设置·终端」之间切换。 */
+  hotkeyToggleTerminal: string
+  /** 应用内快捷键：开关 DevTools（仅「开发模式」开启时生效）。 */
+  hotkeyDevTools: string
+  /** 内嵌 webview 是否启用硬件加速（默认开）。**改动需重启应用**（Electron 要求 ready 前决定）。 */
+  hardwareAcceleration: boolean
+  /** 内嵌 webview 的 UserAgent；**留空 = 用按平台/版本生成的默认 UA**。 */
+  webviewUserAgent: string
+  /** 配色方案 id（预制方案见 renderer 的 `lib/theme.ts`；同时决定主色与页面/侧栏底色）。 */
+  colorScheme: ColorSchemeId
+}
+
+/**
+ * 预制配色方案的 id。
+ * 具体色值在渲染层的 `lib/theme.ts`（只有那里需要颜色），这里只固化 id 集合，
+ * 好让「设置里存了什么」与「有哪些方案」在类型上对得上。
+ */
+export type ColorSchemeId = 'default' | 'purple' | 'green' | 'cyan' | 'orange' | 'rose' | 'graphite'
+
+export const COLOR_SCHEME_IDS: readonly ColorSchemeId[] = ['default', 'purple', 'green', 'cyan', 'orange', 'rose', 'graphite']
+
+/** Webview 设置页需要的只读信息（默认 UA 由主进程按当前平台与版本生成）。 */
+export interface WebviewInfo {
+  /** 按平台 / Chromium 版本 / 程序版本生成的默认 UA。 */
+  defaultUserAgent: string
+  /** 实际生效的 UA（设置里留空时等于默认）。 */
+  currentUserAgent: string
 }
 
 /** 扩展翻译：关闭、语言风格项（anime/wenyan 属 zh；pirate/shakespeare 属 en），
@@ -158,7 +190,13 @@ export const DEFAULT_SETTINGS: Settings = {
   searchEngine: 'bing',
   newTabMode: 'builtin',
   newTabUrl: '',
-  shortcuts: []
+  shortcuts: [],
+  hotkeyFocusWindow: 'CommandOrControl+Alt+H',
+  hotkeyToggleTerminal: 'CommandOrControl+T',
+  hotkeyDevTools: 'F12',
+  hardwareAcceleration: true,
+  webviewUserAgent: '',
+  colorScheme: 'default'
 }
 
 /** Result of a kernel install / uninstall action. */
@@ -216,6 +254,56 @@ export interface NodeDeployProgress {
   percent: number
   downloaded: number
   total: number
+}
+
+/** 单个 Node 运行时的版本状态（设置 → 环境页的标签）。 */
+export interface NodeRuntimeStatus {
+  present: boolean
+  /** 形如 v22.14.0；进程跑不起来/读不到时为 null。 */
+  version: string | null
+  /** 落后于最新 LTS。拿不到最新版或读不到当前版本时一律为 false（不误报「可更新」）。 */
+  outdated: boolean
+}
+
+/** 环境页探测结果：系统 / 本地部署 Node 的当前版本，以及可比较的最新 LTS。 */
+export interface NodeStatus {
+  /** 最新 LTS（形如 v22.14.0）；离线 / 代理不通时为 null。 */
+  latest: string | null
+  system: NodeRuntimeStatus
+  local: NodeRuntimeStatus
+}
+
+/** 单个 npm 来源的版本状态（设置 → 环境页的 npm 标签）。 */
+export interface NpmRuntimeStatus {
+  present: boolean
+  /** 形如 10.8.2；来源不可用（没有系统 npm / 尚未下载 / 未部署本地 Node）时为 null。 */
+  version: string | null
+  /** 落后于 registry 上的最新版。拿不到最新版或读不到当前版本时一律为 false。 */
+  outdated: boolean
+}
+
+/** npm 来源探测结果：系统 / 内置 / 本地 Node 自带 npm 的版本 + registry 上的最新版。 */
+export interface NpmStatus {
+  /** registry 上的最新 npm 版本（跟随 npmRegistry 设置）；取不到时为 null。 */
+  latest: string | null
+  system: NpmRuntimeStatus
+  bundled: NpmRuntimeStatus
+  localnode: NpmRuntimeStatus
+}
+
+/** 通用「下载 / 安装」结果（与 NodeDeployResult 同构；npm 更新走它）。 */
+export interface ToolActionResult {
+  ok: boolean
+  message: string
+  version: string | null
+}
+
+/** 系统全局快捷键的注册状态（主进程 globalShortcut 的真实结果）。 */
+export interface HotkeyState {
+  /** 已生效的 accelerator；空串表示未注册或已禁用。 */
+  accelerator: string
+  /** 注册是否成功 —— 被别的程序占用时为 false。 */
+  ok: boolean
 }
 
 /** 自动更新过程状态（由主进程 electron-updater 事件桥接而来）。 */
@@ -327,8 +415,24 @@ export interface RendererApi {
   openFile(): Promise<string | null>
   /** Probe whether a system Node / npm is installed on this machine. */
   probeEnv(): Promise<EnvProbe>
-  /** 下载并按当前平台/架构把 Node LTS 部署到配置目录（进度会进日志）。 */
-  deployLocalNode(): Promise<NodeDeployResult>
+  /** 环境页用：系统 / 本地部署 Node 的当前版本 + 最新 LTS 对比（会联网取 index.json）。 */
+  getNodeStatus(): Promise<NodeStatus>
+  /** 可安装的 Node 版本列表（新 → 旧；来自 nodejs.org 发行索引）。 */
+  listNodeVersions(opts: { includeNonLts: boolean }): Promise<string[]>
+  /** 下载并按当前平台/架构把 Node（默认最新 LTS，可指定版本）部署到配置目录。 */
+  deployLocalNode(opts?: { version?: string }): Promise<NodeDeployResult>
+  /** 环境页用：三个 npm 来源（系统 / 内置 / 本地 Node 自带）的当前版本 + registry 最新版对比。 */
+  getNpmStatus(): Promise<NpmStatus>
+  /** 可安装的 npm 版本列表（新 → 旧；来自所选 registry）。 */
+  listNpmVersions(opts: { prerelease: boolean }): Promise<string[]>
+  /** 按来源下载 / 切换 npm 版本（不传 version 为最新版）。 */
+  updateNpm(opts: { source: NpmSource; version?: string }): Promise<ToolActionResult>
+  /** 系统全局快捷键的注册状态（设置 → 快捷键页）。 */
+  getHotkeyState(): Promise<HotkeyState>
+  /** 系统全局快捷键注册状态变化（改设置后重新注册的结果）。 */
+  onHotkeyState(cb: (s: HotkeyState) => void): () => void
+  /** Webview 设置页用：默认 UA 与实际生效的 UA。 */
+  getWebviewInfo(): Promise<WebviewInfo>
   /** 本地 Node 部署进度广播。 */
   onNodeDeployProgress(cb: (p: NodeDeployProgress) => void): () => void
   /** 当前有效 + 默认的应用配置目录。 */
@@ -365,6 +469,10 @@ export interface RendererApi {
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void
+  /** 本窗口当前是否最大化（自定义标题栏据此在「最大化 / 还原」之间切换图标与提示）。 */
+  isWindowMaximized(): Promise<boolean>
+  /** 主进程通知本窗口：最大化状态变化（双击拖动区 / 系统快捷键 / Aero Snap 也会触发）。 */
+  onWindowMaximized(cb: (maximized: boolean) => void): () => void
 }
 
 /**

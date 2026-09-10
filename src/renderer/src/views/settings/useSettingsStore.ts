@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { DEFAULT_SETTINGS } from '@shared/types'
 import type { Settings, Theme } from '@shared/types'
-import { applyTheme } from '../../lib/theme'
+import { applyTheme, applyColorScheme } from '../../lib/theme'
 import { appState } from '../../lib/state'
 import { tt } from '../../lib/locales'
 import { payloadFrom, type SettingsState, type SettingsActions } from './settingsStore'
@@ -47,6 +47,12 @@ export const useSettingsStore = defineStore('settings', () => {
     newTabMode: DEFAULT_SETTINGS.newTabMode,
     newTabUrl: DEFAULT_SETTINGS.newTabUrl,
     shortcuts: [...DEFAULT_SETTINGS.shortcuts],
+    hotkeyFocusWindow: DEFAULT_SETTINGS.hotkeyFocusWindow,
+    hotkeyToggleTerminal: DEFAULT_SETTINGS.hotkeyToggleTerminal,
+    hotkeyDevTools: DEFAULT_SETTINGS.hotkeyDevTools,
+    hardwareAcceleration: DEFAULT_SETTINGS.hardwareAcceleration,
+    webviewUserAgent: DEFAULT_SETTINGS.webviewUserAgent,
+    colorScheme: DEFAULT_SETTINGS.colorScheme,
     dshRunning: false,
     applying: false,
     updating: false,
@@ -90,6 +96,12 @@ export const useSettingsStore = defineStore('settings', () => {
     state.shortcuts = Array.isArray(s.shortcuts)
       ? s.shortcuts.map((sc) => ({ title: sc.title || '', url: sc.url || '' }))
       : [...DEFAULT_SETTINGS.shortcuts]
+    state.hotkeyFocusWindow = s.hotkeyFocusWindow ?? DEFAULT_SETTINGS.hotkeyFocusWindow
+    state.hotkeyToggleTerminal = s.hotkeyToggleTerminal ?? DEFAULT_SETTINGS.hotkeyToggleTerminal
+    state.hotkeyDevTools = s.hotkeyDevTools ?? DEFAULT_SETTINGS.hotkeyDevTools
+    state.hardwareAcceleration = s.hardwareAcceleration !== false
+    state.webviewUserAgent = s.webviewUserAgent ?? DEFAULT_SETTINGS.webviewUserAgent
+    state.colorScheme = s.colorScheme ?? DEFAULT_SETTINGS.colorScheme
     appState.workspace = s.workspace
     if (typeof s.port === 'number' && s.port > 0) {
       state.portMode = 'manual'
@@ -179,6 +191,8 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(() => state.zoomPercent, (v) => void window.api.setWindowZoom(v))
   // 主题即时生效（dsh 自己 watch 同步的 settings.yaml，无需手动刷新）。
   watch(() => state.theme, (t: Theme) => applyTheme(t))
+  // 配色方案即时生效（外部改动经 fillFrom 改 state 时这个 watch 也会跑）。
+  watch(() => state.colorScheme, (id) => applyColorScheme(id))
   // 预发布开关/镜像变化时重建版本列表。
   watch([() => state.autoCheckPrerelease, () => state.npmRegistry], () => void kernelActions.loadVersions())
 

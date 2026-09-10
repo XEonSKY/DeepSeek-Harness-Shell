@@ -3,8 +3,8 @@ import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 import { parseDocument } from 'yaml'
-import { DEFAULT_SETTINGS } from '@shared/types'
-import type { Settings, Theme, ResolvedLocale, LocaleCode } from '@shared/types'
+import { DEFAULT_SETTINGS, COLOR_SCHEME_IDS } from '@shared/types'
+import type { Settings, Theme, ResolvedLocale, LocaleCode, ColorSchemeId } from '@shared/types'
 import { resolveLocale, t as tl } from '@shared/i18n'
 import { broadcast } from './runtime'
 
@@ -184,7 +184,15 @@ export function loadSettings(): Settings {
     searchEngine: disk.searchEngine ?? DEFAULT_SETTINGS.searchEngine,
     newTabMode: disk.newTabMode ?? DEFAULT_SETTINGS.newTabMode,
     newTabUrl: disk.newTabUrl ?? DEFAULT_SETTINGS.newTabUrl,
-    shortcuts: Array.isArray(disk.shortcuts) ? disk.shortcuts : DEFAULT_SETTINGS.shortcuts
+    shortcuts: Array.isArray(disk.shortcuts) ? disk.shortcuts : DEFAULT_SETTINGS.shortcuts,
+    hotkeyFocusWindow: disk.hotkeyFocusWindow ?? DEFAULT_SETTINGS.hotkeyFocusWindow,
+    hotkeyToggleTerminal: disk.hotkeyToggleTerminal ?? DEFAULT_SETTINGS.hotkeyToggleTerminal,
+    hotkeyDevTools: disk.hotkeyDevTools ?? DEFAULT_SETTINGS.hotkeyDevTools,
+    hardwareAcceleration: disk.hardwareAcceleration ?? DEFAULT_SETTINGS.hardwareAcceleration,
+    webviewUserAgent: disk.webviewUserAgent ?? DEFAULT_SETTINGS.webviewUserAgent,
+    colorScheme: COLOR_SCHEME_IDS.includes(disk.colorScheme as ColorSchemeId)
+      ? (disk.colorScheme as ColorSchemeId)
+      : DEFAULT_SETTINGS.colorScheme
   }
 }
 

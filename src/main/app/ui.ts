@@ -4,6 +4,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { NEWTAB_URL, isNewTabTarget } from '@shared/types'
 import { loadSettings, mt } from './settings'
+import { APP_TITLE } from './const'
 import {
   getCurrentUrl,
   getMainWindow,
@@ -216,7 +217,6 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
 
   // Fixed window title: page titles never rename the shell window. 核心窗口恒为软件名；
   // 副窗口默认软件名，之后由渲染层用 shell:set-title 推“<当前标签页标题> - 软件名”驱动。
-  const APP_TITLE = 'DeepSeek Harness'
   wc.on('page-title-updated', (e) => e.preventDefault())
   win.on('page-title-updated', (e) => e.preventDefault())
   if (core) {

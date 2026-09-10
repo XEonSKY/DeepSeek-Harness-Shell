@@ -4,7 +4,7 @@ import { Promotion, Refresh } from '@element-plus/icons-vue'
 import { useSettingsStore } from './useSettingsStore'
 import { friendlyPlatform } from './settingsStore'
 import type { AppMeta, AppUpdateEvent } from '@shared/types'
-import { useAppIcon } from '../../appIcon'
+import { useAppIcon } from '../../lib/appIcon'
 
 const { state } = useSettingsStore()
 // 应用 Logo：随深浅色切换（深色用 icon-dark.png），见 appIcon.ts

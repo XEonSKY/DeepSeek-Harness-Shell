@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Cpu, Folder, Promotion, Refresh } from '@element-plus/icons-vue'
-import { kernelCheck } from '../../update'
+import { kernelCheck } from '../../lib/update'
 import { useSettingsStore } from './useSettingsStore'
 
 const { state, actions } = useSettingsStore()

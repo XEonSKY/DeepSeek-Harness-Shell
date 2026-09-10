@@ -1,0 +1,559 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { Monitor, ChatDotRound, Wallet, Setting, Minus, FullScreen, Close, Refresh, Plus, Star, StarFilled } from '@element-plus/icons-vue'
+import { CodeFilled } from '@antdv-next/icons'
+import { useAppIcon } from '../lib/appIcon'
+import { useView, useGoView } from '../shell/viewnav'
+import { webTabs, activeTab, findTab, activateTab, closeTab, openTab, openNewTab, toggleKeep, tabLabel } from '../shell/tabs'
+import { shellMeta } from '../shell/shellmeta'
+import { useTabDrag } from '../shell/useTabDrag'
+import { NEWTAB_URL } from '@shared/types'
+
+/**
+ * 自绘标题栏：应用标识 + 固定站 / 跳核心按钮 + 浏览器式标签条 + 窗口控制，
+ * 并连同跨窗口拖拽的「可接收遮罩 / 幽灵标签」与标签右键菜单一起渲染。
+ *
+ * 从 App.vue 抽出。它是**多根组件**：`<header>` 保持为 .shell 的直接 flex 子项（布局不变），
+ * 其余根节点都是 position:fixed，不参与 flex 布局。故无需 props——标签状态来自 tabs.ts 单例，
+ * 视图状态来自 viewnav.ts，窗口控制直接走 window.api。
+ */
+const appIcon = useAppIcon()
+const view = useView()
+const go = useGoView()
+
+// 标签页拖拽：同窗口内拖动=排序；拖到其它窗口（其顶部标签栏亮浅蓝遮罩可接收）=把标签移过去。
+const { bindTabsBar, onTabPointerDown, draggingTabId, slotBeforeId, hoverMask, ghost } = useTabDrag()
+
+/**
+ * 点击一个标签页：激活并确保显示在 web 宿主。
+ * Ctrl/⌘+点击则改用系统浏览器打开该标签网址（与普通点击一致的处理入口）。
+ */
+function onTabClick(id: string, ev?: MouseEvent): void {
+  if (ev && (ev.ctrlKey || ev.metaKey)) {
+    const tab = findTab(id)
+    if (tab?.url) {
+      ev.preventDefault()
+      void window.api.openExternal(tab.url)
+      return
+    }
+  }
+  activateTab(id)
+  go('web')
+}
+
+/** 点击标签页关闭按钮。 */
+function onTabClose(id: string): void {
+  closeTab(id)
+}
+
+/** 点击“保活固定”按钮（仅动态标签页）。 */
+function onTabKeep(id: string): void {
+  toggleKeep(id)
+}
+
+/** 中键(mouse button 1)关闭标签页。 */
+function onTabMouseDown(id: string, e: MouseEvent): void {
+  if (e.button === 1) {
+    e.preventDefault()
+    closeTab(id)
+  }
+}
+
+/** 右键菜单状态：位置 + 目标标签。 */
+const ctx = ref<{ x: number; y: number; id: string } | null>(null)
+function onTabContext(id: string, e: MouseEvent): void {
+  ctx.value = { x: e.clientX, y: e.clientY, id }
+}
+function closeCtx(): void {
+  ctx.value = null
+}
+/** 复制标签页。 */
+function ctxDup(): void {
+  const tab = ctx.value ? findTab(ctx.value.id) : undefined
+  closeCtx()
+  if (!tab) return
+  if (tab.kind === 'newtab') openNewTab()
+  else openTab(tab.url ?? '', tab.title)
+}
+/** 关闭标签页。 */
+function ctxClose(): void {
+  const id = ctx.value?.id
+  closeCtx()
+  if (id) closeTab(id)
+}
+
+/** 在新窗口打开：把该标签目标（动态页 URL，或内置导航页伪链接 dssh://about:blank）开到一个独立窗口。 */
+async function ctxOpenWindow(): Promise<void> {
+  const tab = ctx.value ? findTab(ctx.value.id) : undefined
+  closeCtx()
+  if (!tab) return
+  const target = tab.kind === 'newtab' ? NEWTAB_URL : tab.url
+  if (target) await window.api.openWebWindow(target)
+}
+
+/** 移动到其它窗口：弹出目标窗口选择；目标开该标签（含内置导航页），再从本窗口移除；取消则保留。 */
+async function ctxMove(): Promise<void> {
+  const tab = ctx.value ? findTab(ctx.value.id) : undefined
+  closeCtx()
+  if (!tab) return
+  const target = tab.kind === 'newtab' ? NEWTAB_URL : tab.url
+  if (!target) return
+  const moved = await window.api.moveTabToWindow(target)
+  if (moved) closeTab(tab.id)
+}
+
+/** 跳转到核心窗口（副窗口用）：经 IPC 聚焦当前核心窗口；无核心则主进程重建一个。 */
+async function jumpToCore(): Promise<void> {
+  await window.api.focusCoreWindow()
+}
+
+/** 滚轮滚动标签条时改为横向滚动。 */
+function onTabsWheel(e: WheelEvent): void {
+  const el = e.currentTarget as HTMLElement | null
+  if (!el || el.scrollWidth <= el.clientWidth) return
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+  if (delta === 0) return
+  el.scrollLeft += delta
+}
+
+/** ＋ 新建：按设置开内置导航页或自定义 URL。 */
+async function onPlus(): Promise<void> {
+  try {
+    const s = await window.api.getSettings()
+    if (s.newTabMode === 'url' && s.newTabUrl) openTab(s.newTabUrl)
+    else openNewTab()
+  } catch {
+    openNewTab()
+  }
+  go('web')
+}
+
+/** 动态/新标签页（由新开链接/＋ 产生）；固定三站以图标按钮呈现，不在此列。 */
+const dynamicTabs = computed(() => webTabs.list.filter((tab) => tab.kind === 'dynamic' || tab.kind === 'newtab'))
+
+/** 某个 web 标签是否当前激活（仅 web 宿主视图内高亮）。 */
+function isWebActive(id: string): boolean {
+  return view.value === 'web' && webTabs.activeId === id
+}
+
+/** 某个 web 标签是否当前激活（仅 web 宿主视图内高亮）。 */
+const navVisible = computed(() => view.value === 'web' && activeTab()?.kind === 'dynamic')
+/** 激活的是否三个固定站之一（固定站才显示标题栏旧版刷新按钮）。 */
+const fixedPageReload = computed(() => {
+  if (view.value !== 'web') return false
+  const k = activeTab()?.kind
+  return k === 'home' || k === 'chat' || k === 'platform'
+})
+
+const winMinimize = (): void => window.api.windowMinimize()
+const winMaximize = (): void => window.api.windowToggleMaximize()
+const winClose = (): void => window.api.windowClose()
+const winReload = (): void => window.api.reloadDsh()
+</script>
+
+<template>
+  <!-- Custom (frameless) title bar: the whole bar is a drag region. -->
+  <header class="titlebar" :class="{ 'titlebar--flush': navVisible }">
+    <div class="left">
+      <img :src="appIcon" class="icon" alt="" draggable="false" />
+      <span class="title">{{ $t('app.title') }}</span>
+
+      <!-- 核心窗口：显示固定三站图标；非核心窗口：显示“跳转核心窗口”按钮 -->
+      <div class="quick">
+        <template v-if="shellMeta.isCore">
+          <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
+            <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home', $event)">
+              <el-icon><Monitor /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
+            <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat', $event)">
+              <el-icon><ChatDotRound /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
+            <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform', $event)">
+              <el-icon><Wallet /></el-icon>
+            </button>
+          </el-tooltip>
+        </template>
+        <template v-else>
+          <el-tooltip :content="$t('app.jumpCoreHint')" placement="bottom" :show-after="300">
+            <button class="icon-btn core-jump" type="button" @click="jumpToCore">
+              <el-icon :size="20"><Monitor /></el-icon>
+              <span class="core-jump__txt">{{ $t('app.jumpCore') }}</span>
+            </button>
+          </el-tooltip>
+        </template>
+        <span class="divider" />
+      </div>
+
+      <!-- 动态标签页条：可开很多，多标签时原生横向滚动；空白区可拖窗口 -->
+      <div class="tabs" :ref="bindTabsBar" @wheel="onTabsWheel">
+        <div
+          v-for="tab in dynamicTabs"
+          :key="tab.id"
+          class="tab"
+          :class="{ on: isWebActive(tab.id), dragging: draggingTabId === tab.id, slot: slotBeforeId === tab.id }"
+          :title="tab.url ?? ''"
+          @click="onTabClick(tab.id, $event)"
+          @mousedown="onTabMouseDown(tab.id, $event)"
+          @contextmenu.prevent="onTabContext(tab.id, $event)"
+          @pointerdown="onTabPointerDown(tab, $event)"
+        >
+          <span class="tab__label">{{ tabLabel(tab) }}</span>
+          <button
+            v-if="tab.kind === 'dynamic'"
+            class="tab__pin"
+            :class="{ on: tab.keep }"
+            type="button"
+            :title="$t('app.tabs.keep')"
+            @click.stop="onTabKeep(tab.id)"
+          >
+            <el-icon :size="11"><component :is="tab.keep ? StarFilled : Star" /></el-icon>
+          </button>
+          <button
+            class="tab__x"
+            type="button"
+            :title="$t('app.tabs.close')"
+            @click.stop="onTabClose(tab.id)"
+          >
+            <el-icon :size="12"><Close /></el-icon>
+          </button>
+        </div>
+
+        <button class="tab tab--add" type="button" :title="$t('app.tabs.new')" @click="onPlus">
+          <el-icon :size="16"><Plus /></el-icon>
+        </button>
+      </div>
+    </div>
+
+    <div class="right">
+      <!-- 三个固定站(非动态标签页)：用旧版刷新按钮重载当前固定站 -->
+      <el-tooltip v-if="fixedPageReload" :content="$t('app.reload')" placement="bottom" :show-after="300">
+        <button class="icon-btn" type="button" @click="winReload">
+          <el-icon><Refresh /></el-icon>
+        </button>
+      </el-tooltip>
+      <el-tooltip :content="$t('app.nav.terminal')" placement="bottom" :show-after="300">
+        <button class="icon-btn" :class="{ active: view === 'log' }" type="button" @click="go('log')">
+          <CodeFilled style="font-size: 18px" />
+        </button>
+      </el-tooltip>
+      <el-tooltip :content="$t('app.nav.settings')" placement="bottom" :show-after="300">
+        <button
+          class="icon-btn"
+          :class="{ active: view === 'settings' }"
+          type="button"
+          @click="go('settings')"
+        >
+          <el-icon><Setting /></el-icon>
+        </button>
+      </el-tooltip>
+      <span class="divider" />
+      <el-tooltip :content="$t('app.minimize')" placement="bottom" :show-after="300">
+        <button class="icon-btn" type="button" @click="winMinimize">
+          <el-icon><Minus /></el-icon>
+        </button>
+      </el-tooltip>
+      <el-tooltip :content="$t('app.maximize')" placement="bottom" :show-after="300">
+        <button class="icon-btn" type="button" @click="winMaximize">
+          <el-icon><FullScreen /></el-icon>
+        </button>
+      </el-tooltip>
+      <el-tooltip :content="$t('app.closeHint')" placement="bottom" :show-after="300">
+        <button class="icon-btn danger" type="button" @click="winClose">
+          <el-icon><Close /></el-icon>
+        </button>
+      </el-tooltip>
+    </div>
+  </header>
+
+  <!-- 跨窗口拖拽：本窗口被悬停为目标 → 顶部标签栏浅蓝遮罩表示可接收 -->
+  <div v-if="hoverMask" class="tab-drop-mask"></div>
+  <!-- 拖动中的半透明“幽灵”标签，跟随指针 -->
+  <div v-if="ghost.visible" class="tab-ghost" :style="{ left: ghost.x + 'px', top: ghost.y + 'px' }">
+    {{ ghost.text }}
+  </div>
+
+  <!-- 标签页右键菜单 -->
+  <template v-if="ctx">
+    <div class="ctx-bk" @mousedown="closeCtx" @contextmenu.prevent="closeCtx" />
+    <div class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+      <button type="button" @click="ctxDup">{{ $t('app.tabs.dup') }}</button>
+      <button type="button" @click="ctxClose">{{ $t('app.tabs.close') }}</button>
+      <span class="ctx__sep" />
+      <button type="button" @click="ctxOpenWindow">{{ $t('app.tabs.openWindow') }}</button>
+      <button type="button" @click="ctxMove">{{ $t('app.tabs.moveWindow') }}</button>
+    </div>
+  </template>
+</template>
+
+<style scoped>
+.titlebar {
+  -webkit-app-region: drag;
+  flex: 0 0 auto;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color);
+  user-select: none;
+}
+/* 动态标签页显示网址导航栏时，去掉标题栏下边框，使标题栏与网址栏无缝相连 */
+.titlebar--flush {
+  border-bottom: none;
+}
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  flex: 0 0 auto;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* 标题栏里的图标按钮可点不可拖；非按钮区域(分割线/空隙)随容器可拖 */
+.titlebar .icon-btn {
+  -webkit-app-region: no-drag;
+}
+.divider {
+  width: 1px;
+  height: 22px;
+  background: var(--el-border-color-lighter);
+  margin: 0 6px;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  border: none;
+  border-radius: var(--el-border-radius-base);
+  background: transparent;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: var(--el-fill-color);
+  color: var(--el-color-primary);
+}
+.icon-btn.active {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.icon-btn.danger:hover {
+  background: var(--el-color-danger);
+  color: #fff;
+}
+.icon-btn.core-jump {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 13px;
+}
+.core-jump__txt {
+  white-space: nowrap;
+}
+/* ---- 固定三站图标按钮区 + 浏览器标签条 ---- */
+.quick {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tabs {
+  /* 容器可拖窗口；空白（含标签少时右侧）即可拖动，多标签时原生横向滚动 */
+  -webkit-app-region: drag;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.tab {
+  -webkit-app-region: no-drag;
+  flex: 0 1 auto;
+  min-width: 110px;
+  max-width: 230px;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.tab:hover {
+  background: var(--el-fill-color);
+}
+.tab.on {
+  background: var(--el-bg-color);
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.tab__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 保活固定按钮（星标，点亮即保活且不计入名额） */
+.tab__pin {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--el-text-color-placeholder);
+  cursor: pointer;
+}
+.tab__pin:hover {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-primary);
+}
+.tab__pin.on {
+  color: var(--el-color-warning);
+}
+.tab__x {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--el-text-color-placeholder);
+  cursor: pointer;
+}
+.tab__x:hover {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-primary);
+}
+.tab--add {
+  -webkit-app-region: no-drag;
+  flex: 0 0 auto;
+  min-width: 0; /* 覆盖 .tab 的 min-width，＋ 按钮不做最小宽度 */
+  padding: 0 8px;
+}
+/* ---- 拖拽：正在拖的标签、本地插入位置、跨窗可接收遮罩、幽灵标签 ---- */
+.tab {
+  touch-action: none;
+}
+.tab.dragging {
+  opacity: 0.5;
+}
+.tab.slot {
+  box-shadow: -2px 0 0 0 var(--el-color-primary);
+}
+/* 跨窗口拖拽时，目标窗口顶部的“可接收”浅蓝遮罩带 */
+.tab-drop-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  z-index: 60;
+  pointer-events: none;
+  background: rgba(64, 158, 255, 0.16);
+  border-bottom: 1px dashed rgba(64, 158, 255, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, 0.3);
+}
+/* 拖动时跟随指针的半透明幽灵标签 */
+.tab-ghost {
+  position: fixed;
+  z-index: 3000;
+  max-width: 240px;
+  padding: 5px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(255, 255, 255, 0.92);
+  color: #303133;
+  border: 1px solid rgba(64, 158, 255, 0.6);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0.92;
+}
+/* ---- 标签页右键菜单 ---- */
+.ctx-bk {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+}
+.ctx {
+  position: fixed;
+  z-index: 3001;
+  min-width: 150px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  box-shadow: var(--el-box-shadow-light);
+}
+.ctx button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+}
+.ctx button:hover:not(:disabled) {
+  background: var(--el-fill-color);
+}
+.ctx button.ctx__disabled {
+  color: var(--el-text-color-placeholder);
+  cursor: default;
+}
+.ctx__sep {
+  height: 1px;
+  background: var(--el-border-color-lighter);
+  margin: 4px 0;
+}
+</style>

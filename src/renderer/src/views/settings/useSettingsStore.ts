@@ -1,18 +1,14 @@
 import { reactive, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { DEFAULT_SETTINGS } from '@shared/types'
 import type { Settings, Theme } from '@shared/types'
-import { applyTheme } from '../../theme'
-import { appState } from '../../state'
-import { i18n } from '../../locales'
-import { kernelCheck, checkAndNotify } from '../../update'
+import { applyTheme } from '../../lib/theme'
+import { appState } from '../../lib/state'
+import { tt } from '../../lib/locales'
 import { payloadFrom, type SettingsState, type SettingsActions } from './settingsStore'
-
-/** 取当前语言的翻译（模块内非组件环境）。 */
-function tt(key: string, named?: Record<string, unknown>): string {
-  return named ? i18n.global.t(key, named) : i18n.global.t(key)
-}
+import { createDshActions } from './actions/dshActions'
+import { createKernelActions } from './actions/kernelActions'
 
 /**
  * 设置页数据与动作（Pinia setup store）。
@@ -115,14 +111,6 @@ export const useSettingsStore = defineStore('settings', () => {
     debounce = window.setTimeout(() => void persist(), 500)
   }
 
-  async function loadVersion(): Promise<void> {
-    try {
-      state.version = await window.api.getDshVersion()
-    } catch {
-      state.version = null
-    }
-  }
-
   async function browseWorkspace(): Promise<void> {
     const p = await window.api.openDirectory()
     if (p) {
@@ -135,48 +123,6 @@ export const useSettingsStore = defineStore('settings', () => {
   async function browseDshBin(): Promise<void> {
     const p = await window.api.openFile()
     if (p) state.dshBin = p
-  }
-
-  /** 刷新 dsh 运行状态。 */
-  async function refreshRunning(): Promise<void> {
-    try {
-      state.dshRunning = await window.api.isDshRunning()
-    } catch {
-      state.dshRunning = false
-    }
-  }
-
-  /** 启动 dsh（未运行时拉起来）。 */
-  async function startDsh(): Promise<void> {
-    try {
-      await window.api.startDsh()
-    } catch (err) {
-      ElMessage.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      await refreshRunning()
-    }
-  }
-
-  /** 停止 dsh。 */
-  async function stopDsh(): Promise<void> {
-    try {
-      await window.api.stopDsh()
-    } catch (err) {
-      ElMessage.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      await refreshRunning()
-    }
-  }
-
-  /** 用当前配置重启 dsh。 */
-  async function restartDsh(): Promise<void> {
-    try {
-      await window.api.restartDsh()
-    } catch (err) {
-      ElMessage.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      await refreshRunning()
-    }
   }
 
   async function apply(): Promise<void> {
@@ -209,195 +155,30 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  async function loadVersions(): Promise<void> {
-    if (state.versionsLoading) return
-    state.versionsLoading = true
-    try {
-      const list = await window.api.listVersions({
-        prerelease: state.autoCheckPrerelease,
-        registry: state.npmRegistry
-      })
-      state.versions = list
-      if (state.selectedVersion && !list.includes(state.selectedVersion)) state.selectedVersion = ''
-    } catch {
-      state.versions = []
-    } finally {
-      state.versionsLoading = false
-    }
-  }
-
-  function versionLabel(v: string): string {
-    return v === state.version ? v + i18n.global.t('sv.dsh.currentSuffix') : v
-  }
-
-  /**
-   * Kernel-modifying operations (upgrade / version switch) must first stop any
-   * running dsh. Only when one is actually running do we confirm before closing
-   * it; the main process also force-stops it independently before the npm step.
-   * Resolves true when it is safe to proceed (not running, or user confirmed).
-   */
-  async function confirmStopDshIfRunning(body: string): Promise<boolean> {
-    let running = false
-    try {
-      running = await window.api.isDshRunning()
-    } catch {
-      running = false
-    }
-    if (!running) return true
-    try {
-      await ElMessageBox.confirm(body, tt('msg.dshRunningTitle'), {
-        confirmButtonText: tt('msg.continueBtn'),
-        cancelButtonText: tt('msg.cancelBtn'),
-        type: 'warning'
-      })
-      return true
-    } catch {
-      return false // cancelled
-    }
-  }
-
-  async function runUpdateCheck(): Promise<void> {
-    if (state.updating) return
-    state.updating = true
-    try {
-      await checkAndNotify({
-        prerelease: state.autoCheckPrerelease,
-        registry: state.npmRegistry
-      })
-    } finally {
-      state.updating = false
-    }
-  }
-
-  async function runUpdateKernel(): Promise<void> {
-    if (state.updatingKernel) return
-    if (!(await confirmStopDshIfRunning(tt('msg.updateStopText')))) return
-    state.updatingKernel = true
-    try {
-      const r = await window.api.updateKernel({ registry: state.npmRegistry })
-      if (r.ok) {
-        state.version = r.version
-        kernelCheck.found = false
-        kernelCheck.latest = null
-        ElMessage.success(r.message)
-      } else {
-        ElMessage.error(r.message || '')
-      }
-    } catch (err) {
-      ElMessage.error(tt('msg.updateKernelFail', { err: err instanceof Error ? err.message : String(err) }))
-    } finally {
-      state.updatingKernel = false
-    }
-  }
-
-  async function switchVersion(): Promise<void> {
-    const target = state.selectedVersion
-    if (!target || state.switchingKernel) return
-    if (!(await confirmStopDshIfRunning(tt('msg.switchStopText')))) return
-    state.switchingKernel = true
-    try {
-      const r = await window.api.installKernel({ version: target, registry: state.npmRegistry })
-      if (r.ok) {
-        state.version = r.version
-        kernelCheck.found = false
-        kernelCheck.latest = null
-        await loadVersions()
-        ElMessage.success(r.message)
-      } else {
-        ElMessage.error(r.message || '')
-      }
-    } catch (err) {
-      ElMessage.error(tt('msg.installFail', { err: err instanceof Error ? err.message : String(err) }))
-    } finally {
-      state.switchingKernel = false
-    }
-  }
-
-  async function confirmUninstall(): Promise<void> {
-    try {
-      await ElMessageBox.confirm(tt('msg.uninstallBoxText', { pkg: '@deepseek-ai/dsh' }), tt('msg.uninstallBoxTitle'), {
-        confirmButtonText: tt('msg.uninstallOkBtn'),
-        cancelButtonText: tt('msg.cancelBtn'),
-        type: 'warning'
-      })
-    } catch {
-      return // cancelled
-    }
-    state.uninstalling = true
-    try {
-      const r = await window.api.uninstallKernel()
-      if (r.ok) {
-        ElMessage.success(tt('msg.uninstallOk'))
-      } else {
-        ElMessage.error(r.message || tt('msg.uninstallFail', { err: '' }))
-      }
-    } catch (err) {
-      ElMessage.error(tt('msg.uninstallFail', { err: err instanceof Error ? err.message : String(err) }))
-    } finally {
-      state.uninstalling = false
-    }
-  }
+  // 动作按关注点分模块（见 ./actions/）；本 store 只保留与表单/防抖保存强耦合的部分。
+  const dshActions = createDshActions(state)
+  const kernelActions = createKernelActions(state)
 
   const actions: SettingsActions = {
-    loadVersion,
+    ...dshActions,
+    ...kernelActions,
     browseWorkspace,
     browseDshBin,
     apply,
     resetAll,
-    refreshRunning,
-    startDsh,
-    stopDsh,
-    restartDsh,
-    loadVersions,
-    versionLabel,
-    runUpdateCheck,
-    runUpdateKernel,
-    switchVersion,
-    confirmUninstall,
     fillFrom
   }
 
   // ---- 自动保存 watch：任何影响运行的设置变更都（防抖）落盘。 ----
-  watch(
-    () => [
-      state.workspace,
-      state.portMode,
-      state.manualPort,
-      state.closeMode,
-      state.askEveryClose,
-      state.theme,
-      state.autoCheckUpdate,
-      state.autoCheckPrerelease,
-      state.npmRegistry,
-      state.dshBin,
-      state.timeoutMs,
-      state.appAutoUpdate,
-      state.appCheckPrerelease,
-      state.devMode,
-      state.kernelSource,
-      state.nodeRuntime,
-      state.npmSource,
-      state.proxyEnabled,
-      state.proxyProtocol,
-      state.proxyHost,
-      state.proxyPort,
-      () => state.proxyScope.join(','),
-      state.zoomPercent,
-      state.ignoreSystemScale,
-      state.funLocale,
-      state.searchEngine,
-      state.newTabMode,
-      state.newTabUrl,
-      () => state.shortcuts.map((sc) => `${sc.title}\u0000${sc.url}`).join('\u0001')
-    ],
-    scheduleSave
-  )
+  // 直接以 payloadFrom(state) 为观察源：新增设置字段时**无需**再回来补进字段列表，
+  // 而且保证「被观察的集合」与「被持久化的集合」永远是同一个（此前是手写 29 项，易漏）。
+  watch(() => JSON.stringify(payloadFrom(state)), scheduleSave)
   // 缩放即时生效（写主进程窗口 zoom；webview 缩放由 WebHost 订阅 settings:changed 同步）。
   watch(() => state.zoomPercent, (v) => void window.api.setWindowZoom(v))
   // 主题即时生效（dsh 自己 watch 同步的 settings.yaml，无需手动刷新）。
   watch(() => state.theme, (t: Theme) => applyTheme(t))
   // 预发布开关/镜像变化时重建版本列表。
-  watch([() => state.autoCheckPrerelease, () => state.npmRegistry], () => void loadVersions())
+  watch([() => state.autoCheckPrerelease, () => state.npmRegistry], () => void kernelActions.loadVersions())
 
   // ---- 外部配置自动同步：settings.json / dsh 的 settings.yaml 被外部改动。 ----
   const offSettingsChanged = window.api.onSettingsChanged((s) => {

@@ -2,8 +2,8 @@ import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 import { spawn } from 'node:child_process'
-import { IS_WIN } from './runtime'
-import { localKernelDir, configDir } from './settings'
+import { IS_WIN } from '../app/runtime'
+import { localKernelDir, configDir } from '../app/settings'
 import type { NodeRuntimeKind } from '@shared/types'
 
 /**
@@ -19,11 +19,13 @@ import type { NodeRuntimeKind } from '@shared/types'
  * under Electron's Node.
  */
 
-function pathEnv(): string[] {
+/** PATH 上的目录列表（去掉空项）。供各处定位系统工具复用。 */
+export function pathEnv(): string[] {
   return (process.env.PATH || '').split(path.delimiter).filter(Boolean)
 }
 
-function findInDirs(dirs: string[], names: string[]): string | undefined {
+/** 在若干目录里按名称顺序找第一个存在的文件；找到返回绝对路径，否则 undefined。 */
+export function findInDirs(dirs: string[], names: string[]): string | undefined {
   for (const dir of dirs) {
     for (const n of names) {
       const p = path.join(dir, n)

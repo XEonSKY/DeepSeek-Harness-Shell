@@ -1,6 +1,25 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppUpdateEvent, LogEntry, NodeDeployProgress, RendererApi, Settings, Theme } from '@shared/types'
 
+/**
+ * 订阅一个 main → renderer 频道，返回退订函数。
+ *
+ * `RendererApi` 里的所有 `onXxx` 都是「注册监听 + 返回 removeListener」这同一套样板，
+ * 之前每处都逐字重复一遍；这里收敛为唯一实现，新增频道只需一行。
+ */
+function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
+  const listener = (_e: unknown, payload: T): void => cb(payload)
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
+}
+
+/** 无载荷（仅通知）频道的订阅。 */
+function subscribeVoid(channel: string, cb: () => void): () => void {
+  const listener = (): void => cb()
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
+}
+
 const api: RendererApi = {
   platform: process.platform,
   versions: {
@@ -30,83 +49,29 @@ const api: RendererApi = {
   getAppMeta: () => ipcRenderer.invoke('appupdate:meta'),
   triggerAppUpdate: (opts) => ipcRenderer.invoke('appupdate:trigger', opts),
   restartAndInstall: () => ipcRenderer.send('appupdate:restart'),
-
-  onAppUpdateEvent(cb) {
-    const listener = (_e: unknown, evt: AppUpdateEvent): void => cb(evt)
-    ipcRenderer.on('appupdate:event', listener)
-    return () => ipcRenderer.removeListener('appupdate:event', listener)
-  },
-  onNodeDeployProgress(cb) {
-    const listener = (_e: unknown, p: NodeDeployProgress): void => cb(p)
-    ipcRenderer.on('nodeenv:deploy-progress', listener)
-    return () => ipcRenderer.removeListener('nodeenv:deploy-progress', listener)
-  },
   updateKernel: (opts) => ipcRenderer.invoke('kernel:update', opts),
   installKernel: (opts) => ipcRenderer.invoke('kernel:install', opts),
   uninstallKernel: () => ipcRenderer.invoke('kernel:uninstall'),
 
-  onDshUrl(cb) {
-    const listener = (_e: unknown, url: string): void => cb(url)
-    ipcRenderer.on('dsh:url', listener)
-    return () => ipcRenderer.removeListener('dsh:url', listener)
-  },
-
-  onLog(cb) {
-    const onLine = (_e: unknown, entry: LogEntry): void => cb(entry)
-    ipcRenderer.on('dsh:log', onLine)
-    return () => ipcRenderer.removeListener('dsh:log', onLine)
-  },
-
-  onSettingsChanged(cb) {
-    const listener = (_e: unknown, s: Settings): void => cb(s)
-    ipcRenderer.on('settings:changed', listener)
-    return () => ipcRenderer.removeListener('settings:changed', listener)
-  },
-
-  onThemeChanged(cb) {
-    const listener = (_e: unknown, t: Theme): void => cb(t)
-    ipcRenderer.on('settings:theme', listener)
-    return () => ipcRenderer.removeListener('settings:theme', listener)
-  },
-
-  onToggleView(cb) {
-    const listener = (): void => cb()
-    ipcRenderer.on('ui:toggle-view', listener)
-    return () => ipcRenderer.removeListener('ui:toggle-view', listener)
-  },
-
-  onAskClose(cb) {
-    const listener = (): void => cb()
-    ipcRenderer.on('ui:ask-close', listener)
-    return () => ipcRenderer.removeListener('ui:ask-close', listener)
-  },
-
-  onKernelMissing(cb) {
-    const listener = (): void => cb()
-    ipcRenderer.on('kernel:missing', listener)
-    return () => ipcRenderer.removeListener('kernel:missing', listener)
-  },
-
-  onNewTab(cb) {
-    const listener = (_e: unknown, url: string): void => cb(url)
-    ipcRenderer.on('ui:new-tab', listener)
-    return () => ipcRenderer.removeListener('ui:new-tab', listener)
-  },
-
-  onShellRole(cb) {
-    const listener = (_e: unknown, isCore: boolean): void => cb(isCore)
-    ipcRenderer.on('shell:core', listener)
-    return () => ipcRenderer.removeListener('shell:core', listener)
-  },
+  // ---- main → renderer 订阅 ----
+  onAppUpdateEvent: (cb) => subscribe<AppUpdateEvent>('appupdate:event', cb),
+  onNodeDeployProgress: (cb) => subscribe<NodeDeployProgress>('nodeenv:deploy-progress', cb),
+  onDshUrl: (cb) => subscribe<string>('dsh:url', cb),
+  onLog: (cb) => subscribe<LogEntry>('dsh:log', cb),
+  onSettingsChanged: (cb) => subscribe<Settings>('settings:changed', cb),
+  onThemeChanged: (cb) => subscribe<Theme>('settings:theme', cb),
+  onNewTab: (cb) => subscribe<string>('ui:new-tab', cb),
+  onShellRole: (cb) => subscribe<boolean>('shell:core', cb),
+  onTabDragHover: (cb) => subscribe<boolean>('tab-drag-hover', (on) => cb(!!on)),
+  onToggleView: (cb) => subscribeVoid('ui:toggle-view', cb),
+  onAskClose: (cb) => subscribeVoid('ui:ask-close', cb),
+  onKernelMissing: (cb) => subscribeVoid('kernel:missing', cb),
+  onReloadDsh: (cb) => subscribeVoid('ui:reload-dsh', cb),
+  onTabDragMoved: (cb) => subscribeVoid('tab-drag:moved', cb),
 
   resolveClose: (decision) => ipcRenderer.send('win:close-resolve', decision),
 
   reloadDsh: () => ipcRenderer.send('web:reload'),
-  onReloadDsh(cb) {
-    const listener = (): void => cb()
-    ipcRenderer.on('ui:reload-dsh', listener)
-    return () => ipcRenderer.removeListener('ui:reload-dsh', listener)
-  },
 
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
@@ -126,16 +91,7 @@ const api: RendererApi = {
   tabDragHover: (targetId) => ipcRenderer.send('tab-drag:hover', { targetId }),
   tabDragEnd: () => ipcRenderer.send('tab-drag:end'),
   tabDragDropTo: (targetId) => ipcRenderer.send('tab-drag:drop-to', { targetId }),
-  onTabDragMoved(cb) {
-    const listener = (): void => cb()
-    ipcRenderer.on('tab-drag:moved', listener)
-    return () => ipcRenderer.removeListener('tab-drag:moved', listener)
-  },
-  onTabDragHover(cb) {
-    const listener = (_e: unknown, on: boolean): void => cb(!!on)
-    ipcRenderer.on('tab-drag-hover', listener)
-    return () => ipcRenderer.removeListener('tab-drag-hover', listener)
-  },
+
   quit: () => ipcRenderer.send('app:quit'),
 
   windowMinimize: () => ipcRenderer.send('win:minimize'),

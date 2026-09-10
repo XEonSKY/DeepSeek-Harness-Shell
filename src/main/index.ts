@@ -1,12 +1,12 @@
 import path from 'node:path'
 import { app } from 'electron'
-import { registerIpc } from './ipc'
-import { startAutoCheckIfEnabled } from './appupdate'
-import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme } from './settings'
-import { createShellWindow, createTray, showMainWindow } from './ui'
-import { resolveInstall } from './kernel'
-import { restart, killServer, killAllChildren, stopDshGracefully } from './dsh'
-import { getTray, setQuitting, destroyTray } from './runtime'
+import { registerIpc } from './app/ipc'
+import { startAutoCheckIfEnabled } from './app/appupdate'
+import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme } from './app/settings'
+import { createShellWindow, createTray, showMainWindow } from './app/ui'
+import { resolveInstall } from './kernel/kernel'
+import { restart, killServer, killAllChildren, stopDshGracefully } from './kernel/dsh'
+import { getTray, setQuitting, destroyTray } from './app/runtime'
 
 // ---------------------------------------------------------------------------
 // Dev vs release isolation. A dev run must not grab the installed release's

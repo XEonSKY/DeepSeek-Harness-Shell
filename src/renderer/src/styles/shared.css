@@ -1,0 +1,16 @@
+/*
+ * 跨组件通用样式。
+ *
+ * 只放**被两个以上组件共用**的规则；单组件专用的样式请留在各自的 <style scoped> 里。
+ * 分层：base.css（全局 reset + Element Plus 变量基线）→ shared.css（通用工具）→
+ * settings.css（设置页共享）→ 各组件 scoped 样式。
+ */
+
+/*
+ * 胶囊圆角输入框：地址栏（WebHost）与导航页搜索框（NewTab）共用。
+ * 原先两处各自写了一份 `:deep(.el-input__wrapper) { border-radius: 999px }`。
+ * 纯 CSS 里没有 :deep()，等价写法就是普通后代选择器。
+ */
+.pill-input .el-input__wrapper {
+  border-radius: 999px;
+}

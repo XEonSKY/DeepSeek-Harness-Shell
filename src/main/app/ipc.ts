@@ -4,17 +4,15 @@ import { DEFAULT_SETTINGS, NEWTAB_URL } from '@shared/types'
 import type { Settings, ResolvedLocale } from '@shared/types'
 import { resolveLocale, localeCodeOf } from '@shared/i18n'
 import { readDiskSettings, persistSettings, syncDshTheme, syncNativeTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, normalizeNpmSource } from './settings'
-import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from './kernel'
-import { getLogHistory, restart, isDshRunning, stopServer } from './dsh'
+import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from '../kernel/kernel'
+import { getLogHistory, restart, isDshRunning, stopServer } from '../kernel/dsh'
 import { appMeta, triggerAppUpdate, restartAndInstall } from './appupdate'
 import { broadcast, getCurrentUrl, getMainWindow, setQuitting, sendCore, sendToWindow, sendToWcId } from './runtime'
 import { isCoreWindow, windowByContentsId, listWindows } from './windowreg'
 import { openStandaloneWindow, focusCoreWindow, takeOpenIntent, createSecondaryShellWindow } from './ui'
-import { findSystemNode, findSystemNpm, nodeVersionOf, localNodeExecPath } from './tools'
-import { deployLocalNode } from './nodeenv'
-
-/** 窗口显示名用的“软件名”后缀（与建窗时的默认标题保持一致）。 */
-const APP_TITLE = 'DeepSeek Harness'
+import { findSystemNode, findSystemNpm, nodeVersionOf, localNodeExecPath } from '../kernel/tools'
+import { deployLocalNode } from '../kernel/nodeenv'
+import { APP_TITLE } from './const'
 
 /**
  * 多窗口下定位“发起这次 IPC 的那个壳窗口”：取 e.sender(webContents) 所属的壳窗口；

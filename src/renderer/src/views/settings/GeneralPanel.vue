@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { Folder, Refresh, SwitchButton, Setting, Monitor, Plus, Delete } from '@element-plus/icons-vue'
 import { useSettingsStore } from './useSettingsStore'
-import { SEARCH_ENGINE_IDS, ENGINE_LABEL_KEY } from '../../engines'
+import { SEARCH_ENGINE_IDS, ENGINE_LABEL_KEY } from '../../lib/engines'
 
 const { state, actions } = useSettingsStore()
 

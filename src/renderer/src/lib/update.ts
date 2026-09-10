@@ -2,18 +2,14 @@ import { h, reactive } from 'vue'
 import { ElTag, ElNotification } from 'element-plus'
 import type { VNode } from 'vue'
 import type { UpdateResult } from '@shared/types'
-import { i18n } from './locales'
+import { isPrerelease } from '@shared/version'
+import { tt } from './locales'
 
 const TYPE: Record<UpdateResult['status'], 'success' | 'warning' | 'error'> = {
   ok: 'success',
   update: 'warning',
   missing: 'error',
   error: 'warning'
-}
-
-/** 取当前语言下的翻译（模块非组件环境，直接从全局 i18n 读取）。 */
-function tt(key: string, named?: Record<string, unknown>): string {
-  return named ? i18n.global.t(key, named) : i18n.global.t(key)
 }
 
 export interface KernelCheckState {
@@ -30,10 +26,6 @@ export const kernelCheck = reactive<KernelCheckState>({
   latest: null,
   prerelease: false
 })
-
-function isPrerelease(v: string): boolean {
-  return /^\d+\.\d+\.\d+-/.test(v)
-}
 
 /** Build the notification body: current & latest versions shown as el-tag. */
 function buildBody(r: UpdateResult): string | VNode {

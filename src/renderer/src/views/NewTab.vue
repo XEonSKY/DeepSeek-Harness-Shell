@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Monitor, ChatDotRound, Wallet, Search } from '@element-plus/icons-vue'
-import { useAppIcon } from '../appIcon'
-import { webTabs, activateTab, closeTab, activeTab, findTab, launchFromNewTab } from '../tabs'
-import { SEARCH_ENGINE_IDS, ENGINE_LABEL_KEY, buildSearchUrl } from '../engines'
+import { useAppIcon } from '../lib/appIcon'
+import { webTabs, activateTab, closeTab, activeTab, findTab, launchFromNewTab } from '../shell/tabs'
+import { SEARCH_ENGINE_IDS, ENGINE_LABEL_KEY, buildSearchUrl } from '../lib/engines'
 import type { SearchEngineId, Shortcut } from '@shared/types'
 
 const q = ref('')
@@ -81,7 +81,7 @@ async function submit(): Promise<void> {
       </el-select>
       <el-input
         v-model="q"
-        class="nt__input"
+        class="nt__input pill-input"
         :placeholder="$t('navPage.placeholder')"
         clearable
         autofocus
@@ -156,9 +156,6 @@ async function submit(): Promise<void> {
 }
 .nt__input {
   flex: 1 1 auto;
-}
-.nt__input :deep(.el-input__wrapper) {
-  border-radius: 999px;
 }
 .nt__go {
   flex: 0 0 auto;

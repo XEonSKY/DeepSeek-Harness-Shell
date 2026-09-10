@@ -1,8 +1,8 @@
 import { computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import { isDark } from './theme'
-import iconLight from './assets/icon.png'
-import iconDark from './assets/icon-dark.png'
+import iconLight from '../assets/icon.png'
+import iconDark from '../assets/icon-dark.png'
 
 /**
  * 应用 Logo 的图片来源：深色模式用 `icon-dark.png`，其余用 `icon.png`。

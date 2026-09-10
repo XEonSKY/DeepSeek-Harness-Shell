@@ -7,10 +7,13 @@ import 'element-plus/dist/index.css'
 // Element Plus dark theme CSS variables (toggled via the `dark` class on <html>)
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import App from './App.vue'
-import './assets/base.css'
-import { i18n } from './locales'
-import { router } from './router'
-import { loadShellMeta } from './shellmeta'
+// 全局样式表（分层）：base=reset + Element Plus 变量基线 → shared=跨组件通用工具 → settings=设置页共享
+import './styles/base.css'
+import './styles/shared.css'
+import './styles/settings.css'
+import { i18n } from './lib/locales'
+import { router } from './shell/router'
+import { loadShellMeta } from './shell/shellmeta'
 import type { ResolvedLocale } from '@shared/types'
 
 /**

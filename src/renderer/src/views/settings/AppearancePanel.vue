@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Brush, Moon } from '@element-plus/icons-vue'
-import { i18n, setLocale, applyFunToZh } from '../../locales'
+import { tt, setLocale, applyFunToZh, currentLocale } from '../../lib/locales'
 import { useSettingsStore } from './useSettingsStore'
 import type { FunLocale, ResolvedLocale } from '@shared/types'
 
@@ -12,7 +12,7 @@ const open = ref(['appearance-main'])
 const ZOOMS = [50, 75, 100, 125, 150, 175, 200]
 
 // 界面语言单一来源是 dsh settings.yaml 的 locale.preference（zh/en）。
-const lang = ref<ResolvedLocale>(i18n.global.locale.value as ResolvedLocale)
+const lang = ref<ResolvedLocale>(currentLocale())
 const isZh = computed(() => lang.value === 'zh')
 
 // 当前语言的扩展翻译变体（off + 该语言变体）
@@ -50,8 +50,6 @@ async function chooseLang(l: ResolvedLocale): Promise<void> {
 
 // 娱乐翻译风格变化即时应用到 zh 文案。
 watch(() => state.funLocale, (v) => applyFunToZh(v))
-
-const tt = (key: string): string => i18n.global.t(key)
 
 // 禁用系统缩放需重启生效：确认→保存并重启；取消→不做任何修改（回退）。
 async function onSysScale(v: boolean): Promise<void> {

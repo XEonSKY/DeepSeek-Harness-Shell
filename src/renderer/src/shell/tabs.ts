@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { tt } from '../lib/locales'
 import { isNewTabTarget } from '@shared/types'
 
 /**
@@ -71,6 +72,17 @@ export const FIXED_LABEL_KEY: Record<'home' | 'chat' | 'platform', string> = {
   home: 'app.nav.ui',
   chat: 'app.nav.chat',
   platform: 'app.nav.platform'
+}
+
+/**
+ * 标签页的显示文案：固定三站取 i18n 友好名，动态/新标签页用真实标题、没有则用默认名。
+ * （App 的窗口标题同步与 TitleBar 的标签渲染都要用，故收敛在此，避免两处各写一份。）
+ */
+export function tabLabel(tab: WebTab): string {
+  if (tab.kind === 'home' || tab.kind === 'chat' || tab.kind === 'platform') {
+    return tt(FIXED_LABEL_KEY[tab.kind])
+  }
+  return tab.title || tt('app.tabs.new')
 }
 
 export function findTab(id: string): WebTab | undefined {

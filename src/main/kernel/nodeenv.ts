@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { spawn } from 'node:child_process'
-import { configDir } from './settings'
+import { configDir } from '../app/settings'
 import { pushLog, rememberChild } from './dsh'
 import { downloadFile } from './downloader'
 import type { DlProgress } from './downloader'

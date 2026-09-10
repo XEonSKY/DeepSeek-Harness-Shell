@@ -6,11 +6,12 @@ import os from 'node:os'
 import fs from 'node:fs'
 import { createInterface } from 'node:readline'
 import type { LogEntry, Settings } from '@shared/types'
-import { IS_WIN, broadcast, sendCore, setCurrentUrl } from './runtime'
-import { listWindows } from './windowreg'
+import { IS_WIN, broadcast, sendCore, setCurrentUrl } from '../app/runtime'
+import { listWindows } from '../app/windowreg'
 import type { NodeRuntime } from './tools'
 import { resolveKernel, nodeRuntimeForCfg } from './tools'
-import { loadSettings, mt } from './settings'
+import { loadSettings, mt } from '../app/settings'
+import { WATCHDOG_CODE } from './watchdog'
 
 /** Build the CLI args passed to the @deepseek-ai/dsh bin entry. */
 function dshArgs(host: string, port: number): string[] {
@@ -19,79 +20,6 @@ function dshArgs(host: string, port: number): string[] {
   args.push('--port', String(port))
   return args
 }
-
-/**
- * Watchdog run with `node -e`. It is the real parent of `dsh web` and
- * guarantees dsh dies when this app is gone — gracefully or force-killed:
- *   - graceful quit: Electron kills the watchdog tree (taskkill /T / -pid).
- *   - force kill / crash: this process's stdin write-end is closed by the OS,
- *     the watchdog reads EOF and kills the dsh tree itself.
- * argv[1] is a JSON launch descriptor: { entry, args }.
- * The watchdog re-spawns its own runtime (Electron-as-Node when bundled) on the
- * kernel's JS bin entry, so dsh runs under the same Node we chose — no shell
- * `.cmd` shim and no reliance on a system `node` for the local kernel.
- */
-const WATCHDOG_CODE = `
-"use strict";
-const { spawn, spawnSync } = require("child_process");
-const IS_WIN = process.platform === "win32";
-let child = null;
-let stopping = false;
-function killTree(pid) {
-  if (!pid) return;
-  try {
-    if (IS_WIN) spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore" });
-    else { try { process.kill(-pid, "SIGKILL"); } catch (_) { try { process.kill(pid, "SIGKILL"); } catch (__) {} } }
-  } catch (_) {}
-}
-function forceShutdown() { if (child) { killTree(child.pid); child = null; } try { process.exit(0); } catch (_) {} }
-// Graceful stop: SIGTERM the dsh child (letting it flush sessions / dispose
-// plugins), then force-kill only if it has not exited within the grace ms.
-function gracefulStop(grace) {
-  if (stopping) return;
-  stopping = true;
-  if (!child) { try { process.exit(0); } catch (_) {} return; }
-  const g = (typeof grace === "number" && grace > 0) ? grace : 5000;
-  const timer = setTimeout(function () { killTree(child.pid); child = null; try { process.exit(0); } catch (_) {} }, g);
-  child.on("exit", function () { clearTimeout(timer); try { process.exit(0); } catch (_) {} });
-  try { child.kill("SIGTERM"); } catch (_) {} // best effort; graceful where the OS/dsh supports it
-}
-let launch = null;
-try { launch = JSON.parse(process.argv[1] || "null"); } catch (_) { launch = null; }
-if (!launch || typeof launch.entry !== "string") { console.error("watchdog: bad launch descriptor"); process.exit(2); }
-// dsh's web profile runs an HMR service that requires Node launched with
-// --expose-internals, so pass it through when we spawn the kernel bin.
-child = spawn(process.execPath, ['--expose-internals', launch.entry].concat(launch.args || []), {
-  detached: !IS_WIN,
-  windowsHide: true,
-  env: process.env,
-  stdio: ["ignore", "pipe", "pipe"]
-});
-child.stdout.pipe(process.stdout);
-child.stderr.pipe(process.stderr);
-child.on("exit", (code) => { if (stopping) { try { process.exit(0); } catch (_) {} } else { try { process.exit(code == null ? 0 : code); } catch (_) {} } });
-child.on("error", () => { try { process.exit(1); } catch (_) {} });
-// Control channel on stdin: a JSON line {"cmd":"stop","grace":N} asks for a
-// graceful stop of the dsh child. stdin EOF (shell gone) falls back to force.
-let stdinBuf = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", function (chunk) {
-  stdinBuf += chunk;
-  let idx;
-  while ((idx = stdinBuf.indexOf("\\n")) >= 0) {
-    const line = stdinBuf.slice(0, idx).trim();
-    stdinBuf = stdinBuf.slice(idx + 1);
-    if (!line) continue;
-    let cmd = null;
-    try { cmd = JSON.parse(line); } catch (_) { cmd = null; }
-    if (cmd && cmd.cmd === "stop") gracefulStop(cmd.grace);
-  }
-});
-process.stdin.on("end", function () { if (!stopping) forceShutdown(); });
-process.stdin.on("close", function () { if (!stopping) forceShutdown(); });
-["SIGINT", "SIGTERM", "SIGHUP"].forEach((s) => process.on(s, function () { if (!stopping) forceShutdown(); }));
-process.on("exit", () => { if (child) killTree(child.pid); });
-`
 
 // ---------------------------------------------------------------------------
 // Log ring buffer + child registry

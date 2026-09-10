@@ -30,6 +30,19 @@ export function setLocale(locale: ResolvedLocale): void {
   i18n.global.locale.value = locale
 }
 
+/** 当前界面语言（与 setLocale 对称；供外部读取，避免直接访问 i18n.global）。 */
+export function currentLocale(): ResolvedLocale {
+  return i18n.global.locale.value as ResolvedLocale
+}
+
+/**
+ * 在**非组件**环境取翻译（模块级代码 / 组合式函数里没有 useI18n 上下文）。
+ * 之前 update.ts、useSettingsStore.ts、AppearancePanel.vue 各自重复定义了一份，现统一于此。
+ */
+export function tt(key: string, named?: Record<string, unknown>): string {
+  return named ? i18n.global.t(key, named) : i18n.global.t(key)
+}
+
 // ---------------------------------------------------------------------------
 // 扩展翻译：变体目录由 shared/locales/{zh,en}/rules.ts + ext.ts 提供并构建，
 // 这里只负责把构建结果覆盖到 vue-i18n 对应语言并触发刷新。不改 dsh 设置。

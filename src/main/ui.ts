@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, Menu, Tray, nativeImage, nativeTheme } from 'electron'
+import type { NativeImage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { NEWTAB_URL, isNewTabTarget } from '@shared/types'
@@ -28,6 +29,46 @@ function rendererIndex(): string {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) return devUrl
   return path.join(__dirname, '../renderer/index.html')
+}
+
+/**
+ * 应用图标路径：深色模式下优先 `resources/icon-dark.png`，否则 `resources/icon.png`。
+ *
+ * main 侧的 `nativeTheme.shouldUseDarkColors` 即是**已解析**的明暗：外壳主题经
+ * `syncNativeTheme()` 写入 `nativeTheme.themeSource`，故 `theme: 'system'` 也会跟随系统。
+ * 缺文件时回退到浅色图标，避免设置成空图标。
+ */
+function appIconPath(): string {
+  const dir = path.join(app.getAppPath(), 'resources')
+  const dark = path.join(dir, 'icon-dark.png')
+  if (nativeTheme.shouldUseDarkColors && fs.existsSync(dark)) return dark
+  return path.join(dir, 'icon.png')
+}
+
+/** 当前应用图标（路径不存在时返回 undefined，交由调用方决定回退）。 */
+function appIconImage(): NativeImage | undefined {
+  const p = appIconPath()
+  return fs.existsSync(p) ? nativeImage.createFromPath(p) : undefined
+}
+
+let iconThemeHooked = false
+
+/**
+ * 让所有壳窗口与托盘图标跟随明暗切换（深浅色用不同 Logo）。幂等：只挂一次监听。
+ * 触发源是 `nativeTheme` 的 'updated' 事件（themeSource 变化或系统偏好变化都会触发）。
+ */
+function hookIconTheme(): void {
+  if (iconThemeHooked) return
+  iconThemeHooked = true
+  nativeTheme.on('updated', () => {
+    const img = appIconImage()
+    if (!img || img.isEmpty()) return
+    for (const w of listWindows()) {
+      if (!w.isDestroyed()) w.setIcon(img)
+    }
+    const t = getTray()
+    if (t && !t.isDestroyed()) t.setImage(img.resize({ width: 16, height: 16 }))
+  })
 }
 
 function clampPopupPx(n: number): number {
@@ -72,7 +113,7 @@ function openWebWindow(url: string, frameName: string, features: string, owner?:
 /** 建一个独立的网页窗口（真弹窗用）。不属于壳窗口，不入册、不参与核心接管。 */
 function createPopupWindow(url: string, features: string): void {
   const { width, height } = parsePopupSize(features)
-  const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
+  const iconPath = appIconPath()
   const win = new BrowserWindow({
     width,
     height,
@@ -141,7 +182,8 @@ export function takeOpenIntent(wcId: number): string | null {
  */
 function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
   Menu.setApplicationMenu(null)
-  const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
+  hookIconTheme() // 窗口/托盘图标跟随深浅色（幂等，只挂一次）
+  const iconPath = appIconPath()
 
   const win = new BrowserWindow({
     width: 1280,
@@ -324,7 +366,7 @@ export function showMainWindow(): void {
 /** System tray: close hides the (core) window here; "退出" really quits (and stops dsh). */
 export function createTray(): void {
   try {
-    const iconPath = path.join(app.getAppPath(), 'resources', 'icon.png')
+    const iconPath = appIconPath()
     let img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
     if (!img.isEmpty()) img = img.resize({ width: 16, height: 16 })
     const t = new Tray(img)

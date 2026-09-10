@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Monitor, ChatDotRound, Wallet, Search } from '@element-plus/icons-vue'
-import appIcon from '../assets/icon.png'
+import { useAppIcon } from '../appIcon'
 import { webTabs, activateTab, closeTab, activeTab, findTab, launchFromNewTab } from '../tabs'
 import { SEARCH_ENGINE_IDS, ENGINE_LABEL_KEY, buildSearchUrl } from '../engines'
 import type { SearchEngineId, Shortcut } from '@shared/types'
@@ -9,6 +9,8 @@ import type { SearchEngineId, Shortcut } from '@shared/types'
 const q = ref('')
 const engine = ref<SearchEngineId>('bing')
 const shortcuts = ref<Shortcut[]>([])
+// 应用 Logo：随深浅色切换（深色用 icon-dark.png），见 appIcon.ts
+const appIcon = useAppIcon()
 
 // 顶部固定三站（直达已有固定标签页）。
 const fixedSites = [

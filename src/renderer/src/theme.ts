@@ -5,8 +5,12 @@ import type { Theme } from '@shared/types'
 /**
  * 主题切换：用 @vueuse 的 useDark/usePreferredDark 驱动 <html>.dark，
  * 替代手写 matchMedia + classList 逻辑；语义与原实现一致。
+ *
+ * `isDark` 对外导出：它是**已解析**的明暗状态（applyTheme 会把 'system' 解析为
+ * 实际值并实时跟随系统），故深色模式的资源切换（如应用 Logo）应复用此 ref，
+ * 而不是自己去判断 settings.theme === 'dark'。
  */
-const isDark = useDark({ valueDark: 'dark', valueLight: '' })
+export const isDark = useDark({ valueDark: 'dark', valueLight: '' })
 const preferredDark = usePreferredDark()
 
 let stopFollow: (() => void) | null = null

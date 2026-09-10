@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Monitor, ChatDotRound, Wallet, Document, Setting, Minus, FullScreen, Close, Refresh, Plus, Star, StarFilled, Download } from '@element-plus/icons-vue'
 import { CodeFilled } from '@antdv-next/icons'
 import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
-import appIcon from './assets/icon.png'
+import { useAppIcon } from './appIcon'
 import { checkAndNotify } from './update'
 import { applyTheme } from './theme'
 import { applyFunToZh } from './locales'
@@ -18,6 +18,9 @@ import { NEWTAB_URL } from '@shared/types'
 import type { EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
 
 const { t } = useI18n({ useScope: 'global' })
+
+// 应用 Logo：随深浅色切换（深色用 icon-dark.png），见 appIcon.ts
+const appIcon = useAppIcon()
 
 type ViewKey = 'web' | 'log' | 'settings'
 

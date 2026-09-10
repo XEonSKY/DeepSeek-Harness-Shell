@@ -300,6 +300,7 @@ export default {
     },
     about: {
       appVersion: '应用版本',
+      devUnlocked: '开发者模式已开启',
       currentTag: '当前',
       options: '更新与开发',
       autoUpdate: '自动更新',

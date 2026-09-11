@@ -31,67 +31,67 @@ const recording = ref<HotkeyField | null>(null)
 type HotkeyField = 'hotkeyFocusWindow' | 'hotkeyToggleTerminal' | 'hotkeyDevTools'
 
 const ROWS: Array<{ field: HotkeyField; labelKey: string; hintKey: string; global?: boolean }> = [
-  { field: 'hotkeyFocusWindow', labelKey: 'sv.hotkeys.focusWindow', hintKey: 'sv.hotkeys.focusWindowHint', global: true },
-  { field: 'hotkeyToggleTerminal', labelKey: 'sv.hotkeys.toggleTerminal', hintKey: 'sv.hotkeys.toggleTerminalHint' },
-  { field: 'hotkeyDevTools', labelKey: 'sv.hotkeys.devTools', hintKey: 'sv.hotkeys.devToolsHint' }
+    { field: 'hotkeyFocusWindow', labelKey: 'sv.hotkeys.focusWindow', hintKey: 'sv.hotkeys.focusWindowHint', global: true },
+    { field: 'hotkeyToggleTerminal', labelKey: 'sv.hotkeys.toggleTerminal', hintKey: 'sv.hotkeys.toggleTerminalHint' },
+    { field: 'hotkeyDevTools', labelKey: 'sv.hotkeys.devTools', hintKey: 'sv.hotkeys.devToolsHint' }
 ]
 
 const open = ref(['hotkeys'])
 
 onMounted(async () => {
-  window.addEventListener('keydown', onKeydown, true)
-  offState = window.api.onHotkeyState((s) => {
-    globalState.value = s
-  })
-  try {
-    globalState.value = await window.api.getHotkeyState()
-  } catch {
-    globalState.value = null
-  }
+    window.addEventListener('keydown', onKeydown, true)
+    offState = window.api.onHotkeyState((s) => {
+        globalState.value = s
+    })
+    try {
+        globalState.value = await window.api.getHotkeyState()
+    } catch {
+        globalState.value = null
+    }
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown, true)
-  offState?.()
+    window.removeEventListener('keydown', onKeydown, true)
+    offState?.()
 })
 
 /** 录制态下抓取按键：Esc 取消，纯修饰键忽略，其余交给 buildAccelerator 判定是否可接受。 */
 function onKeydown(e: KeyboardEvent): void {
-  const field = recording.value
-  if (!field) return
-  e.preventDefault()
-  e.stopPropagation()
-  if (e.key === 'Escape') {
+    const field = recording.value
+    if (!field) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.key === 'Escape') {
+        recording.value = null
+        return
+    }
+    const accel = buildAccelerator(
+        { key: e.key, control: e.ctrlKey, meta: e.metaKey, alt: e.altKey, shift: e.shiftKey },
+        isMac
+    )
+    if (!accel) return // 纯修饰键 / 不支持的主键 → 继续等
+    state[field] = accel
     recording.value = null
-    return
-  }
-  const accel = buildAccelerator(
-    { key: e.key, control: e.ctrlKey, meta: e.metaKey, alt: e.altKey, shift: e.shiftKey },
-    isMac
-  )
-  if (!accel) return // 纯修饰键 / 不支持的主键 → 继续等
-  state[field] = accel
-  recording.value = null
 }
 
 function startRecord(field: HotkeyField): void {
-  recording.value = field
+    recording.value = field
 }
 
 /** 清空 = 禁用（全局那个会立刻注销，见主进程 syncGlobalHotkey）。 */
 function clearHotkey(field: HotkeyField): void {
-  state[field] = ''
-  if (field === 'hotkeyFocusWindow') ElMessage.success(tt('sv.hotkeys.cleared'))
+    state[field] = ''
+    if (field === 'hotkeyFocusWindow') ElMessage.success(tt('sv.hotkeys.cleared'))
 }
 
 function resetHotkey(field: HotkeyField): void {
-  // 默认值只从 DEFAULT_SETTINGS 取 —— 不在文案文件里再抄一份，避免两处漂移。
-  state[field] = DEFAULT_SETTINGS[field]
+    // 默认值只从 DEFAULT_SETTINGS 取 —— 不在文案文件里再抄一份，避免两处漂移。
+    state[field] = DEFAULT_SETTINGS[field]
 }
 
 /** 显示用的键名（CommandOrControl → 本平台的 Ctrl / Cmd）。 */
 function display(field: HotkeyField): string {
-  return prettyAccelerator(state[field], isMac) || tt('sv.hotkeys.none')
+    return prettyAccelerator(state[field], isMac) || tt('sv.hotkeys.none')
 }
 
 /** 全局快捷键被占用：只有它注册失败了才提示。 */
@@ -99,54 +99,54 @@ const globalFailed = computed(() => state.hotkeyFocusWindow !== '' && globalStat
 </script>
 
 <template>
-  <div class="panel">
-    <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="34"><ControlOutlined /></el-icon></div>
-      <div class="dsh-brand__txt">
-        <div class="dsh-brand__name">{{ $t('sv.nav.hotkeys') }}</div>
-        <div class="dsh-brand__desc">{{ $t('sv.intro.hotkeys') }}</div>
-      </div>
-    </div>
-
-    <el-collapse v-model="open">
-      <el-collapse-item name="hotkeys">
-        <template #title>
-          <div class="sec__title"><el-icon><ControlOutlined /></el-icon> {{ $t('sv.hotkeys.title') }}</div>
-        </template>
-
-        <div v-for="row in ROWS" :key="row.field" class="hk">
-          <div class="hk__txt">
-            <div class="hk__t">
-              {{ $t(row.labelKey) }}
-              <el-tag v-if="row.global" size="small" type="warning" effect="plain">{{ $t('sv.hotkeys.global') }}</el-tag>
+    <div class="panel">
+        <div class="dsh-brand">
+            <div class="dsh-brand__icon"><el-icon :size="34"><ControlOutlined /></el-icon></div>
+            <div class="dsh-brand__txt">
+                <div class="dsh-brand__name">{{ $t('sv.nav.hotkeys') }}</div>
+                <div class="dsh-brand__desc">{{ $t('sv.intro.hotkeys') }}</div>
             </div>
-            <div class="hk__desc">{{ $t(row.hintKey) }}</div>
-          </div>
-          <div class="hk__keys">
-            <kbd class="hk__kbd" :class="{ 'hk__kbd--rec': recording === row.field }">
-              {{ recording === row.field ? $t('sv.hotkeys.recording') : display(row.field) }}
-            </kbd>
-            <el-button size="small" :type="recording === row.field ? 'primary' : 'default'" @click="startRecord(row.field)">
-              {{ $t('sv.hotkeys.change') }}
-            </el-button>
-            <el-button size="small" :icon="DeleteOutlined" :disabled="!state[row.field]" @click="clearHotkey(row.field)">
-              {{ $t('sv.hotkeys.clear') }}
-            </el-button>
-            <el-button size="small" :icon="ReloadOutlined" @click="resetHotkey(row.field)">
-              {{ $t('sv.hotkeys.reset') }}
-            </el-button>
-          </div>
         </div>
 
-        <!-- 被占用时说清楚：快捷键有可能已经被别的程序抢走 -->
-        <div v-if="globalFailed" class="warn">
-          {{ $t('sv.hotkeys.busy', { accel: display('hotkeyFocusWindow') }) }}
-        </div>
+        <el-collapse v-model="open">
+            <el-collapse-item name="hotkeys">
+                <template #title>
+                    <div class="sec__title"><el-icon><ControlOutlined /></el-icon> {{ $t('sv.hotkeys.title') }}</div>
+                </template>
 
-        <div class="hint">{{ $t('sv.hotkeys.hint') }}</div>
-      </el-collapse-item>
-    </el-collapse>
-  </div>
+                <div v-for="row in ROWS" :key="row.field" class="hk">
+                    <div class="hk__txt">
+                        <div class="hk__t">
+                            {{ $t(row.labelKey) }}
+                            <el-tag v-if="row.global" size="small" type="warning" effect="plain">{{ $t('sv.hotkeys.global') }}</el-tag>
+                        </div>
+                        <div class="hk__desc">{{ $t(row.hintKey) }}</div>
+                    </div>
+                    <div class="hk__keys">
+                        <kbd class="hk__kbd" :class="{ 'hk__kbd--rec': recording === row.field }">
+                            {{ recording === row.field ? $t('sv.hotkeys.recording') : display(row.field) }}
+                        </kbd>
+                        <el-button size="small" :type="recording === row.field ? 'primary' : 'default'" @click="startRecord(row.field)">
+                            {{ $t('sv.hotkeys.change') }}
+                        </el-button>
+                        <el-button size="small" :icon="DeleteOutlined" :disabled="!state[row.field]" @click="clearHotkey(row.field)">
+                            {{ $t('sv.hotkeys.clear') }}
+                        </el-button>
+                        <el-button size="small" :icon="ReloadOutlined" @click="resetHotkey(row.field)">
+                            {{ $t('sv.hotkeys.reset') }}
+                        </el-button>
+                    </div>
+                </div>
+
+                <!-- 被占用时说清楚：快捷键有可能已经被别的程序抢走 -->
+                <div v-if="globalFailed" class="warn">
+                    {{ $t('sv.hotkeys.busy', { accel: display('hotkeyFocusWindow') }) }}
+                </div>
+
+                <div class="hint">{{ $t('sv.hotkeys.hint') }}</div>
+            </el-collapse-item>
+        </el-collapse>
+    </div>
 </template>
 
 <style scoped>

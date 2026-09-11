@@ -1,81 +1,107 @@
 name: Build & Release
 
-# 用 GitHub Actions 在三个平台自动构建 Electron 应用；推送 v* 标签时把产物
-# 发布到 GitHub Release（标记为 prerelease，见 package.json 的 build.publish.releaseType；
-# 不能停在 draft —— electron-updater 读不到草稿，会导致自动更新永久失效）。
-# 对应 samuelmeuli/action-electron-builder 的用途，但使用官方 runners + electron-builder
-# 直接发布（该旧 action 已停更，且其 node-version:10 无法安装本项目 Electron 44）。
-
+# 发布策略：
+# - 仅当在 main 分支上推送版本标签（v*）时发布新版本；
+# - main 分支普通推送 / PR / 手动触发：只做类型检查与构建校验，不发版、不打包；
+# - 标签必须位于 main 上，且与 package.json 的 version 一致，否则发布门禁失败。
 on:
   push:
-    # 只在 main 分支与版本标签上构建（dev/alpha 不再触发，避免无谓的三平台打包）。
     branches: [main]
     tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
 
+# 默认只读；发布任务单独申请写权限
 permissions:
-  contents: write # 允许用默认 GITHUB_TOKEN 创建 GitHub Release
+  contents: read
 
+# 同一 ref 上并发运行则取消旧的，避免重复发布
 concurrency:
-  group: build-release-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-release:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-
-    env:
-      # 无证书时跳过代码签名尝试（否则 mac/linux 无证书会失败）。
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      # electron-builder 发布到 GitHub 所需的令牌（GitHub Actions 自动注入）。
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+  # 非标签事件：轻量校验，只在 ubuntu 上跑一次
+  ci:
+    name: CI (typecheck + build)
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
-
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - name: Install dependencies
         run: npm ci
-
       - name: Type check
         run: npm run typecheck
-
-      # 标签必须与 package.json 的 version 一致：electron-builder 用 version 生成 release 的
-      # tag，不一致会把产物发到与代码不匹配的 Release，更新器也就找不到对应版本。
-      - name: Verify tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          expected="v$(node -p "require('./package.json').version")"
-          if [ "$expected" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json ${expected}"
-            exit 1
-          fi
-
       - name: Compile the app (electron-vite build)
         run: npm run build
 
-      # 发布类型**必须按版本号决定**，不能在 package.json 里写死：
-      # electron-updater 的正式版线用 `github.com/<owner>/<repo>/releases/latest` 解析 tag，
-      # 而该端点**不返回 prerelease**。若把 releaseType 固定为 prerelease，将来真正的
-      # 正式版也会被标成 prerelease ⇒ 正式版用户被永久钉死在最后一个正式版上，
-      # 表现为「检测不到最新正式版本」（且报错会伪装成「已是最新」）。
-      # 含 `-`（alpha / beta / rc）→ prerelease；否则 → release。
+  # 发布门禁：只在版本标签时运行，确保标签在 main 上并与版本一致
+  gate:
+    name: Verify release tag
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag must be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+            echo "::error::tag ${{ github.ref_name }} is not on main; refuse to release"
+            exit 1
+          fi
+      - name: Tag must match package.json version
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$expected" != "${{ github.ref_name }}" ]; then
+            echo "::error::tag ${{ github.ref_name }} does not match package.json $expected"
+            exit 1
+          fi
+
+  # 发布：门禁通过后，三平台构建并上传到同一个 GitHub Release
+  release:
+    name: Release (${{ matrix.os }})
+    needs: gate
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    env:
+      # 无证书时跳过代码签名尝试（否则 mac/linux 无证书会失败）。
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder 发布到 GitHub 所需的令牌（GitHub Actions 自动注入）。
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Compile the app (electron-vite build)
+        run: npm run build
+      # 发布类型必须按版本号决定：electron-updater 正式版线用 releases/latest 解析 tag，
+      # 该端点不返回 prerelease；若固定为 prerelease，将来正式版会被永久钉死。
+      # 含 -（alpha/beta/rc）→ prerelease；否则 → release。
       - name: Resolve release type from version
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           node -e '
@@ -84,28 +110,8 @@ jobs:
             const releaseType = /-/.test(pkg.version) ? "prerelease" : "release";
             pkg.build.publish.releaseType = releaseType;
             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
-            console.log(`version ${pkg.version} -> publish.releaseType = ${releaseType}`);
+            console.log("version " + pkg.version + " -> publish.releaseType = " + releaseType);
           '
-
-      # 仅当推送的是 v* 标签时才发布（供下载；必须是已发布状态，不能停在 draft）。
-      - name: Package & publish to GitHub Release (tagged)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # 必须是已发布状态、不能停在 draft，否则 electron-updater 读不到。
+      - name: Publish to GitHub Release
         run: npx electron-builder --publish always
-
-      # 普通 push / PR / 手动触发：只打包验证，不发布。
-      - name: Package without publishing (non-tag)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: npx electron-builder --publish never
-
-      - name: Upload artifacts (non-tag)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.os }}
-          path: |
-            dist/**/*.exe
-            dist/**/*.dmg
-            dist/**/*.AppImage
-            dist/*.yml
-            dist/*.blockmap
-          if-no-files-found: warn

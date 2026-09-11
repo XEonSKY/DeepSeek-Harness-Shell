@@ -10,13 +10,13 @@ import type { LocaleCode, ResolvedLocale } from './types'
 
 /** locale -> 目录 */
 export const messages: Record<ResolvedLocale, unknown> = {
-  zh,
-  en
+    zh,
+    en
 }
 
 /** 内部语言码即 dsh settings.yaml 用的两字母码（zh/en）。 */
 export function localeCodeOf(locale: ResolvedLocale): LocaleCode {
-  return locale
+    return locale
 }
 
 /**
@@ -25,21 +25,21 @@ export function localeCodeOf(locale: ResolvedLocale): LocaleCode {
  * @param system 系统语言（app.getLocale()/navigator.language）
  */
 export function resolveLocale(pref: string | null | undefined, system?: string): ResolvedLocale {
-  if (pref === 'zh' || pref === 'en') return pref
-  const sys = (system ?? '').toLowerCase()
-  return sys.startsWith('zh') ? 'zh' : 'en'
+    if (pref === 'zh' || pref === 'en') return pref
+    const sys = (system ?? '').toLowerCase()
+    return sys.startsWith('zh') ? 'zh' : 'en'
 }
 
 type AnyDict = Record<string, unknown>
 
 /** 按点分路径在嵌套目录中查找叶子字符串；找不到返回 null。 */
 function lookup(root: unknown, path: string): string | null {
-  let node: unknown = root
-  for (const part of path.split('.')) {
-    if (node == null || typeof node !== 'object') return null
-    node = (node as AnyDict)[part]
-  }
-  return typeof node === 'string' ? node : null
+    let node: unknown = root
+    for (const part of path.split('.')) {
+        if (node == null || typeof node !== 'object') return null
+        node = (node as AnyDict)[part]
+    }
+    return typeof node === 'string' ? node : null
 }
 
 /**
@@ -47,9 +47,9 @@ function lookup(root: unknown, path: string): string | null {
  * 缺失时回退 zh，再缺失则原样返回 path。
  */
 export function t(locale: ResolvedLocale, path: string, params?: Record<string, unknown>): string {
-  const template = lookup(messages[locale], path) ?? lookup(messages.zh, path) ?? path
-  if (!params) return template
-  return template.replace(/\{(\w+)\}/g, (m, k) =>
-    Object.prototype.hasOwnProperty.call(params, k) ? String(params[k]) : m
-  )
+    const template = lookup(messages[locale], path) ?? lookup(messages.zh, path) ?? path
+    if (!params) return template
+    return template.replace(/\{(\w+)\}/g, (m, k) =>
+        Object.prototype.hasOwnProperty.call(params, k) ? String(params[k]) : m
+    )
 }

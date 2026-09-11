@@ -22,57 +22,57 @@ let burstHost: HTMLElement | null = null
 
 /** 从点击点炸出一圈彩色粒子。 */
 function spawnBurst(el: HTMLElement, e: MouseEvent): void {
-  burstHost ??= el.parentElement ?? el
-  const hostRect = burstHost.getBoundingClientRect()
-  const x = e.clientX - hostRect.left
-  const y = e.clientY - hostRect.top
-  const colors = [
-    'var(--el-color-primary)',
-    'var(--el-color-primary-light-3)',
-    'var(--el-color-warning)',
-    'var(--el-color-success)',
-    'var(--el-color-danger)'
-  ]
+    burstHost ??= el.parentElement ?? el
+    const hostRect = burstHost.getBoundingClientRect()
+    const x = e.clientX - hostRect.left
+    const y = e.clientY - hostRect.top
+    const colors = [
+        'var(--el-color-primary)',
+        'var(--el-color-primary-light-3)',
+        'var(--el-color-warning)',
+        'var(--el-color-success)',
+        'var(--el-color-danger)'
+    ]
 
-  for (let i = 0; i < 12; i++) {
-    const p = document.createElement('i')
-    const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.4
-    const dist = 18 + Math.random() * 22
-    const size = 3 + Math.random() * 3
-    p.className = 'kv-burst'
-    p.style.cssText = [
-      `left:${x}px`,
-      `top:${y}px`,
-      `width:${size}px`,
-      `height:${size}px`,
-      `background:${colors[i % colors.length]}`,
-      `--dx:${Math.cos(angle) * dist}px`,
-      `--dy:${Math.sin(angle) * dist}px`,
-      `--rot:${Math.random() * 360}deg`
-    ].join(';')
-    burstHost.appendChild(p)
-    p.addEventListener('animationend', () => p.remove(), { once: true })
-  }
+    for (let i = 0; i < 12; i++) {
+        const p = document.createElement('i')
+        const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.4
+        const dist = 18 + Math.random() * 22
+        const size = 3 + Math.random() * 3
+        p.className = 'kv-burst'
+        p.style.cssText = [
+            `left:${x}px`,
+            `top:${y}px`,
+            `width:${size}px`,
+            `height:${size}px`,
+            `background:${colors[i % colors.length]}`,
+            `--dx:${Math.cos(angle) * dist}px`,
+            `--dy:${Math.sin(angle) * dist}px`,
+            `--rot:${Math.random() * 360}deg`
+        ].join(';')
+        burstHost.appendChild(p)
+        p.addEventListener('animationend', () => p.remove(), { once: true })
+    }
 }
 
 function onAppVerClick(e: MouseEvent): void {
-  const el = e.currentTarget as HTMLElement
-  spawnBurst(el, e)
+    const el = e.currentTarget as HTMLElement
+    spawnBurst(el, e)
 
-  if (state.devMode) return
+    if (state.devMode) return
 
-  if (tapTimer) window.clearTimeout(tapTimer)
-  tapCount += 1
-  if (tapCount >= DEV_UNLOCK_TAPS) {
-    tapCount = 0
-    state.devMode = true
-    ElMessage.success(tt('sv.about.devUnlocked'))
-    return
-  }
+    if (tapTimer) window.clearTimeout(tapTimer)
+    tapCount += 1
+    if (tapCount >= DEV_UNLOCK_TAPS) {
+        tapCount = 0
+        state.devMode = true
+        ElMessage.success(tt('sv.about.devUnlocked'))
+        return
+    }
 
-  tapTimer = window.setTimeout(() => {
-    tapCount = 0
-  }, DEV_TAP_WINDOW_MS)
+    tapTimer = window.setTimeout(() => {
+        tapCount = 0
+    }, DEV_TAP_WINDOW_MS)
 }
 
 const open = ref(['about-options', 'about-links', 'about-check'])
@@ -90,18 +90,18 @@ let gameTapTimer: number | undefined
 const showGame = ref(false)
 
 function onEnvClick(e: MouseEvent): void {
-  if (gameTapTimer) window.clearTimeout(gameTapTimer)
-  gameTaps += 1
-  if (gameTaps >= GAME_TAPS) {
-    gameTaps = 0
-    spawnBurst(e.currentTarget as HTMLElement, e)
-    resetGame()
-    showGame.value = true
-    return
-  }
-  gameTapTimer = window.setTimeout(() => {
-    gameTaps = 0
-  }, GAME_TAP_WINDOW_MS)
+    if (gameTapTimer) window.clearTimeout(gameTapTimer)
+    gameTaps += 1
+    if (gameTaps >= GAME_TAPS) {
+        gameTaps = 0
+        spawnBurst(e.currentTarget as HTMLElement, e)
+        resetGame()
+        showGame.value = true
+        return
+    }
+    gameTapTimer = window.setTimeout(() => {
+        gameTaps = 0
+    }, GAME_TAP_WINDOW_MS)
 }
 
 type Cell = 'X' | 'O' | null
@@ -109,14 +109,14 @@ type GameStatus = 'playing' | 'won' | 'lost' | 'draw'
 
 /** 玩家执 X、电脑执 O。 */
 const LINES: ReadonlyArray<readonly [number, number, number]> = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6]
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6]
 ]
 
 const board = ref<Cell[]>(Array(9).fill(null))
@@ -124,69 +124,69 @@ const gameStatus = ref<GameStatus>('playing')
 
 /** 状态文案的键后缀：在模板里拼成 `$t('sv.about.ttt' + statusKey)`，这样切语言也会跟着变。 */
 const statusKey = computed(() => {
-  if (gameStatus.value === 'won') return 'Won'
-  if (gameStatus.value === 'lost') return 'Lost'
-  if (gameStatus.value === 'draw') return 'Draw'
-  return 'YourTurn'
+    if (gameStatus.value === 'won') return 'Won'
+    if (gameStatus.value === 'lost') return 'Lost'
+    if (gameStatus.value === 'draw') return 'Draw'
+    return 'YourTurn'
 })
 /** 电脑「思考」中的延时句柄：非空表示电脑该走子/正在走。 */
 let aiTimer: number | undefined
 
 function winnerOf(b: Cell[]): 'X' | 'O' | null {
-  for (const [a, c, d] of LINES) {
-    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a]
-  }
-  return null
+    for (const [a, c, d] of LINES) {
+        if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a]
+    }
+    return null
 }
 
 function settle(): void {
-  const w = winnerOf(board.value)
-  if (w === 'X') gameStatus.value = 'won'
-  else if (w === 'O') gameStatus.value = 'lost'
-  else if (board.value.every(Boolean)) gameStatus.value = 'draw'
+    const w = winnerOf(board.value)
+    if (w === 'X') gameStatus.value = 'won'
+    else if (w === 'O') gameStatus.value = 'lost'
+    else if (board.value.every(Boolean)) gameStatus.value = 'draw'
 }
 
 /** 电脑走子：能赢就赢 → 挡玩家 → 占中心 → 占角 → 占边。刻意留一点破绽，不至于无法取胜。 */
 function aiMove(b: Cell[]): number {
-  for (const me of ['O', 'X'] as const) {
-    for (const line of LINES) {
-      const mine = line.filter((i) => b[i] === me).length
-      const blank = line.filter((i) => !b[i])
-      if (mine === 2 && blank.length === 1) return blank[0]
+    for (const me of ['O', 'X'] as const) {
+        for (const line of LINES) {
+            const mine = line.filter((i) => b[i] === me).length
+            const blank = line.filter((i) => !b[i])
+            if (mine === 2 && blank.length === 1) return blank[0]
+        }
     }
-  }
-  if (!b[4]) return 4
-  const corners = [0, 2, 6, 8].filter((i) => !b[i])
-  if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)]
-  const empty = b.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0)
-  return empty.length > 0 ? empty[Math.floor(Math.random() * empty.length)] : -1
+    if (!b[4]) return 4
+    const corners = [0, 2, 6, 8].filter((i) => !b[i])
+    if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)]
+    const empty = b.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0)
+    return empty.length > 0 ? empty[Math.floor(Math.random() * empty.length)] : -1
 }
 
 function stopAi(): void {
-  if (aiTimer !== undefined) {
-    window.clearTimeout(aiTimer)
-    aiTimer = undefined
-  }
+    if (aiTimer !== undefined) {
+        window.clearTimeout(aiTimer)
+        aiTimer = undefined
+    }
 }
 
 function resetGame(): void {
-  stopAi()
-  board.value = Array(9).fill(null)
-  gameStatus.value = 'playing'
+    stopAi()
+    board.value = Array(9).fill(null)
+    gameStatus.value = 'playing'
 }
 
 /** 玩家落子；落完若未分胜负则安排电脑走子。 */
 function play(i: number): void {
-  if (gameStatus.value !== 'playing' || board.value[i] || aiTimer !== undefined) return
-  board.value[i] = 'X'
-  settle()
-  if (gameStatus.value !== 'playing') return
-  aiTimer = window.setTimeout(() => {
-    aiTimer = undefined
-    const j = aiMove(board.value)
-    if (j >= 0) board.value[j] = 'O'
+    if (gameStatus.value !== 'playing' || board.value[i] || aiTimer !== undefined) return
+    board.value[i] = 'X'
     settle()
-  }, 320)
+    if (gameStatus.value !== 'playing') return
+    aiTimer = window.setTimeout(() => {
+        aiTimer = undefined
+        const j = aiMove(board.value)
+        if (j >= 0) board.value[j] = 'O'
+        settle()
+    }, 320)
 }
 
 type Phase = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'none' | 'error'
@@ -209,52 +209,52 @@ const envLabel = ref('')
 const REPO_URL = 'https://github.com/XEonSKY/DeepSeek-Harness-Shell'
 
 function openRepo(): void {
-  void window.api.openExternal(REPO_URL)
+    void window.api.openExternal(REPO_URL)
 }
 
 function onEvent(e: AppUpdateEvent): void {
-  switch (e.kind) {
-    case 'checking':
-      phase.value = 'checking'
-      remoteVersion.value = null
-      break
-    case 'available':
-      targetVersion.value = e.version ?? null
-      phase.value = 'downloading'
-      percent.value = 0
-      break
-    case 'progress':
-      phase.value = 'downloading'
-      percent.value = Math.round(e.percent ?? 0)
-      break
-    case 'downloaded':
-      targetVersion.value = e.version ?? targetVersion.value
-      phase.value = 'downloaded'
-      percent.value = 100
-      break
-    case 'not-available':
-      remoteVersion.value = e.version ?? null
-      phase.value = 'none'
-      break
-    case 'error':
-      errMsg.value = e.message ?? ''
-      phase.value = 'error'
-      break
-  }
+    switch (e.kind) {
+        case 'checking':
+            phase.value = 'checking'
+            remoteVersion.value = null
+            break
+        case 'available':
+            targetVersion.value = e.version ?? null
+            phase.value = 'downloading'
+            percent.value = 0
+            break
+        case 'progress':
+            phase.value = 'downloading'
+            percent.value = Math.round(e.percent ?? 0)
+            break
+        case 'downloaded':
+            targetVersion.value = e.version ?? targetVersion.value
+            phase.value = 'downloaded'
+            percent.value = 100
+            break
+        case 'not-available':
+            remoteVersion.value = e.version ?? null
+            phase.value = 'none'
+            break
+        case 'error':
+            errMsg.value = e.message ?? ''
+            phase.value = 'error'
+            break
+    }
 }
 
 async function check(): Promise<void> {
-  errMsg.value = ''
-  phase.value = 'checking'
-  const r = await window.api.triggerAppUpdate({ prerelease: state.appCheckPrerelease })
-  if (!r.ok) {
-    errMsg.value = r.message
-    phase.value = 'error'
-  }
+    errMsg.value = ''
+    phase.value = 'checking'
+    const r = await window.api.triggerAppUpdate({ prerelease: state.appCheckPrerelease })
+    if (!r.ok) {
+        errMsg.value = r.message
+        phase.value = 'error'
+    }
 }
 
 function restart(): void {
-  window.api.restartAndInstall()
+    window.api.restartAndInstall()
 }
 
 let offEvent: (() => void) | null = null
@@ -262,191 +262,191 @@ let offEvent: (() => void) | null = null
 let gotLiveEvent = false
 
 onMounted(async () => {
-  offEvent = window.api.onAppUpdateEvent((e) => {
-    gotLiveEvent = true
-    onEvent(e)
-  })
-  // 启动期的静默检查/下载发生在本页挂载之前，先订阅再补一次最近状态；
-  // 若期间已收到实时事件，则以下载/完成等实时状态为准，不用缓存覆盖。
-  try {
-    const last = await window.api.getAppUpdateState()
-    if (last && !gotLiveEvent) onEvent(last)
-  } catch {
+    offEvent = window.api.onAppUpdateEvent((e) => {
+        gotLiveEvent = true
+        onEvent(e)
+    })
+    // 启动期的静默检查/下载发生在本页挂载之前，先订阅再补一次最近状态；
+    // 若期间已收到实时事件，则以下载/完成等实时状态为准，不用缓存覆盖。
+    try {
+        const last = await window.api.getAppUpdateState()
+        if (last && !gotLiveEvent) onEvent(last)
+    } catch {
     /* ignore */
-  }
-  try {
-    const m = await window.api.getAppMeta()
-    meta.value = m
-    const parts: string[] = []
-    if (m.platform) parts.push(friendlyPlatform(m.platform))
-    if (m.arch) parts.push(m.arch)
-    envLabel.value = parts.join(' · ')
-  } catch {
+    }
+    try {
+        const m = await window.api.getAppMeta()
+        meta.value = m
+        const parts: string[] = []
+        if (m.platform) parts.push(friendlyPlatform(m.platform))
+        if (m.arch) parts.push(m.arch)
+        envLabel.value = parts.join(' · ')
+    } catch {
     /* ignore */
-  }
+    }
 })
 
 onBeforeUnmount(() => {
-  offEvent?.()
-  if (tapTimer) window.clearTimeout(tapTimer)
-  if (gameTapTimer) window.clearTimeout(gameTapTimer)
-  stopAi()
+    offEvent?.()
+    if (tapTimer) window.clearTimeout(tapTimer)
+    if (gameTapTimer) window.clearTimeout(gameTapTimer)
+    stopAi()
 })
 </script>
 
 <template>
-  <div class="panel">
-    <div class="dsh-brand">
-      <div class="dsh-brand__icon about-logo"><img :src="aboutIcon" alt="DeepSeek Harness Shell" draggable="false" /></div>
-      <div class="dsh-brand__txt">
-        <div class="dsh-brand__name">DeepSeek Harness Shell</div>
-        <div class="dsh-brand__ver">
-          {{ $t('sv.about.appVersion') }}&nbsp;<code
-            class="app-ver"
-            @click="onAppVerClick"
-          >{{ meta?.version ? 'v' + meta.version : '—' }}</code>
-          <span v-if="envLabel" class="env-badge env-tap" @click="onEnvClick">{{ envLabel }}</span>
+    <div class="panel">
+        <div class="dsh-brand">
+            <div class="dsh-brand__icon about-logo"><img :src="aboutIcon" alt="DeepSeek Harness Shell" draggable="false" /></div>
+            <div class="dsh-brand__txt">
+                <div class="dsh-brand__name">DeepSeek Harness Shell</div>
+                <div class="dsh-brand__ver">
+                    {{ $t('sv.about.appVersion') }}&nbsp;<code
+                        class="app-ver"
+                        @click="onAppVerClick"
+                    >{{ meta?.version ? 'v' + meta.version : '—' }}</code>
+                    <span v-if="envLabel" class="env-badge env-tap" @click="onEnvClick">{{ envLabel }}</span>
+                </div>
+            </div>
         </div>
-      </div>
+
+        <el-collapse v-model="open">
+            <!-- 更新开关 -->
+            <el-collapse-item name="about-options">
+                <template #title>
+                    <div class="sec__title">{{ $t('sv.about.options') }}</div>
+                </template>
+                <div class="kopt">
+                    <div class="au">
+                        <div class="au__txt">
+                            <div class="au__t">{{ $t('sv.about.autoUpdate') }}</div>
+                            <div class="au__desc">{{ $t('sv.about.autoUpdateDesc') }}</div>
+                        </div>
+                        <el-switch v-model="state.appAutoUpdate" />
+                    </div>
+                    <div class="au">
+                        <div class="au__txt">
+                            <div class="au__t">{{ $t('sv.about.checkPrerelease') }}</div>
+                            <div class="au__desc">{{ $t('sv.about.checkPrereleaseDesc') }}</div>
+                        </div>
+                        <el-switch v-model="state.appCheckPrerelease" />
+                    </div>
+                    <!-- 开发模式默认隐藏：在内核页连点「内核版本」5 次解锁；开启后才显示，关闭即再隐藏 -->
+                    <div v-if="state.devMode" class="au">
+                        <div class="au__txt">
+                            <div class="au__t">{{ $t('sv.about.devMode') }}</div>
+                            <div class="au__desc">{{ $t('sv.about.devModeDesc') }}</div>
+                        </div>
+                        <el-switch v-model="state.devMode" />
+                    </div>
+                </div>
+            </el-collapse-item>
+
+            <!-- 项目链接 -->
+            <el-collapse-item name="about-links">
+                <template #title>
+                    <div class="sec__title">{{ $t('sv.about.links') }}</div>
+                </template>
+                <div class="au">
+                    <div class="au__txt">
+                        <div class="au__t">{{ $t('sv.about.github') }}</div>
+                        <div class="au__desc">{{ $t('sv.about.githubDesc') }}</div>
+                        <div class="repo-url">{{ REPO_URL }}</div>
+                    </div>
+                    <el-button class="repo-btn" @click="openRepo">
+                        <GithubOutlined class="gh-icon" />
+                        {{ $t('sv.about.openGithub') }}
+                    </el-button>
+                </div>
+            </el-collapse-item>
+
+            <!-- 更新操作区 -->
+            <el-collapse-item name="about-check">
+                <template #title>
+                    <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.about.checkTitle') }}</div>
+                </template>
+
+                <div class="au-row">
+                    <el-button
+                        type="primary"
+                        :icon="ReloadOutlined"
+                        :loading="phase === 'checking'"
+                        :disabled="phase === 'checking' || phase === 'downloading'"
+                        @click="check"
+                    >
+                        {{ $t('sv.about.checkBtn') }}
+                    </el-button>
+                    <el-button
+                        v-if="phase === 'downloaded'"
+                        type="success"
+                        :icon="SendOutlined"
+                        @click="restart"
+                    >
+                        {{ $t('sv.about.restartNow') }}
+                    </el-button>
+                </div>
+
+                <template v-if="phase === 'downloading'">
+                    <p class="au-note">{{ $t('sv.about.downloading', { version: targetVersion || '' }) }}</p>
+                    <el-progress :percentage="percent" :status="percent >= 100 ? 'success' : 'active'" />
+                </template>
+
+                <el-alert
+                    v-else-if="phase === 'downloaded'"
+                    class="about-result"
+                    :title="$t('sv.about.downloadedTitle')"
+                    :description="$t('sv.about.downloadedDesc')"
+                    type="success"
+                    show-icon
+                    :closable="false"
+                />
+                <el-alert
+                    v-else-if="phase === 'none'"
+                    class="about-result"
+                    :title="
+                        remoteVersion
+                            ? $t('sv.about.notAvailableWith', { version: remoteVersion })
+                            : $t('sv.about.notAvailable')
+                    "
+                    type="info"
+                    show-icon
+                    :closable="false"
+                />
+                <el-alert
+                    v-else-if="phase === 'error' && errMsg"
+                    class="about-result"
+                    :title="errMsg"
+                    type="warning"
+                    show-icon
+                    :closable="false"
+                />
+            </el-collapse-item>
+        </el-collapse>
+
+        <!-- 彩蛋：连点系统架构徽标 5 次弹出的井字棋（el-dialog 会 teleport 到 body，放哪都一样） -->
+        <el-dialog v-model="showGame" :title="$t('sv.about.tttTitle')" width="320px" align-center>
+            <div class="ttt">
+                <div class="ttt__status">{{ $t('sv.about.ttt' + statusKey) }}</div>
+                <div class="ttt__grid">
+                    <button
+                        v-for="(c, i) in board"
+                        :key="i"
+                        class="ttt__cell"
+                        :class="{ 'ttt__cell--x': c === 'X', 'ttt__cell--o': c === 'O' }"
+                        type="button"
+                        :disabled="!!c || gameStatus !== 'playing'"
+                        @click="play(i)"
+                    >
+                        {{ c ?? '' }}
+                    </button>
+                </div>
+                <div class="ttt__foot">
+                    <el-button size="small" :icon="ReloadOutlined" @click="resetGame">{{ $t('sv.about.tttAgain') }}</el-button>
+                    <span class="ttt__mark">{{ $t('sv.about.tttMarks') }}</span>
+                </div>
+            </div>
+        </el-dialog>
     </div>
-
-    <el-collapse v-model="open">
-      <!-- 更新开关 -->
-      <el-collapse-item name="about-options">
-        <template #title>
-          <div class="sec__title">{{ $t('sv.about.options') }}</div>
-        </template>
-        <div class="kopt">
-          <div class="au">
-            <div class="au__txt">
-              <div class="au__t">{{ $t('sv.about.autoUpdate') }}</div>
-              <div class="au__desc">{{ $t('sv.about.autoUpdateDesc') }}</div>
-            </div>
-            <el-switch v-model="state.appAutoUpdate" />
-          </div>
-          <div class="au">
-            <div class="au__txt">
-              <div class="au__t">{{ $t('sv.about.checkPrerelease') }}</div>
-              <div class="au__desc">{{ $t('sv.about.checkPrereleaseDesc') }}</div>
-            </div>
-            <el-switch v-model="state.appCheckPrerelease" />
-          </div>
-          <!-- 开发模式默认隐藏：在内核页连点「内核版本」5 次解锁；开启后才显示，关闭即再隐藏 -->
-          <div v-if="state.devMode" class="au">
-            <div class="au__txt">
-              <div class="au__t">{{ $t('sv.about.devMode') }}</div>
-              <div class="au__desc">{{ $t('sv.about.devModeDesc') }}</div>
-            </div>
-            <el-switch v-model="state.devMode" />
-          </div>
-        </div>
-      </el-collapse-item>
-
-      <!-- 项目链接 -->
-      <el-collapse-item name="about-links">
-        <template #title>
-          <div class="sec__title">{{ $t('sv.about.links') }}</div>
-        </template>
-        <div class="au">
-          <div class="au__txt">
-            <div class="au__t">{{ $t('sv.about.github') }}</div>
-            <div class="au__desc">{{ $t('sv.about.githubDesc') }}</div>
-            <div class="repo-url">{{ REPO_URL }}</div>
-          </div>
-          <el-button class="repo-btn" @click="openRepo">
-            <GithubOutlined class="gh-icon" />
-            {{ $t('sv.about.openGithub') }}
-          </el-button>
-        </div>
-      </el-collapse-item>
-
-      <!-- 更新操作区 -->
-      <el-collapse-item name="about-check">
-        <template #title>
-          <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.about.checkTitle') }}</div>
-        </template>
-
-        <div class="au-row">
-          <el-button
-            type="primary"
-            :icon="ReloadOutlined"
-            :loading="phase === 'checking'"
-            :disabled="phase === 'checking' || phase === 'downloading'"
-            @click="check"
-          >
-            {{ $t('sv.about.checkBtn') }}
-          </el-button>
-          <el-button
-            v-if="phase === 'downloaded'"
-            type="success"
-            :icon="SendOutlined"
-            @click="restart"
-          >
-            {{ $t('sv.about.restartNow') }}
-          </el-button>
-        </div>
-
-        <template v-if="phase === 'downloading'">
-          <p class="au-note">{{ $t('sv.about.downloading', { version: targetVersion || '' }) }}</p>
-          <el-progress :percentage="percent" :status="percent >= 100 ? 'success' : 'active'" />
-        </template>
-
-        <el-alert
-          v-else-if="phase === 'downloaded'"
-          class="about-result"
-          :title="$t('sv.about.downloadedTitle')"
-          :description="$t('sv.about.downloadedDesc')"
-          type="success"
-          show-icon
-          :closable="false"
-        />
-        <el-alert
-          v-else-if="phase === 'none'"
-          class="about-result"
-          :title="
-            remoteVersion
-              ? $t('sv.about.notAvailableWith', { version: remoteVersion })
-              : $t('sv.about.notAvailable')
-          "
-          type="info"
-          show-icon
-          :closable="false"
-        />
-        <el-alert
-          v-else-if="phase === 'error' && errMsg"
-          class="about-result"
-          :title="errMsg"
-          type="warning"
-          show-icon
-          :closable="false"
-        />
-      </el-collapse-item>
-    </el-collapse>
-
-    <!-- 彩蛋：连点系统架构徽标 5 次弹出的井字棋（el-dialog 会 teleport 到 body，放哪都一样） -->
-    <el-dialog v-model="showGame" :title="$t('sv.about.tttTitle')" width="320px" align-center>
-      <div class="ttt">
-        <div class="ttt__status">{{ $t('sv.about.ttt' + statusKey) }}</div>
-        <div class="ttt__grid">
-          <button
-            v-for="(c, i) in board"
-            :key="i"
-            class="ttt__cell"
-            :class="{ 'ttt__cell--x': c === 'X', 'ttt__cell--o': c === 'O' }"
-            type="button"
-            :disabled="!!c || gameStatus !== 'playing'"
-            @click="play(i)"
-          >
-            {{ c ?? '' }}
-          </button>
-        </div>
-        <div class="ttt__foot">
-          <el-button size="small" :icon="ReloadOutlined" @click="resetGame">{{ $t('sv.about.tttAgain') }}</el-button>
-          <span class="ttt__mark">{{ $t('sv.about.tttMarks') }}</span>
-        </div>
-      </div>
-    </el-dialog>
-  </div>
 </template>
 
 <style scoped>

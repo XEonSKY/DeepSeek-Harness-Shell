@@ -18,30 +18,30 @@ import { mt } from './settings'
  *  - 标签文案走 `mt()`：主进程文案统一放在 shared/locales，zh/en 各一份。
  */
 export function attachContextMenu(wc: WebContents, win: BrowserWindow): void {
-  wc.on('context-menu', (_event, params) => {
-    const editable = params.isEditable
-    const hasSelection = (params.selectionText ?? '').trim().length > 0
-    if (!editable && !hasSelection) return
+    wc.on('context-menu', (_event, params) => {
+        const editable = params.isEditable
+        const hasSelection = (params.selectionText ?? '').trim().length > 0
+        if (!editable && !hasSelection) return
 
-    const items: MenuItemConstructorOptions[] = []
-    if (editable) {
-      items.push({ label: mt('m.menu.cut'), enabled: params.editFlags.canCut, click: () => wc.cut() })
-    }
-    items.push({
-      label: mt('m.menu.copy'),
-      enabled: params.editFlags.canCopy || hasSelection,
-      click: () => wc.copy()
-    })
-    if (editable) {
-      items.push({ label: mt('m.menu.paste'), enabled: params.editFlags.canPaste, click: () => wc.paste() })
-      items.push({ type: 'separator' })
-    }
-    items.push({
-      label: mt('m.menu.selectAll'),
-      enabled: params.editFlags.canSelectAll,
-      click: () => wc.selectAll()
-    })
+        const items: MenuItemConstructorOptions[] = []
+        if (editable) {
+            items.push({ label: mt('m.menu.cut'), enabled: params.editFlags.canCut, click: () => wc.cut() })
+        }
+        items.push({
+            label: mt('m.menu.copy'),
+            enabled: params.editFlags.canCopy || hasSelection,
+            click: () => wc.copy()
+        })
+        if (editable) {
+            items.push({ label: mt('m.menu.paste'), enabled: params.editFlags.canPaste, click: () => wc.paste() })
+            items.push({ type: 'separator' })
+        }
+        items.push({
+            label: mt('m.menu.selectAll'),
+            enabled: params.editFlags.canSelectAll,
+            click: () => wc.selectAll()
+        })
 
-    Menu.buildFromTemplate(items).popup({ window: win })
-  })
+        Menu.buildFromTemplate(items).popup({ window: win })
+    })
 }

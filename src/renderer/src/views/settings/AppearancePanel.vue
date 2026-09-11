@@ -32,27 +32,27 @@ const funCurrent = computed<FunLocale>(() => (funList.value.includes(state.funLo
 const ZH_LABEL: Record<string, string> = { off: '简体中文', anime: '二次元', wenyan: '文言', hant: '繁体中文' }
 const EN_LABEL: Record<string, string> = { off: 'English', pirate: 'Pirate', shakespeare: 'Shakespearean' }
 const langOptions = computed(() => [
-  { value: 'zh', label: '中文', children: FUN_ZH.map((e) => ({ value: e, label: ZH_LABEL[e] })) },
-  { value: 'en', label: 'English', children: FUN_EN.map((e) => ({ value: e, label: EN_LABEL[e] })) }
+    { value: 'zh', label: '中文', children: FUN_ZH.map((e) => ({ value: e, label: ZH_LABEL[e] })) },
+    { value: 'en', label: 'English', children: FUN_EN.map((e) => ({ value: e, label: EN_LABEL[e] })) }
 ])
 const langCascader = computed<[string, string]>(() => [lang.value, funCurrent.value])
 function onLangCascader(path: (string | number)[]): void {
-  const [loc, ext] = path.map(String)
-  if (loc === 'zh' || loc === 'en') void chooseLang(loc as ResolvedLocale)
-  if (ext) state.funLocale = ext as FunLocale
+    const [loc, ext] = path.map(String)
+    if (loc === 'zh' || loc === 'en') void chooseLang(loc as ResolvedLocale)
+    if (ext) state.funLocale = ext as FunLocale
 }
 
 async function chooseLang(l: ResolvedLocale): Promise<void> {
-  if (lang.value === l) return
-  lang.value = l
-  setLocale(l)
-  // 娱乐翻译只对 zh 生效：语言变了按当前娱乐风格重建 zh 文案。
-  applyFunToZh(state.funLocale)
-  try {
-    await window.api.setUiLocale(l)
-  } catch {
+    if (lang.value === l) return
+    lang.value = l
+    setLocale(l)
+    // 娱乐翻译只对 zh 生效：语言变了按当前娱乐风格重建 zh 文案。
+    applyFunToZh(state.funLocale)
+    try {
+        await window.api.setUiLocale(l)
+    } catch {
     /* 忽略写盘失败，界面仍即时切换 */
-  }
+    }
 }
 
 // 娱乐翻译风格变化即时应用到 zh 文案。
@@ -60,100 +60,100 @@ watch(() => state.funLocale, (v) => applyFunToZh(v))
 
 // 禁用系统缩放需重启生效：确认→保存并重启；取消→不做任何修改（回退）。
 async function onSysScale(v: boolean): Promise<void> {
-  if (v === state.ignoreSystemScale) return
-  try {
-    await ElMessageBox.confirm(tt('sv.appearance.sysScaleText'), tt('sv.appearance.ignoreScale'), {
-      confirmButtonText: tt('sv.appearance.restartNow'),
-      cancelButtonText: tt('msg.cancelBtn'),
-      type: 'warning'
-    })
-  } catch {
-    return // 取消：回退修改（状态未变更）
-  }
-  state.ignoreSystemScale = v
-  try {
-    const cur = await window.api.getSettings()
-    await window.api.saveSettings({ ...cur, ignoreSystemScale: v })
-  } catch {
+    if (v === state.ignoreSystemScale) return
+    try {
+        await ElMessageBox.confirm(tt('sv.appearance.sysScaleText'), tt('sv.appearance.ignoreScale'), {
+            confirmButtonText: tt('sv.appearance.restartNow'),
+            cancelButtonText: tt('msg.cancelBtn'),
+            type: 'warning'
+        })
+    } catch {
+        return // 取消：回退修改（状态未变更）
+    }
+    state.ignoreSystemScale = v
+    try {
+        const cur = await window.api.getSettings()
+        await window.api.saveSettings({ ...cur, ignoreSystemScale: v })
+    } catch {
     /* ignore */
-  }
-  window.api.relaunch()
+    }
+    window.api.relaunch()
 }
 </script>
 
 <template>
-  <div class="panel">
-    <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="34"><BgColorsOutlined /></el-icon></div>
-      <div class="dsh-brand__txt">
-        <div class="dsh-brand__name">{{ $t('sv.nav.appearance') }}</div>
-        <div class="dsh-brand__desc">{{ $t('sv.intro.appearance') }}</div>
-      </div>
-    </div>
-    <el-collapse v-model="open">
-      <el-collapse-item name="appearance-main">
-        <template #title>
-          <div class="sec__title"><el-icon><BulbOutlined /></el-icon> {{ $t('sv.appearance.title') }}</div>
-        </template>
-
-        <el-form label-position="top">
-          <el-form-item :label="$t('sv.appearance.theme')">
-            <el-radio-group v-model="state.theme">
-              <el-radio-button :value="'system'">{{ $t('sv.appearance.themeSystem') }}</el-radio-button>
-              <el-radio-button :value="'light'">{{ $t('sv.appearance.themeLight') }}</el-radio-button>
-              <el-radio-button :value="'dark'">{{ $t('sv.appearance.themeDark') }}</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-
-          <el-form-item :label="$t('sv.appearance.schemeLabel')">
-            <div class="schemes">
-              <button
-                v-for="s in COLOR_SCHEMES"
-                :key="s.id"
-                type="button"
-                class="scheme"
-                :class="{ 'scheme--on': state.colorScheme === s.id }"
-                :title="$t('sv.appearance.scheme.' + s.id)"
-                @click="state.colorScheme = s.id"
-              >
-                <!-- 三个色块：页面底 / 侧栏底 / 主色 —— 一眼看出背景是否也成套 -->
-                <span class="scheme__chips">
-                  <i class="scheme__chip" :style="{ background: schemeBackgrounds(s.id, dark).page }" />
-                  <i class="scheme__chip" :style="{ background: schemeBackgrounds(s.id, dark).side }" />
-                  <i class="scheme__chip" :style="{ background: s.primary }" />
-                </span>
-                <span class="scheme__name">{{ $t('sv.appearance.scheme.' + s.id) }}</span>
-              </button>
+    <div class="panel">
+        <div class="dsh-brand">
+            <div class="dsh-brand__icon"><el-icon :size="34"><BgColorsOutlined /></el-icon></div>
+            <div class="dsh-brand__txt">
+                <div class="dsh-brand__name">{{ $t('sv.nav.appearance') }}</div>
+                <div class="dsh-brand__desc">{{ $t('sv.intro.appearance') }}</div>
             </div>
-            <div class="hint">{{ $t('sv.appearance.schemeHint') }}</div>
-          </el-form-item>
+        </div>
+        <el-collapse v-model="open">
+            <el-collapse-item name="appearance-main">
+                <template #title>
+                    <div class="sec__title"><el-icon><BulbOutlined /></el-icon> {{ $t('sv.appearance.title') }}</div>
+                </template>
 
-          <el-form-item :label="$t('sv.appearance.zoom')">
-            <el-select v-model="state.zoomPercent" class="zoom-sel">
-              <el-option v-for="z in ZOOMS" :key="z" :label="z + '%'" :value="z" />
-            </el-select>
-            <div class="hint">{{ $t('sv.appearance.zoomHint') }}</div>
-          </el-form-item>
+                <el-form label-position="top">
+                    <el-form-item :label="$t('sv.appearance.theme')">
+                        <el-radio-group v-model="state.theme">
+                            <el-radio-button :value="'system'">{{ $t('sv.appearance.themeSystem') }}</el-radio-button>
+                            <el-radio-button :value="'light'">{{ $t('sv.appearance.themeLight') }}</el-radio-button>
+                            <el-radio-button :value="'dark'">{{ $t('sv.appearance.themeDark') }}</el-radio-button>
+                        </el-radio-group>
+                    </el-form-item>
 
-          <el-form-item :label="$t('sv.appearance.ignoreScale')">
-            <el-switch :model-value="state.ignoreSystemScale" @update:model-value="onSysScale" />
-            <div class="hint">{{ $t('sv.appearance.ignoreScaleHint') }}</div>
-          </el-form-item>
+                    <el-form-item :label="$t('sv.appearance.schemeLabel')">
+                        <div class="schemes">
+                            <button
+                                v-for="s in COLOR_SCHEMES"
+                                :key="s.id"
+                                type="button"
+                                class="scheme"
+                                :class="{ 'scheme--on': state.colorScheme === s.id }"
+                                :title="$t('sv.appearance.scheme.' + s.id)"
+                                @click="state.colorScheme = s.id"
+                            >
+                                <!-- 三个色块：页面底 / 侧栏底 / 主色 —— 一眼看出背景是否也成套 -->
+                                <span class="scheme__chips">
+                                    <i class="scheme__chip" :style="{ background: schemeBackgrounds(s.id, dark).page }" />
+                                    <i class="scheme__chip" :style="{ background: schemeBackgrounds(s.id, dark).side }" />
+                                    <i class="scheme__chip" :style="{ background: s.primary }" />
+                                </span>
+                                <span class="scheme__name">{{ $t('sv.appearance.scheme.' + s.id) }}</span>
+                            </button>
+                        </div>
+                        <div class="hint">{{ $t('sv.appearance.schemeHint') }}</div>
+                    </el-form-item>
 
-          <el-form-item :label="$t('sv.appearance.language')">
-            <el-cascader
-              :options="langOptions"
-              :model-value="langCascader"
-              class="lang-casc"
-              :placeholder="$t('sv.appearance.language')"
-              @change="onLangCascader"
-            />
-            <div class="hint">{{ $t('sv.appearance.funHint') }}</div>
-          </el-form-item>
-        </el-form>
-      </el-collapse-item>
-    </el-collapse>
-  </div>
+                    <el-form-item :label="$t('sv.appearance.zoom')">
+                        <el-select v-model="state.zoomPercent" class="zoom-sel">
+                            <el-option v-for="z in ZOOMS" :key="z" :label="z + '%'" :value="z" />
+                        </el-select>
+                        <div class="hint">{{ $t('sv.appearance.zoomHint') }}</div>
+                    </el-form-item>
+
+                    <el-form-item :label="$t('sv.appearance.ignoreScale')">
+                        <el-switch :model-value="state.ignoreSystemScale" @update:model-value="onSysScale" />
+                        <div class="hint">{{ $t('sv.appearance.ignoreScaleHint') }}</div>
+                    </el-form-item>
+
+                    <el-form-item :label="$t('sv.appearance.language')">
+                        <el-cascader
+                            :options="langOptions"
+                            :model-value="langCascader"
+                            class="lang-casc"
+                            :placeholder="$t('sv.appearance.language')"
+                            @change="onLangCascader"
+                        />
+                        <div class="hint">{{ $t('sv.appearance.funHint') }}</div>
+                    </el-form-item>
+                </el-form>
+            </el-collapse-item>
+        </el-collapse>
+    </div>
 </template>
 
 <style scoped>

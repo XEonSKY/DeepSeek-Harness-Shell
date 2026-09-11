@@ -13,26 +13,26 @@ export type { ResolvedLocale }
  * 界面语言由 dsh settings.yaml 的 locale.preference 决定，语言码统一为 zh / en。
  */
 export const i18n = createI18n({
-  legacy: false,
-  globalInjection: true,
-  locale: 'zh',
-  fallbackLocale: 'zh',
-  missingWarn: false,
-  fallbackWarn: false,
-  messages: {
-    zh,
-    en
-  }
+    legacy: false,
+    globalInjection: true,
+    locale: 'zh',
+    fallbackLocale: 'zh',
+    missingWarn: false,
+    fallbackWarn: false,
+    messages: {
+        zh,
+        en
+    }
 })
 
 /** 把 vue-i18n 切到某语言（不写盘；持久化走 setUiLocale）。 */
 export function setLocale(locale: ResolvedLocale): void {
-  i18n.global.locale.value = locale
+    i18n.global.locale.value = locale
 }
 
 /** 当前界面语言（与 setLocale 对称；供外部读取，避免直接访问 i18n.global）。 */
 export function currentLocale(): ResolvedLocale {
-  return i18n.global.locale.value as ResolvedLocale
+    return i18n.global.locale.value as ResolvedLocale
 }
 
 /**
@@ -40,7 +40,7 @@ export function currentLocale(): ResolvedLocale {
  * 之前 update.ts、useSettingsStore.ts、AppearancePanel.vue 各自重复定义了一份，现统一于此。
  */
 export function tt(key: string, named?: Record<string, unknown>): string {
-  return named ? i18n.global.t(key, named) : i18n.global.t(key)
+    return named ? i18n.global.t(key, named) : i18n.global.t(key)
 }
 
 // ---------------------------------------------------------------------------
@@ -51,27 +51,27 @@ export function tt(key: string, named?: Record<string, unknown>): string {
 export type { ExtStyle }
 
 function pingRefresh(): void {
-  const cur = i18n.global.locale.value
-  if (cur === 'zh' || cur === 'en') {
-    i18n.global.locale.value = '__ext_ping__' as never
-    i18n.global.locale.value = cur
-  }
+    const cur = i18n.global.locale.value
+    if (cur === 'zh' || cur === 'en') {
+        i18n.global.locale.value = '__ext_ping__' as never
+        i18n.global.locale.value = cur
+    }
 }
 
 /** 把「扩展翻译」应用到对应语言的文案目录（off 还原 zh 与 en 两套）。 */
 export function applyExtTranslation(style: ExtStyle): void {
-  if (style === 'off') {
-    i18n.global.setLocaleMessage('zh', catalogForLocale('zh', 'off') as any)
-    i18n.global.setLocaleMessage('en', catalogForLocale('en', 'off') as any)
-    pingRefresh()
-    return
-  }
-  const loc = styleLocaleOf(style)
-  i18n.global.setLocaleMessage(loc, catalogForLocale(loc, style) as any)
-  if (i18n.global.locale.value === loc) pingRefresh()
+    if (style === 'off') {
+        i18n.global.setLocaleMessage('zh', catalogForLocale('zh', 'off') as any)
+        i18n.global.setLocaleMessage('en', catalogForLocale('en', 'off') as any)
+        pingRefresh()
+        return
+    }
+    const loc = styleLocaleOf(style)
+    i18n.global.setLocaleMessage(loc, catalogForLocale(loc, style) as any)
+    if (i18n.global.locale.value === loc) pingRefresh()
 }
 
 /** 旧名兼容。 */
 export function applyFunToZh(style: ExtStyle): void {
-  applyExtTranslation(style)
+    applyExtTranslation(style)
 }

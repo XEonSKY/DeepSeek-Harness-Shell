@@ -21,21 +21,21 @@ import type { ResolvedLocale } from '@shared/types'
  * 据此挂载 vue-i18n 与 Element Plus。
  */
 async function bootstrap(): Promise<void> {
-  await loadShellMeta()
-  let resolved: ResolvedLocale = 'zh'
-  try {
-    resolved = await window.api.getUiLocale()
-  } catch {
+    await loadShellMeta()
+    let resolved: ResolvedLocale = 'zh'
+    try {
+        resolved = await window.api.getUiLocale()
+    } catch {
     /* window.api 可能在异常环境不可用，按 zh 处理 */
-  }
-  i18n.global.locale.value = resolved
+    }
+    i18n.global.locale.value = resolved
 
-  const app = createApp(App)
-  app.use(createPinia())
-  app.use(ElementPlus, { locale: resolved === 'zh' ? zhCn : en })
-  app.use(i18n)
-  app.use(router)
-  app.mount('#app')
+    const app = createApp(App)
+    app.use(createPinia())
+    app.use(ElementPlus, { locale: resolved === 'zh' ? zhCn : en })
+    app.use(i18n)
+    app.use(router)
+    app.mount('#app')
 }
 
 void bootstrap()

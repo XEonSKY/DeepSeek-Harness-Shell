@@ -15,19 +15,19 @@ import LogView from '../LogView.vue'
 </script>
 
 <template>
-  <div class="panel">
-    <div class="dsh-brand">
-      <div class="dsh-brand__icon"><el-icon :size="34"><CodeFilled /></el-icon></div>
-      <div class="dsh-brand__txt">
-        <div class="dsh-brand__name">{{ $t('sv.nav.log') }}</div>
-        <div class="dsh-brand__desc">{{ $t('sv.intro.log') }}</div>
-      </div>
-    </div>
+    <div class="panel">
+        <div class="dsh-brand">
+            <div class="dsh-brand__icon"><el-icon :size="34"><CodeFilled /></el-icon></div>
+            <div class="dsh-brand__txt">
+                <div class="dsh-brand__name">{{ $t('sv.nav.log') }}</div>
+                <div class="dsh-brand__desc">{{ $t('sv.intro.log') }}</div>
+            </div>
+        </div>
 
-    <div class="term">
-      <LogView />
+        <div class="term">
+            <LogView />
+        </div>
     </div>
-  </div>
 </template>
 
 <style scoped>

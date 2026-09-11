@@ -28,97 +28,97 @@ let offLog: (() => void) | null = null
 const isDark = (): boolean => document.documentElement.classList.contains('dark')
 
 function themeOf(dark: boolean): { background: string; foreground: string; cursor: string } {
-  return dark
-    ? { background: '#11151c', foreground: '#e6e6e6', cursor: '#6ea8ff' }
-    : { background: '#fbfbfb', foreground: '#1f2329', cursor: '#2f6fce' }
+    return dark
+        ? { background: '#11151c', foreground: '#e6e6e6', cursor: '#6ea8ff' }
+        : { background: '#fbfbfb', foreground: '#1f2329', cursor: '#2f6fce' }
 }
 
 function ensureFit(): void {
-  try {
-    fit?.fit()
-  } catch {
+    try {
+        fit?.fit()
+    } catch {
     /* element not laid out yet */
-  }
+    }
 }
 
 function scrollBottom(): void {
-  try {
-    term?.scrollToBottom()
-  } catch {
+    try {
+        term?.scrollToBottom()
+    } catch {
     /* ignore */
-  }
+    }
 }
 
 function write(k: LogEntry['k'], s: unknown): void {
-  if (!term) return
-  const text = String(s ?? '')
-  if (!text) return
-  // 错误流（stderr）着色提示；stdout 原样（其本身常已含 ANSI 颜色，交给 xterm 渲染）。
-  term.write(k === 'e' ? `\u001b[91m${text}\u001b[0m` : text)
-  written.value++
-  hasAny.value = true
-  if (autoScroll.value) scrollBottom()
+    if (!term) return
+    const text = String(s ?? '')
+    if (!text) return
+    // 错误流（stderr）着色提示；stdout 原样（其本身常已含 ANSI 颜色，交给 xterm 渲染）。
+    term.write(k === 'e' ? `\u001b[91m${text}\u001b[0m` : text)
+    written.value++
+    hasAny.value = true
+    if (autoScroll.value) scrollBottom()
 }
 
 function clear(): void {
-  term?.reset()
-  written.value = 0
-  hasAny.value = false
+    term?.reset()
+    written.value = 0
+    hasAny.value = false
 }
 
 onMounted(async () => {
-  term = new Terminal({
-    convertEol: true,
-    cursorBlink: false,
-    disableStdin: true,
-    allowProposedApi: false,
-    scrollback: 8000,
-    fontSize: 13,
-    lineHeight: 1.25,
-    fontFamily:
+    term = new Terminal({
+        convertEol: true,
+        cursorBlink: false,
+        disableStdin: true,
+        allowProposedApi: false,
+        scrollback: 8000,
+        fontSize: 13,
+        lineHeight: 1.25,
+        fontFamily:
       "ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace",
-    theme: themeOf(isDark())
-  })
-  fit = new FitAddon()
-  term.loadAddon(fit)
-  if (host.value) term.open(host.value)
-  ensureFit()
-  ro = new ResizeObserver(ensureFit)
-  if (host.value) ro.observe(host.value)
+        theme: themeOf(isDark())
+    })
+    fit = new FitAddon()
+    term.loadAddon(fit)
+    if (host.value) term.open(host.value)
+    ensureFit()
+    ro = new ResizeObserver(ensureFit)
+    if (host.value) ro.observe(host.value)
 
-  const history = await window.api.getLogHistory()
-  for (const entry of history) write(entry.k, entry.s)
-  offLog = window.api.onLog((entry) => write(entry.k, entry.s))
+    const history = await window.api.getLogHistory()
+    for (const entry of history) write(entry.k, entry.s)
+    offLog = window.api.onLog((entry) => write(entry.k, entry.s))
 })
 
 onBeforeUnmount(() => {
-  offLog?.()
-  ro?.disconnect()
-  ro = null
-  try {
-    term?.dispose()
-  } catch {
+    offLog?.()
+    ro?.disconnect()
+    ro = null
+    try {
+        term?.dispose()
+    } catch {
     /* already gone */
-  }
-  term = null
-  fit = null
+    }
+    term = null
+    fit = null
 })
 </script>
 
 <template>
-  <div class="log">
-    <div class="log__bar">
-      <span class="meta">{{ $t('log.lineCount', { count: written }) }}</span>
-      <div class="spacer" />
-      <el-checkbox v-model="autoScroll">{{ $t('log.autoScroll') }}</el-checkbox>
-      <el-button size="small" text type="danger" @click="clear">
-        <el-icon><DeleteOutlined /></el-icon>
-        <span>{{ $t('log.clear') }}</span>
-      </el-button>
+    <div class="log">
+        <div class="log__bar">
+            <span class="meta">{{ $t('log.lineCount', { count: written }) }}</span>
+            <div class="spacer" />
+            <el-checkbox v-model="autoScroll">{{ $t('log.autoScroll') }}</el-checkbox>
+            <el-button size="small" text type="danger" @click="clear">
+                <el-icon><DeleteOutlined /></el-icon>
+                <span>{{ $t('log.clear') }}</span>
+            </el-button>
+        </div>
+        <div ref="host" class="log__host"></div>
+        <div v-if="!hasAny" class="placeholder">{{ $t('log.empty') }}</div>
     </div>
-    <div ref="host" class="log__host"></div>
-    <div v-if="!hasAny" class="placeholder">{{ $t('log.empty') }}</div>
-  </div>
 </template>
 
 <style scoped>

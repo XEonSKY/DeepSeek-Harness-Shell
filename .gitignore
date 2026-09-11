@@ -89,6 +89,10 @@ temp/
 *.orig
 *.rej
 
+# ---------- 文档站（VitePress） ----------
+.vitepress/cache/
+.vitepress/dist/
+
 # ---------- 本项目特定 ----------
 .workbuddy
 AGENT.md

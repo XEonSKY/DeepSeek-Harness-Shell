@@ -8,26 +8,26 @@ import { matchesAccelerator } from '@shared/hotkeys'
 import { loadSettings, mt } from './settings'
 import { APP_TITLE } from './const'
 import {
-  getCurrentUrl,
-  getMainWindow,
-  setMainWindow,
-  getTray,
-  setTray,
-  isQuitting,
-  setQuitting,
-  destroyTray,
-  broadcast,
-  sendToWindow,
-  sendToWcId,
-  sendCore
+    getCurrentUrl,
+    getMainWindow,
+    setMainWindow,
+    getTray,
+    setTray,
+    isQuitting,
+    setQuitting,
+    destroyTray,
+    broadcast,
+    sendToWindow,
+    sendToWcId,
+    sendCore
 } from './runtime'
 import { registerShellWindow, hasCoreWindow, promoteNextToCore, windowByContentsId, listWindows } from './windowreg'
 import { attachContextMenu } from './contextmenu'
 
 function rendererIndex(): string {
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
-  if (devUrl) return devUrl
-  return path.join(__dirname, '../renderer/index.html')
+    const devUrl = process.env['ELECTRON_RENDERER_URL']
+    if (devUrl) return devUrl
+    return path.join(__dirname, '../renderer/index.html')
 }
 
 /**
@@ -38,16 +38,16 @@ function rendererIndex(): string {
  * 缺文件时回退到浅色图标，避免设置成空图标。
  */
 function appIconPath(): string {
-  const dir = path.join(app.getAppPath(), 'resources')
-  const dark = path.join(dir, 'icon-dark.png')
-  if (nativeTheme.shouldUseDarkColors && fs.existsSync(dark)) return dark
-  return path.join(dir, 'icon.png')
+    const dir = path.join(app.getAppPath(), 'resources')
+    const dark = path.join(dir, 'icon-dark.png')
+    if (nativeTheme.shouldUseDarkColors && fs.existsSync(dark)) return dark
+    return path.join(dir, 'icon.png')
 }
 
 /** 当前应用图标（路径不存在时返回 undefined，交由调用方决定回退）。 */
 function appIconImage(): NativeImage | undefined {
-  const p = appIconPath()
-  return fs.existsSync(p) ? nativeImage.createFromPath(p) : undefined
+    const p = appIconPath()
+    return fs.existsSync(p) ? nativeImage.createFromPath(p) : undefined
 }
 
 let iconThemeHooked = false
@@ -57,39 +57,39 @@ let iconThemeHooked = false
  * 触发源是 `nativeTheme` 的 'updated' 事件（themeSource 变化或系统偏好变化都会触发）。
  */
 function hookIconTheme(): void {
-  if (iconThemeHooked) return
-  iconThemeHooked = true
-  nativeTheme.on('updated', () => {
-    const img = appIconImage()
-    if (!img || img.isEmpty()) return
-    for (const w of listWindows()) {
-      if (!w.isDestroyed()) w.setIcon(img)
-    }
-    const t = getTray()
-    if (t && !t.isDestroyed()) t.setImage(img.resize({ width: 16, height: 16 }))
-  })
+    if (iconThemeHooked) return
+    iconThemeHooked = true
+    nativeTheme.on('updated', () => {
+        const img = appIconImage()
+        if (!img || img.isEmpty()) return
+        for (const w of listWindows()) {
+            if (!w.isDestroyed()) w.setIcon(img)
+        }
+        const t = getTray()
+        if (t && !t.isDestroyed()) t.setImage(img.resize({ width: 16, height: 16 }))
+    })
 }
 
 function clampPopupPx(n: number): number {
-  if (!Number.isFinite(n) || n <= 0) return 0
-  return Math.max(300, Math.min(1600, Math.round(n)))
+    if (!Number.isFinite(n) || n <= 0) return 0
+    return Math.max(300, Math.min(1600, Math.round(n)))
 }
 
 /** 从 window.open 的 features 提取宽高（默认用 900x720）。 */
 function parsePopupSize(features: string): { width: number; height: number } {
-  const out = { width: 900, height: 720 }
-  const mW = /(?:^|,)width=(\d+)/i.exec(features)
-  const mH = /(?:^|,)height=(\d+)/i.exec(features)
-  const w = mW ? clampPopupPx(Number(mW[1])) : 0
-  const h = mH ? clampPopupPx(Number(mH[1])) : 0
-  if (w) out.width = w
-  if (h) out.height = h
-  return out
+    const out = { width: 900, height: 720 }
+    const mW = /(?:^|,)width=(\d+)/i.exec(features)
+    const mH = /(?:^|,)height=(\d+)/i.exec(features)
+    const w = mW ? clampPopupPx(Number(mW[1])) : 0
+    const h = mH ? clampPopupPx(Number(mH[1])) : 0
+    if (w) out.width = w
+    if (h) out.height = h
+    return out
 }
 
 /** 弹窗特征：带 frameName 或 features 视为真弹窗（开独立窗口），否则按普通新标签链接处理。 */
 function isPopupRequest(frameName: string, features: string): boolean {
-  return !!frameName || !!features
+    return !!frameName || !!features
 }
 
 /**
@@ -99,41 +99,41 @@ function isPopupRequest(frameName: string, features: string): boolean {
  *   （多窗口下不再群发给所有窗口）。owner 为发起窗口；缺省（如弹窗内再点普通链接）回退到核心窗口。
  */
 function openWebWindow(url: string, frameName: string, features: string, owner?: BrowserWindow | null): void {
-  if (!/^https?:/i.test(url)) return
-  if (isPopupRequest(frameName, features)) {
-    createPopupWindow(url, features)
-  } else if (owner && !owner.isDestroyed()) {
-    sendToWindow(owner, 'ui:new-tab', url)
-  } else {
-    sendCore('ui:new-tab', url)
-  }
+    if (!/^https?:/i.test(url)) return
+    if (isPopupRequest(frameName, features)) {
+        createPopupWindow(url, features)
+    } else if (owner && !owner.isDestroyed()) {
+        sendToWindow(owner, 'ui:new-tab', url)
+    } else {
+        sendCore('ui:new-tab', url)
+    }
 }
 
 /** 建一个独立的网页窗口（真弹窗用）。不属于壳窗口，不入册、不参与核心接管。 */
 function createPopupWindow(url: string, features: string): void {
-  const { width, height } = parsePopupSize(features)
-  const iconPath = appIconPath()
-  const win = new BrowserWindow({
-    width,
-    height,
-    autoHideMenuBar: true,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webviewTag: false
-    }
-  })
-  win.webContents.setWindowOpenHandler(({ url: u, frameName, features: f }) => {
+    const { width, height } = parsePopupSize(features)
+    const iconPath = appIconPath()
+    const win = new BrowserWindow({
+        width,
+        height,
+        autoHideMenuBar: true,
+        icon: fs.existsSync(iconPath) ? iconPath : undefined,
+        webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webviewTag: false
+        }
+    })
+    win.webContents.setWindowOpenHandler(({ url: u, frameName, features: f }) => {
     // 弹窗内再要新开：普通链接交给核心窗口（无明确发起壳窗口）；真弹窗继续开弹窗。
-    openWebWindow(u, frameName, f)
-    return { action: 'deny' }
-  })
-  win.once('ready-to-show', () => win.show())
-  void win.loadURL(url).catch(() => {
-    if (!win.isDestroyed()) win.close()
-  })
+        openWebWindow(u, frameName, f)
+        return { action: 'deny' }
+    })
+    win.once('ready-to-show', () => win.show())
+    void win.loadURL(url).catch(() => {
+        if (!win.isDestroyed()) win.close()
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -147,17 +147,17 @@ function createPopupWindow(url: string, features: string): void {
  *   - dsh:url           → 新核心此前未收过内核地址，补发当前 dsh URL。
  */
 function finalizeWindowClosed(win: BrowserWindow): void {
-  if (getMainWindow() === win) setMainWindow(null)
-  if (isQuitting()) return // 真退出：不把角色递给同样在关闭的窗口
-  if (hasCoreWindow()) return // 还有别的核心窗口在跑（例如刚创建的新核心）
-  const nextId = promoteNextToCore()
-  if (nextId == null) return // 已无其它壳窗口
-  const next = windowByContentsId(nextId)
-  if (!next) return
-  setMainWindow(next)
-  sendToWcId(nextId, 'shell:core', true)
-  const url = getCurrentUrl()
-  if (url) sendToWcId(nextId, 'dsh:url', url)
+    if (getMainWindow() === win) setMainWindow(null)
+    if (isQuitting()) return // 真退出：不把角色递给同样在关闭的窗口
+    if (hasCoreWindow()) return // 还有别的核心窗口在跑（例如刚创建的新核心）
+    const nextId = promoteNextToCore()
+    if (nextId == null) return // 已无其它壳窗口
+    const next = windowByContentsId(nextId)
+    if (!next) return
+    setMainWindow(next)
+    sendToWcId(nextId, 'shell:core', true)
+    const url = getCurrentUrl()
+    if (url) sendToWcId(nextId, 'dsh:url', url)
 }
 
 /**
@@ -169,10 +169,10 @@ const openIntent = new Map<number, string>()
 
 /** 取走并清除某窗口的开页意图；无则 null。 */
 export function takeOpenIntent(wcId: number): string | null {
-  if (wcId == null) return null
-  const u = openIntent.get(wcId) ?? null
-  openIntent.delete(wcId)
-  return u
+    if (wcId == null) return null
+    const u = openIntent.get(wcId) ?? null
+    openIntent.delete(wcId)
+    return u
 }
 
 /**
@@ -180,147 +180,147 @@ export function takeOpenIntent(wcId: number): string | null {
  * UI；副窗口是带完整标签条的浏览器窗口，但无内核 UI 固定站，且 UI 事件均只发回本窗口。
  */
 function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
-  Menu.setApplicationMenu(null)
-  hookIconTheme() // 窗口/托盘图标跟随深浅色（幂等，只挂一次）
-  const iconPath = appIconPath()
+    Menu.setApplicationMenu(null)
+    hookIconTheme() // 窗口/托盘图标跟随深浅色（幂等，只挂一次）
+    const iconPath = appIconPath()
 
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 900,
-    minHeight: 600,
-    title: 'DeepSeek Harness',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
-    frame: false, // frameless: the renderer draws its own title bar (drag + controls)
-    autoHideMenuBar: true,
-    show: false,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webviewTag: true, // dsh Web UI / 站点均以 <webview> 内嵌
-      preload: path.join(__dirname, '../preload/index.js')
-    }
-  })
-
-  registerShellWindow(win, core)
-  const wcId = win.webContents.id // 捕获 id：'closed' 后 webContents 已销毁，届时不能再访问 win.webContents
-  if (core) setMainWindow(win) // 主窗口语义 = 当前核心窗口（托盘/对话框回退等用它）
-  if (!core && initialUrl) openIntent.set(wcId, initialUrl)
-  // 核心窗口首个 ready-to-show 再显形避免白屏；副窗口立即 show()（有些环境 ready-to-show
-  // 对后开的窗口不触发，会导致窗口一直隐藏、看起来“没出现”）。ready-to-show 到达时再 show 一次也无害。
-  if (core) win.once('ready-to-show', () => win.show())
-  else win.show()
-  const wc = win.webContents
-
-  // 最大化状态定向推给本窗口：自定义标题栏的「最大化 / 还原」按钮要按状态换图标与提示。
-  // 除按钮外，双击拖动区、系统快捷键、Aero Snap 都会改变状态，所以监听窗口事件而不是只靠按钮回传。
-  const pushMaximized = (): void => {
-    if (!win.isDestroyed()) sendToWindow(win, 'win:maximized', win.isMaximized())
-  }
-  win.on('maximize', pushMaximized)
-  win.on('unmaximize', pushMaximized)
-
-  // Fixed window title: page titles never rename the shell window. 核心窗口恒为软件名；
-  // 副窗口默认软件名，之后由渲染层用 shell:set-title 推“<当前标签页标题> - 软件名”驱动。
-  wc.on('page-title-updated', (e) => e.preventDefault())
-  win.on('page-title-updated', (e) => e.preventDefault())
-  if (core) {
-    const enforceTitle = (): void => { if (!win.isDestroyed()) win.setTitle(APP_TITLE) }
-    win.once('ready-to-show', enforceTitle)
-    wc.on('did-navigate', enforceTitle)
-  }
-
-  // 应用内快捷键（可在设置 → 快捷键里改；匹配规则见 shared/hotkeys.ts，修饰键必须完全一致）。
-  const isMac = process.platform === 'darwin'
-  const toggleViewHere = (): void => sendToWindow(win, 'ui:toggle-view')
-  /** 本窗口是否要吃掉这个按键：命中「切换终端视图」或「DevTools」即吃掉。 */
-  const handleHotkey = (
-    input: { type: string; key: string; control: boolean; meta: boolean; alt: boolean; shift: boolean },
-    event: { preventDefault: () => void }
-  ): boolean => {
-    if (input.type !== 'keyDown') return false
-    const s = loadSettings()
-    const ev = { key: input.key, control: input.control, meta: input.meta, alt: input.alt, shift: input.shift }
-    if (matchesAccelerator(s.hotkeyToggleTerminal, ev, isMac)) {
-      event.preventDefault()
-      toggleViewHere()
-      return true
-    }
-    // DevTools 快捷键：只在「开发模式」开启时生效（与 F12 的既有语义一致）。
-    if (matchesAccelerator(s.hotkeyDevTools, ev, isMac)) {
-      event.preventDefault()
-      if (!s.devMode) return true
-      if (wc.isDevToolsOpened()) wc.closeDevTools()
-      else wc.openDevTools({ mode: 'detach' })
-      return true
-    }
-    return false
-  }
-  wc.on('before-input-event', (event, input) => {
-    handleHotkey(input, event)
-  })
-  // 右键菜单：外壳自己的 webContents（设置页输入框 / 页面里拖选的文本）
-  attachContextMenu(wc, win)
-  wc.on('did-attach-webview', (_event, guest) => {
-    guest.on('before-input-event', (gEvent, input) => {
-      handleHotkey(input, gEvent)
+    const win = new BrowserWindow({
+        width: 1280,
+        height: 860,
+        minWidth: 900,
+        minHeight: 600,
+        title: 'DeepSeek Harness',
+        icon: fs.existsSync(iconPath) ? iconPath : undefined,
+        frame: false, // frameless: the renderer draws its own title bar (drag + controls)
+        autoHideMenuBar: true,
+        show: false,
+        webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            webviewTag: true, // dsh Web UI / 站点均以 <webview> 内嵌
+            preload: path.join(__dirname, '../preload/index.js')
+        }
     })
-    // 内嵌 webview（DeepSeek UI / 网页 / 动态标签）也要有复制粘贴菜单
-    attachContextMenu(guest, win)
-    guest.setWindowOpenHandler(({ url, frameName, features }) => {
-      // 本窗口的 webview 里新开：普通链接 → 本窗口新标签；真弹窗 → 独立窗口。
-      openWebWindow(url, frameName, features, win)
-      return { action: 'deny' }
-    })
-  })
 
-  // 渲染层加载完成后：核心窗口若在它加载前 dsh 已就绪则补发地址（初始开页意图由渲染层
-  // 挂载后经 shell:take-open-intent 取走，避免时序竞态）。
-  wc.on('did-finish-load', () => {
+    registerShellWindow(win, core)
+    const wcId = win.webContents.id // 捕获 id：'closed' 后 webContents 已销毁，届时不能再访问 win.webContents
+    if (core) setMainWindow(win) // 主窗口语义 = 当前核心窗口（托盘/对话框回退等用它）
+    if (!core && initialUrl) openIntent.set(wcId, initialUrl)
+    // 核心窗口首个 ready-to-show 再显形避免白屏；副窗口立即 show()（有些环境 ready-to-show
+    // 对后开的窗口不触发，会导致窗口一直隐藏、看起来“没出现”）。ready-to-show 到达时再 show 一次也无害。
+    if (core) win.once('ready-to-show', () => win.show())
+    else win.show()
+    const wc = win.webContents
+
+    // 最大化状态定向推给本窗口：自定义标题栏的「最大化 / 还原」按钮要按状态换图标与提示。
+    // 除按钮外，双击拖动区、系统快捷键、Aero Snap 都会改变状态，所以监听窗口事件而不是只靠按钮回传。
+    const pushMaximized = (): void => {
+        if (!win.isDestroyed()) sendToWindow(win, 'win:maximized', win.isMaximized())
+    }
+    win.on('maximize', pushMaximized)
+    win.on('unmaximize', pushMaximized)
+
+    // Fixed window title: page titles never rename the shell window. 核心窗口恒为软件名；
+    // 副窗口默认软件名，之后由渲染层用 shell:set-title 推“<当前标签页标题> - 软件名”驱动。
+    wc.on('page-title-updated', (e) => e.preventDefault())
+    win.on('page-title-updated', (e) => e.preventDefault())
     if (core) {
-      const url = getCurrentUrl()
-      if (url) sendToWindow(win, 'dsh:url', url)
+        const enforceTitle = (): void => { if (!win.isDestroyed()) win.setTitle(APP_TITLE) }
+        win.once('ready-to-show', enforceTitle)
+        wc.on('did-navigate', enforceTitle)
     }
-  })
 
-  // Close behaviour：
-  // - 若这是最后一个壳窗口且存在托盘 → 隐藏到托盘 / 应用记忆的选择 / 询问（询问只发回本窗口）。
-  // - 否则（有托盘且有其它窗口、或根本没有托盘）→ 让窗口真正关闭。若关掉的是核心且仍有副窗口，
-  //   会在 closed 里把角色移交给最早的副窗口（见 finalizeWindowClosed），而不是退出整个应用。
-  win.on('close', (e) => {
-    if (isQuitting()) return // real quit (tray "退出" / close-resolve quit) — let it close
-    const others = listWindows().filter((w) => w !== win)
-    const lastWithTray = getTray() && others.length === 0
-    if (!lastWithTray) return // not the final window (or no tray) → allow real close
+    // 应用内快捷键（可在设置 → 快捷键里改；匹配规则见 shared/hotkeys.ts，修饰键必须完全一致）。
+    const isMac = process.platform === 'darwin'
+    const toggleViewHere = (): void => sendToWindow(win, 'ui:toggle-view')
+    /** 本窗口是否要吃掉这个按键：命中「切换终端视图」或「DevTools」即吃掉。 */
+    const handleHotkey = (
+        input: { type: string; key: string; control: boolean; meta: boolean; alt: boolean; shift: boolean },
+        event: { preventDefault: () => void }
+    ): boolean => {
+        if (input.type !== 'keyDown') return false
+        const s = loadSettings()
+        const ev = { key: input.key, control: input.control, meta: input.meta, alt: input.alt, shift: input.shift }
+        if (matchesAccelerator(s.hotkeyToggleTerminal, ev, isMac)) {
+            event.preventDefault()
+            toggleViewHere()
+            return true
+        }
+        // DevTools 快捷键：只在「开发模式」开启时生效（与 F12 的既有语义一致）。
+        if (matchesAccelerator(s.hotkeyDevTools, ev, isMac)) {
+            event.preventDefault()
+            if (!s.devMode) return true
+            if (wc.isDevToolsOpened()) wc.closeDevTools()
+            else wc.openDevTools({ mode: 'detach' })
+            return true
+        }
+        return false
+    }
+    wc.on('before-input-event', (event, input) => {
+        handleHotkey(input, event)
+    })
+    // 右键菜单：外壳自己的 webContents（设置页输入框 / 页面里拖选的文本）
+    attachContextMenu(wc, win)
+    wc.on('did-attach-webview', (_event, guest) => {
+        guest.on('before-input-event', (gEvent, input) => {
+            handleHotkey(input, gEvent)
+        })
+        // 内嵌 webview（DeepSeek UI / 网页 / 动态标签）也要有复制粘贴菜单
+        attachContextMenu(guest, win)
+        guest.setWindowOpenHandler(({ url, frameName, features }) => {
+            // 本窗口的 webview 里新开：普通链接 → 本窗口新标签；真弹窗 → 独立窗口。
+            openWebWindow(url, frameName, features, win)
+            return { action: 'deny' }
+        })
+    })
 
-    e.preventDefault()
+    // 渲染层加载完成后：核心窗口若在它加载前 dsh 已就绪则补发地址（初始开页意图由渲染层
+    // 挂载后经 shell:take-open-intent 取走，避免时序竞态）。
+    wc.on('did-finish-load', () => {
+        if (core) {
+            const url = getCurrentUrl()
+            if (url) sendToWindow(win, 'dsh:url', url)
+        }
+    })
 
-    const s = loadSettings()
-    if (s.rememberClose) {
-      if (s.closeToTray) {
-        if (!win.isDestroyed()) win.hide()
-      } else {
-        setQuitting(true)
-        app.quit()
-      }
+    // Close behaviour：
+    // - 若这是最后一个壳窗口且存在托盘 → 隐藏到托盘 / 应用记忆的选择 / 询问（询问只发回本窗口）。
+    // - 否则（有托盘且有其它窗口、或根本没有托盘）→ 让窗口真正关闭。若关掉的是核心且仍有副窗口，
+    //   会在 closed 里把角色移交给最早的副窗口（见 finalizeWindowClosed），而不是退出整个应用。
+    win.on('close', (e) => {
+        if (isQuitting()) return // real quit (tray "退出" / close-resolve quit) — let it close
+        const others = listWindows().filter((w) => w !== win)
+        const lastWithTray = getTray() && others.length === 0
+        if (!lastWithTray) return // not the final window (or no tray) → allow real close
+
+        e.preventDefault()
+
+        const s = loadSettings()
+        if (s.rememberClose) {
+            if (s.closeToTray) {
+                if (!win.isDestroyed()) win.hide()
+            } else {
+                setQuitting(true)
+                app.quit()
+            }
+        } else {
+            sendToWindow(win, 'ui:ask-close') // 本窗口 renderer 弹 Element Plus 询问
+        }
+    })
+
+    win.on('closed', () => {
+        openIntent.delete(wcId)
+        finalizeWindowClosed(win)
+    })
+
+    const devUrl = process.env['ELECTRON_RENDERER_URL']
+    if (devUrl) {
+        void wc.loadURL(devUrl)
     } else {
-      sendToWindow(win, 'ui:ask-close') // 本窗口 renderer 弹 Element Plus 询问
+        void wc.loadFile(rendererIndex())
     }
-  })
-
-  win.on('closed', () => {
-    openIntent.delete(wcId)
-    finalizeWindowClosed(win)
-  })
-
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
-  if (devUrl) {
-    void wc.loadURL(devUrl)
-  } else {
-    void wc.loadFile(rendererIndex())
-  }
-  return win
+    return win
 }
 
 /**
@@ -328,7 +328,7 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
  * 时被真正销毁，若有副窗口则会把核心角色移交给它们。
  */
 export function createShellWindow(): void {
-  buildShellWindow(true)
+    buildShellWindow(true)
 }
 
 /**
@@ -336,50 +336,50 @@ export function createShellWindow(): void {
  * 动态标签页承载之；url 为内置导航页伪链接(dssh://about:blank)时，在其中开一个内置导航页。
  */
 export function createSecondaryShellWindow(url?: string): BrowserWindow | null {
-  const okHttp = typeof url === 'string' && /^https?:/i.test(url)
-  const okNewtab = isNewTabTarget(url)
-  if (!okHttp && !okNewtab) return null // 只接受 http(s) 或内置导航页伪链接
-  const initial = okNewtab ? NEWTAB_URL : (url as string)
-  try {
-    const win = buildShellWindow(false, initial)
-    console.log('[shell] created secondary window wcId=', win.webContents.id, 'target=', initial ?? '(none)')
-    return win
-  } catch (err) {
-    console.error('[shell] failed to create secondary window:', err)
-    return null
-  }
+    const okHttp = typeof url === 'string' && /^https?:/i.test(url)
+    const okNewtab = isNewTabTarget(url)
+    if (!okHttp && !okNewtab) return null // 只接受 http(s) 或内置导航页伪链接
+    const initial = okNewtab ? NEWTAB_URL : (url as string)
+    try {
+        const win = buildShellWindow(false, initial)
+        console.log('[shell] created secondary window wcId=', win.webContents.id, 'target=', initial ?? '(none)')
+        return win
+    } catch (err) {
+        console.error('[shell] failed to create secondary window:', err)
+        return null
+    }
 }
 
 /**
  * 把某个标签页/URL 开到一个新副窗口（右键“在新窗口打开 / 移动到其它窗口”用）。
  */
 export function openStandaloneWindow(url: string): BrowserWindow | null {
-  return createSecondaryShellWindow(url)
+    return createSecondaryShellWindow(url)
 }
 
 /** 聚焦核心窗口（副窗口“跳转核心窗口”按钮用）；无核心则重建一个。 */
 export function focusCoreWindow(): void {
-  const core = getMainWindow()
-  if (core && !core.isDestroyed()) {
+    const core = getMainWindow()
+    if (core && !core.isDestroyed()) {
     // 最小化时 isVisible() 仍为 true，只 show()+focus() 拉不回来，必须先 restore()。
-    if (core.isMinimized()) core.restore()
-    if (!core.isVisible()) core.show()
-    core.focus()
-    return
-  }
-  createShellWindow()
+        if (core.isMinimized()) core.restore()
+        if (!core.isVisible()) core.show()
+        core.focus()
+        return
+    }
+    createShellWindow()
 }
 
 /** Show the main (core) window, or recreate it if it was destroyed. */
 export function showMainWindow(): void {
-  const w = getMainWindow()
-  if (w && !w.isDestroyed()) {
-    if (w.isMinimized()) w.restore()
-    if (!w.isVisible()) w.show()
-    w.focus()
-  } else {
-    createShellWindow()
-  }
+    const w = getMainWindow()
+    if (w && !w.isDestroyed()) {
+        if (w.isMinimized()) w.restore()
+        if (!w.isVisible()) w.show()
+        w.focus()
+    } else {
+        createShellWindow()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -391,13 +391,13 @@ let registeredGlobalHotkey = ''
 
 /** 把主进程 globalShortcut 的真实状态告诉渲染层（设置页据此提示「被占用」）。 */
 function pushHotkeyState(state: HotkeyState): void {
-  broadcast('hotkey:state', state)
+    broadcast('hotkey:state', state)
 }
 
 /** 当前全局快捷键状态（渲染层进入设置页时问一次）。 */
 export function globalHotkeyState(): HotkeyState {
-  const want = (loadSettings().hotkeyFocusWindow || '').trim()
-  return { accelerator: registeredGlobalHotkey || want, ok: !want || registeredGlobalHotkey === want }
+    const want = (loadSettings().hotkeyFocusWindow || '').trim()
+    return { accelerator: registeredGlobalHotkey || want, ok: !want || registeredGlobalHotkey === want }
 }
 
 /**
@@ -406,73 +406,73 @@ export function globalHotkeyState(): HotkeyState {
  * 必须在 `app.whenReady()` 之后调用。
  */
 export function syncGlobalHotkey(): void {
-  const want = (loadSettings().hotkeyFocusWindow || '').trim()
-  if (want === registeredGlobalHotkey) return
-  if (registeredGlobalHotkey) {
-    try {
-      globalShortcut.unregister(registeredGlobalHotkey)
-    } catch {
-      /* 已经不在了 */
+    const want = (loadSettings().hotkeyFocusWindow || '').trim()
+    if (want === registeredGlobalHotkey) return
+    if (registeredGlobalHotkey) {
+        try {
+            globalShortcut.unregister(registeredGlobalHotkey)
+        } catch {
+            /* 已经不在了 */
+        }
+        registeredGlobalHotkey = ''
     }
-    registeredGlobalHotkey = ''
-  }
-  if (!want) {
-    pushHotkeyState({ accelerator: '', ok: true })
-    return
-  }
-  let ok = false
-  try {
-    ok = globalShortcut.register(want, () => showMainWindow())
-  } catch {
-    ok = false
-  }
-  if (ok) registeredGlobalHotkey = want
-  pushHotkeyState({ accelerator: want, ok })
+    if (!want) {
+        pushHotkeyState({ accelerator: '', ok: true })
+        return
+    }
+    let ok: boolean
+    try {
+        ok = globalShortcut.register(want, () => showMainWindow())
+    } catch {
+        ok = false
+    }
+    if (ok) registeredGlobalHotkey = want
+    pushHotkeyState({ accelerator: want, ok })
 }
 
 /** System tray: close hides the (core) window here; "退出" really quits (and stops dsh). */
 export function createTray(): void {
-  try {
-    const iconPath = appIconPath()
-    let img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
-    if (!img.isEmpty()) img = img.resize({ width: 16, height: 16 })
-    const t = new Tray(img)
-    setTray(t)
+    try {
+        const iconPath = appIconPath()
+        let img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
+        if (!img.isEmpty()) img = img.resize({ width: 16, height: 16 })
+        const t = new Tray(img)
+        setTray(t)
 
-    const visibleWindow = (): BrowserWindow | null => {
-      const w = getMainWindow()
-      return w && !w.isDestroyed() ? w : null
-    }
-    t.setToolTip('DeepSeek Harness Shell')
-    t.setContextMenu(
-      Menu.buildFromTemplate([
-        {
-          label: mt('m.tray.showHide'),
-          click: () => {
+        const visibleWindow = (): BrowserWindow | null => {
+            const w = getMainWindow()
+            return w && !w.isDestroyed() ? w : null
+        }
+        t.setToolTip('DeepSeek Harness Shell')
+        t.setContextMenu(
+            Menu.buildFromTemplate([
+                {
+                    label: mt('m.tray.showHide'),
+                    click: () => {
+                        const w = visibleWindow()
+                        if (w && w.isVisible()) w.hide()
+                        else showMainWindow()
+                    }
+                },
+                { type: 'separator' },
+                { label: mt('m.tray.quitDsh'), click: quitApp }
+            ])
+        )
+        t.on('click', () => {
             const w = visibleWindow()
             if (w && w.isVisible()) w.hide()
             else showMainWindow()
-          }
-        },
-        { type: 'separator' },
-        { label: mt('m.tray.quitDsh'), click: quitApp }
-      ])
-    )
-    t.on('click', () => {
-      const w = visibleWindow()
-      if (w && w.isVisible()) w.hide()
-      else showMainWindow()
-    })
-  } catch (err) {
+        })
+    } catch (err) {
     // Tray may be unavailable (e.g. some Linux setups). Degrade gracefully.
-    console.error('[Manager] failed to create tray:', err)
-    setTray(null)
-  }
+        console.error('[Manager] failed to create tray:', err)
+        setTray(null)
+    }
 }
 
 /** Tray-driven real quit. */
 export function quitApp(): void {
-  setQuitting(true)
-  destroyTray()
-  app.quit()
+    setQuitting(true)
+    destroyTray()
+    app.quit()
 }

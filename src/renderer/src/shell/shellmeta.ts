@@ -5,18 +5,18 @@ import { reactive } from 'vue'
  * 新开的非核心窗口 isCore=false。由 bootstrap 在挂载前读取。
  */
 export const shellMeta = reactive<{ winId: number; isCore: boolean; loaded: boolean }>({
-  winId: 0,
-  isCore: true,
-  loaded: false
+    winId: 0,
+    isCore: true,
+    loaded: false
 })
 
 export async function loadShellMeta(): Promise<void> {
-  try {
-    const m = await window.api.getShellMeta()
-    shellMeta.winId = m.winId
-    shellMeta.isCore = m.isCore
-  } catch {
+    try {
+        const m = await window.api.getShellMeta()
+        shellMeta.winId = m.winId
+        shellMeta.isCore = m.isCore
+    } catch {
     /* 异常环境按核心窗口处理 */
-  }
-  shellMeta.loaded = true
+    }
+    shellMeta.loaded = true
 }

@@ -16,5 +16,5 @@ import iconDark from '../assets/icon-dark.png'
  *   <img :src="appIcon" />
  */
 export function useAppIcon(): ComputedRef<string> {
-  return computed(() => (isDark.value ? iconDark : iconLight))
+    return computed(() => (isDark.value ? iconDark : iconLight))
 }

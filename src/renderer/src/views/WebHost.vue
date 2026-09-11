@@ -34,23 +34,23 @@ const addrEditing = ref(false)
 
 /** 用某 webview 刷新导航栏状态（仅当其仍是激活标签页时）。 */
 function syncNavFrom(wv: WebviewEl | null): void {
-  if (!wv || wv !== wvApi.activeWv()) return
-  try {
-    const url = typeof wv.getURL === 'function' ? (wv.getURL() as string) : ''
-    nav.url = url || ''
-    nav.canBack = typeof wv.canGoBack === 'function' ? !!wv.canGoBack() : false
-    nav.canForward = typeof wv.canGoForward === 'function' ? !!wv.canGoForward() : false
-    if (!addrEditing.value) urlInput.value = nav.url
-  } catch {
+    if (!wv || wv !== wvApi.activeWv()) return
+    try {
+        const url = typeof wv.getURL === 'function' ? (wv.getURL() as string) : ''
+        nav.url = url || ''
+        nav.canBack = typeof wv.canGoBack === 'function' ? !!wv.canGoBack() : false
+        nav.canForward = typeof wv.canGoForward === 'function' ? !!wv.canGoForward() : false
+        if (!addrEditing.value) urlInput.value = nav.url
+    } catch {
     /* ignore */
-  }
+    }
 }
 
 const wvApi = useWebviews({
-  onNavChange: (wv) => syncNavFrom(wv),
-  onLoadingChange: (loading) => {
-    nav.loading = loading
-  }
+    onNavChange: (wv) => syncNavFrom(wv),
+    onLoadingChange: (loading) => {
+        nav.loading = loading
+    }
 })
 const { setHolder } = wvApi
 
@@ -59,184 +59,184 @@ const showNav = computed(() => activeTab()?.kind === 'dynamic')
 
 // ---- 导航栏动作 ----
 function navBack(): void {
-  const wv = wvApi.activeWv()
-  if (wv && typeof wv.goBack === 'function') wv.goBack()
+    const wv = wvApi.activeWv()
+    if (wv && typeof wv.goBack === 'function') wv.goBack()
 }
 function navForward(): void {
-  const wv = wvApi.activeWv()
-  if (wv && typeof wv.goForward === 'function') wv.goForward()
+    const wv = wvApi.activeWv()
+    if (wv && typeof wv.goForward === 'function') wv.goForward()
 }
 function navReload(): void {
-  const wv = wvApi.activeWv()
-  if (!wv) return
-  if (nav.loading && typeof wv.stop === 'function') wv.stop()
-  else if (typeof wv.reload === 'function') wv.reload()
+    const wv = wvApi.activeWv()
+    if (!wv) return
+    if (nav.loading && typeof wv.stop === 'function') wv.stop()
+    else if (typeof wv.reload === 'function') wv.reload()
 }
 /** 处理地址栏输入：URL / 扩展协议 / 搜索。 */
 async function onAddressEnter(): Promise<void> {
-  const wv = wvApi.activeWv()
-  if (!wv) return
-  const raw = urlInput.value.trim()
-  if (!raw) {
-    urlInput.value = nav.url
-    return
-  }
-  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(raw)
-  if (scheme) {
-    const proto = scheme[1].toLowerCase()
-    // http/https/about 由 webview 内置加载；其它协议（mailto:/tel:/自定义等）交系统打开。
-    if (proto === 'http' || proto === 'https' || proto === 'about') {
-      urlInput.value = raw
-      if (typeof wv.loadURL === 'function') await wv.loadURL(raw).catch(() => {})
-    } else {
-      urlInput.value = nav.url
-      await window.api.openExternal(raw)
+    const wv = wvApi.activeWv()
+    if (!wv) return
+    const raw = urlInput.value.trim()
+    if (!raw) {
+        urlInput.value = nav.url
+        return
     }
-    return
-  }
-  let url: string
-  if (/^[\w.-]+\.[a-zA-Z]{2,}$/.test(raw)) {
-    url = 'https://' + raw
-  } else {
-    url = buildSearchUrl(defaultEngine, raw) // 非网址 → 默认引擎搜索
-  }
-  urlInput.value = url
-  try {
-    if (typeof wv.loadURL === 'function') await wv.loadURL(url)
-  } catch {
+    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(raw)
+    if (scheme) {
+        const proto = scheme[1].toLowerCase()
+        // http/https/about 由 webview 内置加载；其它协议（mailto:/tel:/自定义等）交系统打开。
+        if (proto === 'http' || proto === 'https' || proto === 'about') {
+            urlInput.value = raw
+            if (typeof wv.loadURL === 'function') await wv.loadURL(raw).catch(() => {})
+        } else {
+            urlInput.value = nav.url
+            await window.api.openExternal(raw)
+        }
+        return
+    }
+    let url: string
+    if (/^[\w.-]+\.[a-zA-Z]{2,}$/.test(raw)) {
+        url = 'https://' + raw
+    } else {
+        url = buildSearchUrl(defaultEngine, raw) // 非网址 → 默认引擎搜索
+    }
+    urlInput.value = url
+    try {
+        if (typeof wv.loadURL === 'function') await wv.loadURL(url)
+    } catch {
     /* did-fail-load will surface */
-  }
+    }
 }
 
 function stopPolling(): void {
-  if (pollTimer !== null) {
-    window.clearInterval(pollTimer)
-    pollTimer = null
-  }
+    if (pollTimer !== null) {
+        window.clearInterval(pollTimer)
+        pollTimer = null
+    }
 }
 
 function startPolling(): void {
-  if (pollTimer !== null) return
-  let tries = 0
-  pollTimer = window.setInterval(async () => {
-    if (activeTab()?.url) {
-      stopPolling()
-      return
-    }
-    if (++tries > 120) {
-      stopPolling()
-      return
-    }
-    try {
-      const u = await window.api.getDshUrl()
-      if (u) {
-        setHomeUrl(u)
-        stopPolling()
-      }
-    } catch {
-      /* keep polling */
-    }
-  }, 1000)
+    if (pollTimer !== null) return
+    let tries = 0
+    pollTimer = window.setInterval(async () => {
+        if (activeTab()?.url) {
+            stopPolling()
+            return
+        }
+        if (++tries > 120) {
+            stopPolling()
+            return
+        }
+        try {
+            const u = await window.api.getDshUrl()
+            if (u) {
+                setHomeUrl(u)
+                stopPolling()
+            }
+        } catch {
+            /* keep polling */
+        }
+    }, 1000)
 }
 
 // 标签页增减 / 激活切换 / LRU 次序(used) / home URL 变化 → 重建激活 webview + 保活裁剪。
 watch(
-  () =>
-    (webTabs.activeId ?? '') +
+    () =>
+        (webTabs.activeId ?? '') +
     '|' +
     webTabs.list.map((t) => `${t.id}:${t.kind}:${t.used}:${t.keep ? 1 : 0}:${t.url ?? ''}`).join('~'),
-  () => {
-    wvApi.ensureActive() // 激活标签页若无 webview 则新建（激活的动态必属于最近保活集）
-    wvApi.prune() // 裁剪：只保留固定三站 + 最近 3 个动态标签页的 webview
-    wvApi.syncHomeUrl()
-    syncNavFrom(wvApi.activeWv())
-  },
-  { flush: 'post' }
+    () => {
+        wvApi.ensureActive() // 激活标签页若无 webview 则新建（激活的动态必属于最近保活集）
+        wvApi.prune() // 裁剪：只保留固定三站 + 最近 3 个动态标签页的 webview
+        wvApi.syncHomeUrl()
+        syncNavFrom(wvApi.activeWv())
+    },
+    { flush: 'post' }
 )
 
 onMounted(async () => {
-  try {
-    const s = await window.api.getSettings()
-    wvApi.setZoom(s.zoomPercent ?? 100)
-    defaultEngine = s.searchEngine || 'bing'
-  } catch {
-    wvApi.setZoom(100)
-  }
+    try {
+        const s = await window.api.getSettings()
+        wvApi.setZoom(s.zoomPercent ?? 100)
+        defaultEngine = s.searchEngine || 'bing'
+    } catch {
+        wvApi.setZoom(100)
+    }
 
-  // dsh:url 只定向发给“核心窗口”，但这里始终订阅：若本窗口稍后被提升为新的核心窗口，
-  // 主进程会在提升后补发 dsh:url，让内核 UI 固定站能及时拿到地址。
-  offUrl = window.api.onDshUrl((u) => setHomeUrl(u))
-  offNewTab = window.api.onNewTab((url) => { openTarget(url) })
-  offReload = window.api.onReloadDsh(() => wvApi.reloadActive())
-  offSettings = window.api.onSettingsChanged((s) => {
-    wvApi.setZoom(s.zoomPercent ?? 100)
-    if (s.searchEngine) defaultEngine = s.searchEngine
-  })
+    // dsh:url 只定向发给“核心窗口”，但这里始终订阅：若本窗口稍后被提升为新的核心窗口，
+    // 主进程会在提升后补发 dsh:url，让内核 UI 固定站能及时拿到地址。
+    offUrl = window.api.onDshUrl((u) => setHomeUrl(u))
+    offNewTab = window.api.onNewTab((url) => { openTarget(url) })
+    offReload = window.api.onReloadDsh(() => wvApi.reloadActive())
+    offSettings = window.api.onSettingsChanged((s) => {
+        wvApi.setZoom(s.zoomPercent ?? 100)
+        if (s.searchEngine) defaultEngine = s.searchEngine
+    })
 
-  // 初始拉取 dsh URL 只对核心窗口做（内核 UI 固定站只在核心窗口）；副窗口由主进程以
-  // ui:new-tab 定向给一个动态标签页，不需 home。
-  wvApi.ensureActive()
-  syncNavFrom(wvApi.activeWv())
-  if (shellMeta.isCore) {
-    const u = await window.api.getDshUrl()
-    if (u) setHomeUrl(u)
-    else startPolling()
-  }
+    // 初始拉取 dsh URL 只对核心窗口做（内核 UI 固定站只在核心窗口）；副窗口由主进程以
+    // ui:new-tab 定向给一个动态标签页，不需 home。
+    wvApi.ensureActive()
+    syncNavFrom(wvApi.activeWv())
+    if (shellMeta.isCore) {
+        const u = await window.api.getDshUrl()
+        if (u) setHomeUrl(u)
+        else startPolling()
+    }
 })
 
 onBeforeUnmount(() => {
-  stopPolling()
-  offUrl?.()
-  offNewTab?.()
-  offReload?.()
-  offSettings?.()
-  wvApi.destroyAll()
+    stopPolling()
+    offUrl?.()
+    offNewTab?.()
+    offReload?.()
+    offSettings?.()
+    wvApi.destroyAll()
 })
 </script>
 
 <template>
-  <div class="whost">
-    <!-- 浏览器式导航栏：仅在动态标签页激活时显示（三个固定站用标题栏旧版刷新按钮） -->
-    <div v-if="showNav" class="wb-nav">
-      <button class="wn" type="button" :disabled="!nav.canBack" title="←" @click="navBack">
-        <el-icon :size="16"><ArrowLeftOutlined /></el-icon>
-      </button>
-      <button class="wn" type="button" :disabled="!nav.canForward" title="→" @click="navForward">
-        <el-icon :size="16"><ArrowRightOutlined /></el-icon>
-      </button>
-      <button class="wn" type="button" title="reload / stop" @click="navReload">
-        <el-icon :size="15" :class="{ spin: nav.loading }"><ReloadOutlined /></el-icon>
-      </button>
-      <div class="wn-addr pill-input">
-        <el-input
-          v-model="urlInput"
-          :placeholder="$t('app.tabs.promptPlaceholder')"
-          clearable
-          @focus="addrEditing = true"
-          @blur="addrEditing = false"
-          @keyup.enter="onAddressEnter"
-        />
-      </div>
-    </div>
+    <div class="whost">
+        <!-- 浏览器式导航栏：仅在动态标签页激活时显示（三个固定站用标题栏旧版刷新按钮） -->
+        <div v-if="showNav" class="wb-nav">
+            <button class="wn" type="button" :disabled="!nav.canBack" title="←" @click="navBack">
+                <el-icon :size="16"><ArrowLeftOutlined /></el-icon>
+            </button>
+            <button class="wn" type="button" :disabled="!nav.canForward" title="→" @click="navForward">
+                <el-icon :size="16"><ArrowRightOutlined /></el-icon>
+            </button>
+            <button class="wn" type="button" title="reload / stop" @click="navReload">
+                <el-icon :size="15" :class="{ spin: nav.loading }"><ReloadOutlined /></el-icon>
+            </button>
+            <div class="wn-addr pill-input">
+                <el-input
+                    v-model="urlInput"
+                    :placeholder="$t('app.tabs.promptPlaceholder')"
+                    clearable
+                    @focus="addrEditing = true"
+                    @blur="addrEditing = false"
+                    @keyup.enter="onAddressEnter"
+                />
+            </div>
+        </div>
 
-    <div class="wb-stage">
-      <div
-        v-for="tab in webTabs.list"
-        :key="tab.id"
-        class="whost__pane"
-        :class="{ on: tab.id === webTabs.activeId }"
-      >
-        <!-- 内置导航页（无 webview） -->
-        <NewTab v-if="tab.kind === 'newtab'" />
-        <template v-else>
-          <div class="whost__holder" :ref="(el) => setHolder(tab.id, el as HTMLDivElement | null)"></div>
-          <div v-if="!tab.url" class="whost__wait">
-            <el-icon class="spin" :size="36"><LoadingOutlined /></el-icon>
-          </div>
-        </template>
-      </div>
+        <div class="wb-stage">
+            <div
+                v-for="tab in webTabs.list"
+                :key="tab.id"
+                class="whost__pane"
+                :class="{ on: tab.id === webTabs.activeId }"
+            >
+                <!-- 内置导航页（无 webview） -->
+                <NewTab v-if="tab.kind === 'newtab'" />
+                <template v-else>
+                    <div class="whost__holder" :ref="(el) => setHolder(tab.id, el as HTMLDivElement | null)"></div>
+                    <div v-if="!tab.url" class="whost__wait">
+                        <el-icon class="spin" :size="36"><LoadingOutlined /></el-icon>
+                    </div>
+                </template>
+            </div>
+        </div>
     </div>
-  </div>
 </template>
 
 <style scoped>

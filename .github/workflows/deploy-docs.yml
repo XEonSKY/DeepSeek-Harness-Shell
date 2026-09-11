@@ -1,0 +1,62 @@
+name: Deploy Docs
+
+# 把文档站发布到 GitHub Pages：
+# - 仅在 main 分支、且改动涉及文档或配置时触发；
+# - 构建 VitePress 产物（.vitepress/dist）并用官方 Pages Actions 部署。
+# 前置：仓库 Settings → Pages → Build and deployment → Source 选择 "GitHub Actions"。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.vitepress/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+# Pages 部署所需权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个 Pages 部署，避免相互覆盖
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Build docs (VitePress)
+        run: npm run docs:build
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

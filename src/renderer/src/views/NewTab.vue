@@ -22,36 +22,36 @@ const inputRef = ref<{ focus?: () => void } | null>(null)
 
 /** 顶部固定三站（直达已有固定标签页）。图标与标题栏保持一致用实心，见 AGENT.md §6。 */
 const fixedSites = [
-  { id: 'home', key: 'app.nav.ui', icon: DeepSeekFilled },
-  { id: 'chat', key: 'app.nav.chat', icon: MessageFilled },
-  { id: 'platform', key: 'app.nav.platform', icon: WalletFilled }
+    { id: 'home', key: 'app.nav.ui', icon: DeepSeekFilled },
+    { id: 'chat', key: 'app.nav.chat', icon: MessageFilled },
+    { id: 'platform', key: 'app.nav.platform', icon: WalletFilled }
 ] as const
 
 onMounted(async () => {
-  void nextTick(() => inputRef.value?.focus?.())
-  try {
-    const s = await window.api.getSettings()
-    engine.value = s.searchEngine || 'bing'
-    shortcuts.value = Array.isArray(s.shortcuts) ? s.shortcuts : []
-  } catch {
+    void nextTick(() => inputRef.value?.focus?.())
+    try {
+        const s = await window.api.getSettings()
+        engine.value = s.searchEngine || 'bing'
+        shortcuts.value = Array.isArray(s.shortcuts) ? s.shortcuts : []
+    } catch {
     /* defaults */
-  }
+    }
 })
 
 /** 离开当前导航页（导航页是一次性的）。 */
 function leave(act: () => void): void {
-  const curId = webTabs.activeId
-  const curKind = activeTab()?.kind
-  act()
-  if (curKind === 'newtab' && curId) {
-    const cur = findTab(curId)
-    if (cur) closeTab(curId)
-  }
+    const curId = webTabs.activeId
+    const curKind = activeTab()?.kind
+    act()
+    if (curKind === 'newtab' && curId) {
+        const cur = findTab(curId)
+        if (cur) closeTab(curId)
+    }
 }
 
 /** 点固定三站：切到对应固定标签页并关闭本导航页。 */
 function goFixed(id: string): void {
-  leave(() => activateTab(id))
+    leave(() => activateTab(id))
 }
 
 /**
@@ -60,94 +60,94 @@ function goFixed(id: string): void {
  * 原先前置的 `activeTab()?.kind === 'newtab'` 分支与 `leave()` 包装都是等价路径（死分支）。
  */
 function openUrl(url: string, title?: string): void {
-  launchFromNewTab(url, title)
+    launchFromNewTab(url, title)
 }
 
 /** 提交搜索/网址。 */
 async function submit(): Promise<void> {
-  const s = q.value.trim()
-  if (!s) return
-  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(s)
-  if (scheme) {
-    const proto = scheme[1].toLowerCase()
-    if (proto === 'http' || proto === 'https') openUrl(s)
-    else await window.api.openExternal(s) // 扩展/非内置协议交给系统
-    return
-  }
-  if (/^[\w.-]+\.[a-zA-Z]{2,}$/.test(s)) {
-    openUrl('https://' + s, s)
-    return
-  }
-  openUrl(buildSearchUrl(engine.value, s), s)
+    const s = q.value.trim()
+    if (!s) return
+    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(s)
+    if (scheme) {
+        const proto = scheme[1].toLowerCase()
+        if (proto === 'http' || proto === 'https') openUrl(s)
+        else await window.api.openExternal(s) // 扩展/非内置协议交给系统
+        return
+    }
+    if (/^[\w.-]+\.[a-zA-Z]{2,}$/.test(s)) {
+        openUrl('https://' + s, s)
+        return
+    }
+    openUrl(buildSearchUrl(engine.value, s), s)
 }
 
 /** 空状态里的「去设置添加」：切到设置页（分类在常规页）。 */
 function openSettings(): void {
-  go('settings')
+    go('settings')
 }
 </script>
 
 <template>
-  <div class="nt">
-    <!-- 内层负责居中：外层是滚动容器，直接给它 justify-content:center 会在内容超屏时裁掉顶部 -->
-    <div class="nt__inner">
-      <img :src="appIcon" class="nt__logo" alt="" draggable="false" />
-      <h1 class="nt__title">{{ $t('app.title') }}</h1>
+    <div class="nt">
+        <!-- 内层负责居中：外层是滚动容器，直接给它 justify-content:center 会在内容超屏时裁掉顶部 -->
+        <div class="nt__inner">
+            <img :src="appIcon" class="nt__logo" alt="" draggable="false" />
+            <h1 class="nt__title">{{ $t('app.title') }}</h1>
 
-      <form class="nt__search" @submit.prevent="submit">
-        <el-select v-model="engine" class="nt__engine" :placeholder="$t('navPage.engineLabel')">
-          <el-option v-for="id in SEARCH_ENGINE_IDS" :key="id" :value="id" :label="$t(ENGINE_LABEL_KEY[id])" />
-        </el-select>
-        <!-- 回车只走表单的 submit：再挂 keyup.enter 会与原生隐式提交叠加，同一个查询开两个标签页 -->
-        <el-input
-          ref="inputRef"
-          v-model="q"
-          class="nt__input pill-input"
-          :placeholder="$t('navPage.placeholder')"
-          clearable
-          autofocus
-        />
-        <el-button native-type="submit" type="primary" class="nt__go">
-          <el-icon :size="16"><SearchOutlined /></el-icon>
-          <span>{{ $t('navPage.search') }}</span>
-        </el-button>
-      </form>
+            <form class="nt__search" @submit.prevent="submit">
+                <el-select v-model="engine" class="nt__engine" :placeholder="$t('navPage.engineLabel')">
+                    <el-option v-for="id in SEARCH_ENGINE_IDS" :key="id" :value="id" :label="$t(ENGINE_LABEL_KEY[id])" />
+                </el-select>
+                <!-- 回车只走表单的 submit：再挂 keyup.enter 会与原生隐式提交叠加，同一个查询开两个标签页 -->
+                <el-input
+                    ref="inputRef"
+                    v-model="q"
+                    class="nt__input pill-input"
+                    :placeholder="$t('navPage.placeholder')"
+                    clearable
+                    autofocus
+                />
+                <el-button native-type="submit" type="primary" class="nt__go">
+                    <el-icon :size="16"><SearchOutlined /></el-icon>
+                    <span>{{ $t('navPage.search') }}</span>
+                </el-button>
+            </form>
 
-      <section class="nt__quick">
-        <h2 class="nt__h">{{ $t('navPage.quick') }}</h2>
-        <div class="nt__grid">
-          <button
-            v-for="site in fixedSites"
-            :key="site.id"
-            class="nt__cell"
-            type="button"
-            @click="goFixed(site.id)"
-          >
-            <span class="nt__badge nt__badge--brand"><el-icon :size="18"><component :is="site.icon" /></el-icon></span>
-            <span class="nt__label">{{ $t(site.key) }}</span>
-          </button>
+            <section class="nt__quick">
+                <h2 class="nt__h">{{ $t('navPage.quick') }}</h2>
+                <div class="nt__grid">
+                    <button
+                        v-for="site in fixedSites"
+                        :key="site.id"
+                        class="nt__cell"
+                        type="button"
+                        @click="goFixed(site.id)"
+                    >
+                        <span class="nt__badge nt__badge--brand"><el-icon :size="18"><component :is="site.icon" /></el-icon></span>
+                        <span class="nt__label">{{ $t(site.key) }}</span>
+                    </button>
 
-          <a
-            v-for="(sc, i) in shortcuts"
-            :key="i"
-            class="nt__cell"
-            href="#"
-            @click.prevent="openUrl(sc.url, sc.title)"
-          >
-            <span class="nt__badge">{{ (sc.title || '☆').slice(0, 1) }}</span>
-            <span class="nt__label">{{ sc.title }}</span>
-          </a>
+                    <a
+                        v-for="(sc, i) in shortcuts"
+                        :key="i"
+                        class="nt__cell"
+                        href="#"
+                        @click.prevent="openUrl(sc.url, sc.title)"
+                    >
+                        <span class="nt__badge">{{ (sc.title || '☆').slice(0, 1) }}</span>
+                        <span class="nt__label">{{ sc.title }}</span>
+                    </a>
+                </div>
+
+                <p v-if="!shortcuts.length" class="nt__empty">
+                    <span>{{ $t('navPage.noShortcuts') }}</span>
+                    <el-button text type="primary" size="small" @click="openSettings">
+                        {{ $t('navPage.addInSettings') }}
+                    </el-button>
+                </p>
+            </section>
         </div>
-
-        <p v-if="!shortcuts.length" class="nt__empty">
-          <span>{{ $t('navPage.noShortcuts') }}</span>
-          <el-button text type="primary" size="small" @click="openSettings">
-            {{ $t('navPage.addInSettings') }}
-          </el-button>
-        </p>
-      </section>
     </div>
-  </div>
 </template>
 
 <style scoped>

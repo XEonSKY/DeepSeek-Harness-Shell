@@ -48,10 +48,10 @@ const probingEnv = ref(false)
 
 /** 系统 Node 是否可用（存在且主版本 ≥ 内核要求，阈值见 shared/version.ts）。 */
 const systemNodeOk = computed(() => {
-  const v = envProbe.value?.node.version
-  if (!envProbe.value?.node.present || !v) return false
-  const major = nodeMajor(v)
-  return major !== null && major >= MIN_KERNEL_NODE_MAJOR
+    const v = envProbe.value?.node.version
+    if (!envProbe.value?.node.present || !v) return false
+    const major = nodeMajor(v)
+    return major !== null && major >= MIN_KERNEL_NODE_MAJOR
 })
 
 // 所选 Node 运行时（安装时随设置持久化）。
@@ -60,162 +60,162 @@ const deployingNode = ref(false)
 const deployPercent = ref(0)
 
 const runtimeHint = computed(() => {
-  const c = nodeRuntimeChoice.value
-  if (c === 'system') return t('kernelMissing.node.hintSystem')
-  if (c === 'local') return t('kernelMissing.node.hintLocal')
-  return t('kernelMissing.node.hintElectron')
+    const c = nodeRuntimeChoice.value
+    if (c === 'system') return t('kernelMissing.node.hintSystem')
+    if (c === 'local') return t('kernelMissing.node.hintLocal')
+    return t('kernelMissing.node.hintElectron')
 })
 
 async function deployOnce(): Promise<boolean> {
-  if (deployingNode.value) return false
-  deployingNode.value = true
-  deployPercent.value = 0
-  try {
-    const r = await window.api.deployLocalNode()
-    if (r.ok) {
-      deployPercent.value = 100
-      ElMessage.success(r.message)
-      return true
+    if (deployingNode.value) return false
+    deployingNode.value = true
+    deployPercent.value = 0
+    try {
+        const r = await window.api.deployLocalNode()
+        if (r.ok) {
+            deployPercent.value = 100
+            ElMessage.success(r.message)
+            return true
+        }
+        ElMessage.error(r.message)
+        return false
+    } catch (err) {
+        ElMessage.error(err instanceof Error ? err.message : String(err))
+        return false
+    } finally {
+        deployingNode.value = false
+        await probeEnv()
     }
-    ElMessage.error(r.message)
-    return false
-  } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : String(err))
-    return false
-  } finally {
-    deployingNode.value = false
-    await probeEnv()
-  }
 }
 const deployNode = (): Promise<void> => deployOnce().then(() => undefined)
 
 async function probeEnv(): Promise<void> {
-  probingEnv.value = true
-  try {
-    envProbe.value = await window.api.probeEnv()
-    // 所选 npm 在不可用时回退到内置 npm。
-    if (envProbe.value) {
-      if (installNpm.value === 'system' && !envProbe.value.npm) installNpm.value = 'bundled'
-      else if (installNpm.value === 'localnode' && !envProbe.value.local.present) installNpm.value = 'bundled'
+    probingEnv.value = true
+    try {
+        envProbe.value = await window.api.probeEnv()
+        // 所选 npm 在不可用时回退到内置 npm。
+        if (envProbe.value) {
+            if (installNpm.value === 'system' && !envProbe.value.npm) installNpm.value = 'bundled'
+            else if (installNpm.value === 'localnode' && !envProbe.value.local.present) installNpm.value = 'bundled'
+        }
+        // 选了系统 Node 但实际不可用（<20 / 缺失）时回退到 Electron。
+        if (envProbe.value && nodeRuntimeChoice.value === 'system' && !systemNodeOk.value) {
+            nodeRuntimeChoice.value = 'electron'
+        }
+    } finally {
+        probingEnv.value = false
     }
-    // 选了系统 Node 但实际不可用（<20 / 缺失）时回退到 Electron。
-    if (envProbe.value && nodeRuntimeChoice.value === 'system' && !systemNodeOk.value) {
-      nodeRuntimeChoice.value = 'electron'
-    }
-  } finally {
-    probingEnv.value = false
-  }
 }
 
 // 配置目录选择（第 0 步）：当前有效路径 + 默认路径。
 const cfgDir = ref('')
 const cfgDefaultDir = ref('')
 async function loadConfigDir(): Promise<void> {
-  try {
-    const info = await window.api.getConfigDir()
-    cfgDir.value = info.current
-    cfgDefaultDir.value = info.default
-  } catch {
+    try {
+        const info = await window.api.getConfigDir()
+        cfgDir.value = info.current
+        cfgDefaultDir.value = info.default
+    } catch {
     /* ignore */
-  }
+    }
 }
 async function pickConfigDir(): Promise<void> {
-  const p = await window.api.openDirectory()
-  if (!p) return
-  cfgDir.value = await window.api.setConfigDir(p)
+    const p = await window.api.openDirectory()
+    if (!p) return
+    cfgDir.value = await window.api.setConfigDir(p)
 }
 async function resetConfigDir(): Promise<void> {
-  cfgDir.value = await window.api.setConfigDir(null)
+    cfgDir.value = await window.api.setConfigDir(null)
 }
 const back = (): void => {
-  if (step.value > 0) step.value = step.value - 1
+    if (step.value > 0) step.value = step.value - 1
 }
 
 /** 把向导当前选择持久化到设置。 */
 async function persistWizard(): Promise<boolean> {
-  try {
-    const cur = await window.api.getSettings()
-    await window.api.saveSettings({
-      ...cur,
-      npmRegistry: installReg.value,
-      kernelSource: installSource.value,
-      nodeRuntime: nodeRuntimeChoice.value,
-      npmSource: installSource.value === 'local' ? installNpm.value : cur.npmSource
-    })
-    return true
-  } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : String(err))
-    return false
-  }
+    try {
+        const cur = await window.api.getSettings()
+        await window.api.saveSettings({
+            ...cur,
+            npmRegistry: installReg.value,
+            kernelSource: installSource.value,
+            nodeRuntime: nodeRuntimeChoice.value,
+            npmSource: installSource.value === 'local' ? installNpm.value : cur.npmSource
+        })
+        return true
+    } catch (err) {
+        ElMessage.error(err instanceof Error ? err.message : String(err))
+        return false
+    }
 }
 
 /** 第 3 步：真正安装内核。 */
 async function performInstall(): Promise<boolean> {
-  installLog.value = []
-  try {
-    if (!(await persistWizard())) return false
-    const r = await window.api.installKernel({
-      version: installVersion.value || null,
-      registry: installReg.value
-    })
-    if (!r.ok) {
-      installError.value = r.message
-      return false
+    installLog.value = []
+    try {
+        if (!(await persistWizard())) return false
+        const r = await window.api.installKernel({
+            version: installVersion.value || null,
+            registry: installReg.value
+        })
+        if (!r.ok) {
+            installError.value = r.message
+            return false
+        }
+        return true
+    } catch (err) {
+        installError.value = err instanceof Error ? err.message : String(err)
+        return false
     }
-    return true
-  } catch (err) {
-    installError.value = err instanceof Error ? err.message : String(err)
-    return false
-  }
 }
 
 /** 执行当前步（持久化 + 该步动作），成功后自动进入下一步 / 完成。 */
 async function runCurrentStep(): Promise<void> {
-  if (installingKernel.value) return
-  installingKernel.value = true
-  installError.value = ''
-  let ok = true
-  try {
-    if (step.value === 0) {
-      ok = await persistWizard()
-    } else if (step.value === 1) {
-      ok = await persistWizard()
-      // 选了本地 Node 但尚未部署 → 自动下载部署（带进度）。
-      if (ok && nodeRuntimeChoice.value === 'local' && envProbe.value && !envProbe.value.local.present) {
-        ok = await deployOnce()
-      }
-    } else if (step.value === 2) {
-      ok = await persistWizard()
-    } else {
-      ok = await performInstall()
+    if (installingKernel.value) return
+    installingKernel.value = true
+    installError.value = ''
+    let ok: boolean
+    try {
+        if (step.value === 0) {
+            ok = await persistWizard()
+        } else if (step.value === 1) {
+            ok = await persistWizard()
+            // 选了本地 Node 但尚未部署 → 自动下载部署（带进度）。
+            if (ok && nodeRuntimeChoice.value === 'local' && envProbe.value && !envProbe.value.local.present) {
+                ok = await deployOnce()
+            }
+        } else if (step.value === 2) {
+            ok = await persistWizard()
+        } else {
+            ok = await performInstall()
+        }
+    } finally {
+        installingKernel.value = false
     }
-  } finally {
-    installingKernel.value = false
-  }
-  if (!ok) return
-  if (step.value >= 3) {
-    emit('done') // 安装完成：主进程会自动启动 dsh，由父组件收起本向导
-  } else {
-    step.value = step.value + 1
-  }
+    if (!ok) return
+    if (step.value >= 3) {
+        emit('done') // 安装完成：主进程会自动启动 dsh，由父组件收起本向导
+    } else {
+        step.value = step.value + 1
+    }
 }
 
 async function loadInstallVersions(): Promise<void> {
-  if (versionsLoading.value) return
-  versionsLoading.value = true
-  try {
-    const list = await window.api.listVersions({
-      prerelease: installPrerelease.value,
-      registry: installReg.value
-    })
-    installVersions.value = list
-    // Default to the newest version within the current selection scope.
-    if (!list.includes(installVersion.value)) installVersion.value = list[0] ?? ''
-  } catch {
-    installVersions.value = []
-  } finally {
-    versionsLoading.value = false
-  }
+    if (versionsLoading.value) return
+    versionsLoading.value = true
+    try {
+        const list = await window.api.listVersions({
+            prerelease: installPrerelease.value,
+            registry: installReg.value
+        })
+        installVersions.value = list
+        // Default to the newest version within the current selection scope.
+        if (!list.includes(installVersion.value)) installVersion.value = list[0] ?? ''
+    } catch {
+        installVersions.value = []
+    } finally {
+        versionsLoading.value = false
+    }
 }
 
 // 预发布开关 / 镜像源变化时重建版本列表。
@@ -227,224 +227,224 @@ let offLog: (() => void) | null = null
 let offDeploy: (() => void) | null = null
 
 onMounted(() => {
-  // 安装时把主进程的 stdout/stderr 追加到本页日志。
-  offLog = window.api.onLog((entry) => {
-    if (!installingKernel.value) return
-    const line = (entry.k === 'e' ? '[err] ' : '') + entry.s
-    installLog.value.push(line)
-    if (installLog.value.length > 500) installLog.value.splice(0, installLog.value.length - 500)
-  })
-  offDeploy = window.api.onNodeDeployProgress((p) => {
-    deployPercent.value = p.percent
-  })
-  void (async () => {
-    const s = await window.api.getSettings()
-    installReg.value = s.npmRegistry
-    installPrerelease.value = s.checkPrerelease === true
-    installSource.value = s.kernelSource ?? 'local'
-    installNpm.value = s.npmSource ?? 'system'
-    nodeRuntimeChoice.value = s.nodeRuntime ?? 'electron'
-    await loadConfigDir()
-    await probeEnv()
-    await loadInstallVersions()
-  })()
+    // 安装时把主进程的 stdout/stderr 追加到本页日志。
+    offLog = window.api.onLog((entry) => {
+        if (!installingKernel.value) return
+        const line = (entry.k === 'e' ? '[err] ' : '') + entry.s
+        installLog.value.push(line)
+        if (installLog.value.length > 500) installLog.value.splice(0, installLog.value.length - 500)
+    })
+    offDeploy = window.api.onNodeDeployProgress((p) => {
+        deployPercent.value = p.percent
+    })
+    void (async () => {
+        const s = await window.api.getSettings()
+        installReg.value = s.npmRegistry
+        installPrerelease.value = s.checkPrerelease === true
+        installSource.value = s.kernelSource ?? 'local'
+        installNpm.value = s.npmSource ?? 'system'
+        nodeRuntimeChoice.value = s.nodeRuntime ?? 'electron'
+        await loadConfigDir()
+        await probeEnv()
+        await loadInstallVersions()
+    })()
 })
 
 onBeforeUnmount(() => {
-  offLog?.()
-  offDeploy?.()
+    offLog?.()
+    offDeploy?.()
 })
 </script>
 
 <template>
-  <div class="missing-mask">
-    <div class="missing-card">
-      <div class="missing-icon"><img :src="appIcon" alt="DeepSeek Harness Shell" draggable="false" class="missing-logo" /></div>
-      <h2 class="missing-title">{{ $t('kernelMissing.title') }}</h2>
-      <p class="missing-desc">{{ $t('kernelMissing.wizIntro', { pkg: '@deepseek-ai/dsh' }) }}</p>
+    <div class="missing-mask">
+        <div class="missing-card">
+            <div class="missing-icon"><img :src="appIcon" alt="DeepSeek Harness Shell" draggable="false" class="missing-logo" /></div>
+            <h2 class="missing-title">{{ $t('kernelMissing.title') }}</h2>
+            <p class="missing-desc">{{ $t('kernelMissing.wizIntro', { pkg: '@deepseek-ai/dsh' }) }}</p>
 
-      <el-steps :active="step" align-center finish-status="success" class="wiz-steps">
-        <el-step :title="$t('kernelMissing.wiz.source')" />
-        <el-step :title="$t('kernelMissing.wiz.node')" />
-        <el-step :title="$t('kernelMissing.wiz.npm')" />
-        <el-step :title="$t('kernelMissing.wiz.dsh')" />
-      </el-steps>
+            <el-steps :active="step" align-center finish-status="success" class="wiz-steps">
+                <el-step :title="$t('kernelMissing.wiz.source')" />
+                <el-step :title="$t('kernelMissing.wiz.node')" />
+                <el-step :title="$t('kernelMissing.wiz.npm')" />
+                <el-step :title="$t('kernelMissing.wiz.dsh')" />
+            </el-steps>
 
-      <div class="wiz-body">
-        <!-- 第 0 步：镜像源 + 配置目录 -->
-        <div v-if="step === 0" class="wiz-pane">
-          <div class="wiz-field">
-            <label class="wiz-label">{{ $t('kernelMissing.registry') }}</label>
-            <el-select v-model="installReg" class="missing-reg">
-              <el-option :label="$t('kernelMissing.registryNpmjs')" value="npmjs" />
-              <el-option :label="$t('kernelMissing.registryNpmmirror')" value="npmmirror" />
-            </el-select>
-            <div class="wiz-hint">{{ $t('kernelMissing.registryHint') }}</div>
-          </div>
+            <div class="wiz-body">
+                <!-- 第 0 步：镜像源 + 配置目录 -->
+                <div v-if="step === 0" class="wiz-pane">
+                    <div class="wiz-field">
+                        <label class="wiz-label">{{ $t('kernelMissing.registry') }}</label>
+                        <el-select v-model="installReg" class="missing-reg">
+                            <el-option :label="$t('kernelMissing.registryNpmjs')" value="npmjs" />
+                            <el-option :label="$t('kernelMissing.registryNpmmirror')" value="npmmirror" />
+                        </el-select>
+                        <div class="wiz-hint">{{ $t('kernelMissing.registryHint') }}</div>
+                    </div>
 
-          <div class="wiz-field">
-            <label class="wiz-label">{{ $t('kernelMissing.configDir') }}</label>
-            <div class="cfg-row">
-              <el-input :model-value="cfgDir" readonly :placeholder="cfgDefaultDir" />
-              <el-button type="primary" @click="pickConfigDir">{{ $t('kernelMissing.choose') }}</el-button>
-              <el-button v-if="cfgDir !== cfgDefaultDir" @click="resetConfigDir">{{ $t('kernelMissing.restoreDefault') }}</el-button>
+                    <div class="wiz-field">
+                        <label class="wiz-label">{{ $t('kernelMissing.configDir') }}</label>
+                        <div class="cfg-row">
+                            <el-input :model-value="cfgDir" readonly :placeholder="cfgDefaultDir" />
+                            <el-button type="primary" @click="pickConfigDir">{{ $t('kernelMissing.choose') }}</el-button>
+                            <el-button v-if="cfgDir !== cfgDefaultDir" @click="resetConfigDir">{{ $t('kernelMissing.restoreDefault') }}</el-button>
+                        </div>
+                        <div class="wiz-hint">{{ $t('kernelMissing.configDirHint') }}</div>
+                    </div>
+                </div>
+
+                <!-- 第 1 步：Node 环境（三选一） -->
+                <div v-else-if="step === 1" class="wiz-pane">
+                    <div class="wiz-field">
+                        <label class="wiz-label">{{ $t('kernelMissing.node.pick') }}</label>
+                        <el-radio-group v-model="nodeRuntimeChoice" class="nr-opts">
+                            <el-radio :value="'system'" :disabled="!systemNodeOk">
+                                {{ $t('kernelMissing.node.runtimeSystem') }}
+                                <span v-if="!envProbe || !envProbe.node.present" class="muted">（{{ $t('kernelMissing.node.notFound') }}）</span>
+                                <span v-else-if="!systemNodeOk" class="muted">（{{ $t('kernelMissing.node.need20') }}）</span>
+                                <code v-else class="node-ver">{{ envProbe?.node.version }}</code>
+                            </el-radio>
+                            <el-radio :value="'electron'">
+                                {{ $t('kernelMissing.node.runtimeElectron') }}
+                                <span class="muted">（{{ $t('kernelMissing.node.rtDefault') }}）</span>
+                            </el-radio>
+                            <el-radio :value="'local'">{{ $t('kernelMissing.node.runtimeLocal') }}</el-radio>
+                        </el-radio-group>
+                        <div class="wiz-hint">{{ runtimeHint }}</div>
+                    </div>
+
+                    <div v-if="nodeRuntimeChoice === 'local'" class="wiz-field nr-local">
+                        <template v-if="envProbe?.local.present">
+                            <el-tag type="success" size="small" effect="plain">{{ $t('kernelMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}</el-tag>
+                            <div class="wiz-btn-row">
+                                <el-button size="small" :loading="deployingNode" @click="deployNode">{{ $t('kernelMissing.node.redeploy') }}</el-button>
+                                <el-button size="small" :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <p class="wiz-hint">{{ $t('kernelMissing.node.deployHint') }}</p>
+                        </template>
+
+                        <!-- 下载进度 -->
+                        <el-progress
+                            v-if="deployingNode"
+                            :percentage="deployPercent"
+                            :status="deployPercent >= 100 ? 'success' : undefined"
+                            :stroke-width="8"
+                            class="deploy-progress"
+                        />
+                        <template v-if="!envProbe?.local.present">
+                            <div class="wiz-btn-row">
+                                <el-button type="primary" :icon="DownloadOutlined" :loading="deployingNode" @click="deployNode">
+                                    {{ $t('kernelMissing.node.deploy') }}
+                                </el-button>
+                                <el-button :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <p v-else-if="nodeRuntimeChoice === 'system'" class="wiz-note">
+                        {{ $t('kernelMissing.node.systemNote', { ver: envProbe?.node.version || '' }) }}
+                    </p>
+                </div>
+
+                <!-- 第 2 步：NPM 环境 -->
+                <div v-else-if="step === 2" class="wiz-pane">
+                    <div class="wiz-field">
+                        <label class="wiz-label">{{ $t('kernelMissing.npmSource') }}</label>
+                        <el-radio-group v-model="installNpm" class="npm-opts">
+                            <el-radio :value="'system'" :disabled="!envProbe?.npm">
+                                {{ $t('kernelMissing.npmSystem') }}
+                                <span v-if="!envProbe?.npm" class="muted">（{{ $t('kernelMissing.unavailable') }}）</span>
+                            </el-radio>
+                            <el-radio :value="'bundled'">{{ $t('kernelMissing.npmBundled') }}</el-radio>
+                            <el-radio v-if="envProbe?.local.present" :value="'localnode'">{{ $t('kernelMissing.npmLocalNode') }}</el-radio>
+                        </el-radio-group>
+                        <div class="wiz-hint">{{ $t('kernelMissing.npmHint') }}</div>
+                    </div>
+                </div>
+
+                <!-- 第 3 步：DSH 环境 -->
+                <div v-else class="wiz-pane">
+                    <div class="wiz-field">
+                        <label class="wiz-label">{{ $t('kernelMissing.kernelSource') }}</label>
+                        <el-radio-group v-model="installSource">
+                            <el-radio :value="'local'">{{ $t('kernelMissing.kernelLocal') }}</el-radio>
+                            <el-radio :value="'global'">{{ $t('kernelMissing.kernelGlobal') }}</el-radio>
+                        </el-radio-group>
+                    </div>
+                    <div class="wiz-field">
+                        <div class="missing-opt">
+                            <span>{{ $t('kernelMissing.preLabel') }}</span>
+                            <el-switch v-model="installPrerelease" />
+                        </div>
+                    </div>
+                    <div class="wiz-field">
+                        <label class="wiz-label">{{ $t('kernelMissing.version') }}</label>
+                        <div class="missing-vrow">
+                            <el-select
+                                v-model="installVersion"
+                                filterable
+                                :loading="versionsLoading"
+                                class="missing-reg"
+                                :placeholder="$t('kernelMissing.versionPlaceholder')"
+                            >
+                                <el-option v-for="v in installVersions" :key="v" :value="v" :label="v" />
+                            </el-select>
+                            <el-button :icon="ReloadOutlined" circle :loading="versionsLoading" @click="loadInstallVersions" />
+                        </div>
+                        <div class="wiz-hint">{{ $t('kernelMissing.versionHint') }}</div>
+                    </div>
+
+                    <p v-if="installError" class="missing-err">{{ installError }}</p>
+                </div>
             </div>
-            <div class="wiz-hint">{{ $t('kernelMissing.configDirHint') }}</div>
-          </div>
-        </div>
 
-        <!-- 第 1 步：Node 环境（三选一） -->
-        <div v-else-if="step === 1" class="wiz-pane">
-          <div class="wiz-field">
-            <label class="wiz-label">{{ $t('kernelMissing.node.pick') }}</label>
-            <el-radio-group v-model="nodeRuntimeChoice" class="nr-opts">
-              <el-radio :value="'system'" :disabled="!systemNodeOk">
-                {{ $t('kernelMissing.node.runtimeSystem') }}
-                <span v-if="!envProbe || !envProbe.node.present" class="muted">（{{ $t('kernelMissing.node.notFound') }}）</span>
-                <span v-else-if="!systemNodeOk" class="muted">（{{ $t('kernelMissing.node.need20') }}）</span>
-                <code v-else class="node-ver">{{ envProbe?.node.version }}</code>
-              </el-radio>
-              <el-radio :value="'electron'">
-                {{ $t('kernelMissing.node.runtimeElectron') }}
-                <span class="muted">（{{ $t('kernelMissing.node.rtDefault') }}）</span>
-              </el-radio>
-              <el-radio :value="'local'">{{ $t('kernelMissing.node.runtimeLocal') }}</el-radio>
-            </el-radio-group>
-            <div class="wiz-hint">{{ runtimeHint }}</div>
-          </div>
-
-          <div v-if="nodeRuntimeChoice === 'local'" class="wiz-field nr-local">
-            <template v-if="envProbe?.local.present">
-              <el-tag type="success" size="small" effect="plain">{{ $t('kernelMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}</el-tag>
-              <div class="wiz-btn-row">
-                <el-button size="small" :loading="deployingNode" @click="deployNode">{{ $t('kernelMissing.node.redeploy') }}</el-button>
-                <el-button size="small" :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
-              </div>
-            </template>
-            <template v-else>
-              <p class="wiz-hint">{{ $t('kernelMissing.node.deployHint') }}</p>
-            </template>
-
-            <!-- 下载进度 -->
-            <el-progress
-              v-if="deployingNode"
-              :percentage="deployPercent"
-              :status="deployPercent >= 100 ? 'success' : undefined"
-              :stroke-width="8"
-              class="deploy-progress"
-            />
-            <template v-if="!envProbe?.local.present">
-              <div class="wiz-btn-row">
-                <el-button type="primary" :icon="DownloadOutlined" :loading="deployingNode" @click="deployNode">
-                  {{ $t('kernelMissing.node.deploy') }}
-                </el-button>
-                <el-button :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
-              </div>
-            </template>
-          </div>
-
-          <p v-else-if="nodeRuntimeChoice === 'system'" class="wiz-note">
-            {{ $t('kernelMissing.node.systemNote', { ver: envProbe?.node.version || '' }) }}
-          </p>
-        </div>
-
-        <!-- 第 2 步：NPM 环境 -->
-        <div v-else-if="step === 2" class="wiz-pane">
-          <div class="wiz-field">
-            <label class="wiz-label">{{ $t('kernelMissing.npmSource') }}</label>
-            <el-radio-group v-model="installNpm" class="npm-opts">
-              <el-radio :value="'system'" :disabled="!envProbe?.npm">
-                {{ $t('kernelMissing.npmSystem') }}
-                <span v-if="!envProbe?.npm" class="muted">（{{ $t('kernelMissing.unavailable') }}）</span>
-              </el-radio>
-              <el-radio :value="'bundled'">{{ $t('kernelMissing.npmBundled') }}</el-radio>
-              <el-radio v-if="envProbe?.local.present" :value="'localnode'">{{ $t('kernelMissing.npmLocalNode') }}</el-radio>
-            </el-radio-group>
-            <div class="wiz-hint">{{ $t('kernelMissing.npmHint') }}</div>
-          </div>
-        </div>
-
-        <!-- 第 3 步：DSH 环境 -->
-        <div v-else class="wiz-pane">
-          <div class="wiz-field">
-            <label class="wiz-label">{{ $t('kernelMissing.kernelSource') }}</label>
-            <el-radio-group v-model="installSource">
-              <el-radio :value="'local'">{{ $t('kernelMissing.kernelLocal') }}</el-radio>
-              <el-radio :value="'global'">{{ $t('kernelMissing.kernelGlobal') }}</el-radio>
-            </el-radio-group>
-          </div>
-          <div class="wiz-field">
-            <div class="missing-opt">
-              <span>{{ $t('kernelMissing.preLabel') }}</span>
-              <el-switch v-model="installPrerelease" />
+            <!-- 每步执行进度条 -->
+            <div v-if="installingKernel" class="install-progress">
+                <div class="activity">
+                    <span class="activity__label">{{ step === 3 ? $t('kernelMissing.progressNpm') : $t('kernelMissing.executing') }}</span>
+                    <div class="activity-bar" />
+                </div>
+                <div v-if="step === 3" class="activity">
+                    <span class="activity__label">{{ $t('kernelMissing.progressDsh') }}</span>
+                    <div class="activity-bar" />
+                </div>
             </div>
-          </div>
-          <div class="wiz-field">
-            <label class="wiz-label">{{ $t('kernelMissing.version') }}</label>
-            <div class="missing-vrow">
-              <el-select
-                v-model="installVersion"
-                filterable
-                :loading="versionsLoading"
-                class="missing-reg"
-                :placeholder="$t('kernelMissing.versionPlaceholder')"
-              >
-                <el-option v-for="v in installVersions" :key="v" :value="v" :label="v" />
-              </el-select>
-              <el-button :icon="ReloadOutlined" circle :loading="versionsLoading" @click="loadInstallVersions" />
+
+            <!-- 底部导航：执行当前步并进入下一步 -->
+            <div class="wiz-nav">
+                <el-button text :disabled="installingKernel" @click="quitShell">{{ $t('kernelMissing.quit') }}</el-button>
+                <div class="wiz-nav__right">
+                    <el-button v-if="step > 0" :disabled="installingKernel" @click="back">{{ $t('kernelMissing.prev') }}</el-button>
+                    <el-button type="primary" :loading="installingKernel" :icon="ReloadOutlined" @click="runCurrentStep">
+                        {{ step < 3 ? $t('kernelMissing.runStep') : $t('kernelMissing.install') }}
+                    </el-button>
+                </div>
             </div>
-            <div class="wiz-hint">{{ $t('kernelMissing.versionHint') }}</div>
-          </div>
 
-          <p v-if="installError" class="missing-err">{{ installError }}</p>
-        </div>
-      </div>
-
-      <!-- 每步执行进度条 -->
-      <div v-if="installingKernel" class="install-progress">
-        <div class="activity">
-          <span class="activity__label">{{ step === 3 ? $t('kernelMissing.progressNpm') : $t('kernelMissing.executing') }}</span>
-          <div class="activity-bar" />
-        </div>
-        <div v-if="step === 3" class="activity">
-          <span class="activity__label">{{ $t('kernelMissing.progressDsh') }}</span>
-          <div class="activity-bar" />
-        </div>
-      </div>
-
-      <!-- 底部导航：执行当前步并进入下一步 -->
-      <div class="wiz-nav">
-        <el-button text :disabled="installingKernel" @click="quitShell">{{ $t('kernelMissing.quit') }}</el-button>
-        <div class="wiz-nav__right">
-          <el-button v-if="step > 0" :disabled="installingKernel" @click="back">{{ $t('kernelMissing.prev') }}</el-button>
-          <el-button type="primary" :loading="installingKernel" :icon="ReloadOutlined" @click="runCurrentStep">
-            {{ step < 3 ? $t('kernelMissing.runStep') : $t('kernelMissing.install') }}
-          </el-button>
-        </div>
-      </div>
-
-      <!-- 右上角：全屏日志开关（向导打开即显示） -->
-      <div class="log-toggle">
-        <el-button size="small" :icon="FileTextOutlined" @click="logFullscreen = true">{{ $t('kernelMissing.viewLog') }}</el-button>
-      </div>
-
-      <!-- 全屏安装日志 -->
-      <transition name="fade">
-        <div v-if="logFullscreen" class="log-full">
-          <div class="log-full__head">
-            <span class="log-full__title">{{ $t('kernelMissing.installLog') }}</span>
-            <div class="log-full__acts">
-              <div v-if="installingKernel" class="log-full__mini">
-                <div class="activity-bar" />
-              </div>
-              <el-button :icon="CloseOutlined" text @click="logFullscreen = false">{{ $t('kernelMissing.closeLog') }}</el-button>
+            <!-- 右上角：全屏日志开关（向导打开即显示） -->
+            <div class="log-toggle">
+                <el-button size="small" :icon="FileTextOutlined" @click="logFullscreen = true">{{ $t('kernelMissing.viewLog') }}</el-button>
             </div>
-          </div>
-          <pre class="log-full__body">{{ installLog.length ? installLog.join('\n') : $t('kernelMissing.logWaiting') }}</pre>
+
+            <!-- 全屏安装日志 -->
+            <transition name="fade">
+                <div v-if="logFullscreen" class="log-full">
+                    <div class="log-full__head">
+                        <span class="log-full__title">{{ $t('kernelMissing.installLog') }}</span>
+                        <div class="log-full__acts">
+                            <div v-if="installingKernel" class="log-full__mini">
+                                <div class="activity-bar" />
+                            </div>
+                            <el-button :icon="CloseOutlined" text @click="logFullscreen = false">{{ $t('kernelMissing.closeLog') }}</el-button>
+                        </div>
+                    </div>
+                    <pre class="log-full__body">{{ installLog.length ? installLog.join('\n') : $t('kernelMissing.logWaiting') }}</pre>
+                </div>
+            </transition>
         </div>
-      </transition>
     </div>
-  </div>
 </template>
 
 <style scoped>

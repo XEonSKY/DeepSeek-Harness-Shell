@@ -21,70 +21,70 @@ let tray: Tray | null = null
 let quitting = false
 
 export function getMainWindow(): BrowserWindow | null {
-  return mainWindow
+    return mainWindow
 }
 
 export function setMainWindow(w: BrowserWindow | null): void {
-  mainWindow = w
+    mainWindow = w
 }
 
 export function getCurrentUrl(): string | null {
-  return currentUrl
+    return currentUrl
 }
 
 export function setCurrentUrl(u: string | null): void {
-  currentUrl = u
+    currentUrl = u
 }
 
 export function getTray(): Tray | null {
-  return tray
+    return tray
 }
 
 export function setTray(t: Tray | null): void {
-  tray = t
+    tray = t
 }
 
 export function isQuitting(): boolean {
-  return quitting
+    return quitting
 }
 
 export function setQuitting(q: boolean): void {
-  quitting = q
+    quitting = q
 }
 
 /** Destroy the tray if present and forget the reference. */
 export function destroyTray(): void {
-  try {
-    tray?.destroy()
-  } catch {
+    try {
+        tray?.destroy()
+    } catch {
     /* already gone */
-  }
-  tray = null
+    }
+    tray = null
 }
 
 /** Send an event to all alive shell windows' renderers (falls back to the single main window). */
 export function broadcast(channel: string, payload?: unknown): void {
-  const wins = listWindows()
-  const targets = wins.length > 0 ? wins : mainWindow ? [mainWindow] : []
-  for (const w of targets) {
-    sendToWindow(w, channel, payload)
-  }
+    const wins = listWindows()
+    const targets = wins.length > 0 ? wins : mainWindow ? [mainWindow] : []
+    for (const w of targets) {
+        sendToWindow(w, channel, payload)
+    }
 }
 
 /** Send an event to one specific window's renderer (directed; multi-window safe). */
 export function sendToWindow(w: BrowserWindow | null | undefined, channel: string, payload?: unknown): void {
-  if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) {
-    w.webContents.send(channel, payload)
-  }
+    if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) {
+        w.webContents.send(channel, payload)
+    }
 }
 
 /** Send an event to a window looked up by webContents id (no-op if that window is gone). */
 export function sendToWcId(wcId: number | null | undefined, channel: string, payload?: unknown): void {
-  if (wcId == null) return
-  sendToWindow(windowByContentsId(wcId), channel, payload)
+    if (wcId == null) return
+    sendToWindow(windowByContentsId(wcId), channel, payload)
 }
 
 /** 只发给“当前核心窗口”（内核 UI 唯一宿主）。无核心则不发送。 */
 export function sendCore(channel: string, payload?: unknown): void {
-  sendToWcId(coreWindowId(), channel, payload)
+    sendToWcId(coreWindowId(), channel, payload)
 }

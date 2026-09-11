@@ -20,17 +20,17 @@ import { getTray, setQuitting, destroyTray } from './app/runtime'
 // main/settings.ts configDir() (~/.config/dsh_shell[_dev]).
 // ---------------------------------------------------------------------------
 if (!app.isPackaged) {
-  app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} (dev)`))
+    app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} (dev)`))
 }
 
 // 忽略系统显示缩放：若设置开启，在 ready 前强制设备缩放系数为 1（需重启生效）。
 try {
-  const boot = readDiskSettings()
-  if (boot.ignoreSystemScale) {
-    app.commandLine.appendSwitch('force-device-scale-factor', '1')
-  }
+    const boot = readDiskSettings()
+    if (boot.ignoreSystemScale) {
+        app.commandLine.appendSwitch('force-device-scale-factor', '1')
+    }
 } catch {
-  /* settings not readable yet; fall back to OS scaling */
+    /* settings not readable yet; fall back to OS scaling */
 }
 
 // ---------------------------------------------------------------------------
@@ -41,98 +41,98 @@ try {
 const gotLock = app.requestSingleInstanceLock()
 
 if (!gotLock) {
-  // Another instance is already running (two shells would fight over the same
-  // port / workspace / dsh watchdog), so there is nothing left for this one to do.
-  app.quit()
+    // Another instance is already running (two shells would fight over the same
+    // port / workspace / dsh watchdog), so there is nothing left for this one to do.
+    app.quit()
 } else {
-  app.on('second-instance', () => {
+    app.on('second-instance', () => {
     // A user (re)launched the app while it is already running (desktop
     // shortcut, installer-launched copy, …). Bring the existing window — which
     // may be tray-hidden or minimized — back to the front instead of opening a
     // duplicate shell.
-    showMainWindow()
-  })
-
-  // 硬件加速必须在 app ready **之前**决定（Electron 限制）：先单独读一次设置。
-  // 读失败就按默认（开着加速）继续，不能让设置文件的问题拦住启动。
-  try {
-    applyHardwareAcceleration(loadSettings())
-  } catch {
-    /* 用默认值 */
-  }
-
-  // Boot: wire IPC, start the external-config watchers, open the window/tray,
-  // and launch dsh when the kernel is present.
-  app.whenReady().then(async () => {
-    const cfg = loadSettings()
-    syncNativeTheme(cfg.theme) // 建窗前先让 webview 深浅色与外壳一致
-    // UA 只能在 ready 之后设（defaultSession 尚不存在），且必须早于建窗：webview 创建时就该拿到它。
-    applyWebviewUserAgent(cfg)
-    registerIpc()
-    startConfigWatchers()
-    createShellWindow() // 首个窗口注册为核心窗口（内部登记角色并设为主窗口）
-    createTray()
-    syncGlobalHotkey() // 系统全局快捷键（默认 Ctrl+Alt+H 回到主窗口）
-
-    // Launch dsh only if the kernel is present. When missing we do not show a
-    // native prompt anymore — the renderer detects it on load and shows the
-    // in-app install mask (installKernel starts dsh after a successful install).
-    if (resolveInstall(cfg).present) {
-      void restart()
-    }
-
-    // 打包后按设置自动检查 app 更新（静默，开发态自动跳过）。
-    startAutoCheckIfEnabled()
-
-    app.on('activate', () => {
-      // macOS convention: re-show the window when the dock icon is clicked.
-      showMainWindow()
+        showMainWindow()
     })
-  })
 
-  // Closing hides to tray when a tray exists. If there is no tray (unavailable),
-  // fall back to quitting when all windows are gone.
-  app.on('window-all-closed', () => {
-    if (!getTray()) app.quit()
-  })
-
-  // 优雅退出：先让 dsh 收到 SIGTERM 并等待其清场（落会话/释放插件），超时才强杀兜底。
-  // `before-quit` 是同步事件、无法 await——用 preventDefault 拦截首轮退出，异步完成
-  // 清理后再 app.quit()；此时 cleanExitDone 已置位，`before-quit` 放行，真正退出。
-  let cleanExitDone = false
-  async function cleanExit(): Promise<void> {
-    if (cleanExitDone) return
-    cleanExitDone = true
-    setQuitting(true)
+    // 硬件加速必须在 app ready **之前**决定（Electron 限制）：先单独读一次设置。
+    // 读失败就按默认（开着加速）继续，不能让设置文件的问题拦住启动。
     try {
-      await stopDshGracefully()
+        applyHardwareAcceleration(loadSettings())
     } catch {
-      /* best effort; the force cleanup below covers any stragglers */
+    /* 用默认值 */
     }
-    killAllChildren() // 收尾其余在跑子进程（如正在进行的 npm）
-    destroyTray()
-  }
-  const requestCleanExit = (): void => {
-    if (cleanExitDone) {
-      app.quit()
-      return
+
+    // Boot: wire IPC, start the external-config watchers, open the window/tray,
+    // and launch dsh when the kernel is present.
+    app.whenReady().then(async () => {
+        const cfg = loadSettings()
+        syncNativeTheme(cfg.theme) // 建窗前先让 webview 深浅色与外壳一致
+        // UA 只能在 ready 之后设（defaultSession 尚不存在），且必须早于建窗：webview 创建时就该拿到它。
+        applyWebviewUserAgent(cfg)
+        registerIpc()
+        startConfigWatchers()
+        createShellWindow() // 首个窗口注册为核心窗口（内部登记角色并设为主窗口）
+        createTray()
+        syncGlobalHotkey() // 系统全局快捷键（默认 Ctrl+Alt+H 回到主窗口）
+
+        // Launch dsh only if the kernel is present. When missing we do not show a
+        // native prompt anymore — the renderer detects it on load and shows the
+        // in-app install mask (installKernel starts dsh after a successful install).
+        if (resolveInstall(cfg).present) {
+            void restart()
+        }
+
+        // 打包后按设置自动检查 app 更新（静默，开发态自动跳过）。
+        startAutoCheckIfEnabled()
+
+        app.on('activate', () => {
+            // macOS convention: re-show the window when the dock icon is clicked.
+            showMainWindow()
+        })
+    })
+
+    // Closing hides to tray when a tray exists. If there is no tray (unavailable),
+    // fall back to quitting when all windows are gone.
+    app.on('window-all-closed', () => {
+        if (!getTray()) app.quit()
+    })
+
+    // 优雅退出：先让 dsh 收到 SIGTERM 并等待其清场（落会话/释放插件），超时才强杀兜底。
+    // `before-quit` 是同步事件、无法 await——用 preventDefault 拦截首轮退出，异步完成
+    // 清理后再 app.quit()；此时 cleanExitDone 已置位，`before-quit` 放行，真正退出。
+    let cleanExitDone = false
+    async function cleanExit(): Promise<void> {
+        if (cleanExitDone) return
+        cleanExitDone = true
+        setQuitting(true)
+        try {
+            await stopDshGracefully()
+        } catch {
+            /* best effort; the force cleanup below covers any stragglers */
+        }
+        killAllChildren() // 收尾其余在跑子进程（如正在进行的 npm）
+        destroyTray()
     }
-    void cleanExit().then(() => app.quit())
-  }
+    const requestCleanExit = (): void => {
+        if (cleanExitDone) {
+            app.quit()
+            return
+        }
+        void cleanExit().then(() => app.quit())
+    }
 
-  app.on('before-quit', (e) => {
-    if (cleanExitDone) return // second pass: let the real quit proceed
-    e.preventDefault()
-    requestCleanExit()
-  })
+    app.on('before-quit', (e) => {
+        if (cleanExitDone) return // second pass: let the real quit proceed
+        e.preventDefault()
+        requestCleanExit()
+    })
 
-  // 最后一道兜底：真正退出时不留孤儿进程（dsh 通常已在上面的优雅停中退出）。
-  process.on('exit', () => {
-    killServer()
-    killAllChildren()
-  })
-  process.on('SIGINT', () => {
-    setQuitting(true)
-    requestCleanExit()
-  })
+    // 最后一道兜底：真正退出时不留孤儿进程（dsh 通常已在上面的优雅停中退出）。
+    process.on('exit', () => {
+        killServer()
+        killAllChildren()
+    })
+    process.on('SIGINT', () => {
+        setQuitting(true)
+        requestCleanExit()
+    })
 }

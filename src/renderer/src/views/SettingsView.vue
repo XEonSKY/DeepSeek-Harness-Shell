@@ -12,71 +12,71 @@ const route = useRoute()
 const router = useRouter()
 
 const menus: { key: Group; icon: Component }[] = [
-  { key: 'general', icon: SettingOutlined },
-  { key: 'appearance', icon: BulbOutlined },
-  { key: 'network', icon: ApiOutlined },
-  { key: 'env', icon: DeploymentUnitOutlined },
-  { key: 'dsh', icon: ClusterOutlined },
-  { key: 'log', icon: CodeFilled },
-  { key: 'hotkeys', icon: ControlOutlined },
-  { key: 'webview', icon: CompassOutlined },
-  { key: 'about', icon: InfoCircleFilled }
+    { key: 'general', icon: SettingOutlined },
+    { key: 'appearance', icon: BulbOutlined },
+    { key: 'network', icon: ApiOutlined },
+    { key: 'env', icon: DeploymentUnitOutlined },
+    { key: 'dsh', icon: ClusterOutlined },
+    { key: 'log', icon: CodeFilled },
+    { key: 'hotkeys', icon: ControlOutlined },
+    { key: 'webview', icon: CompassOutlined },
+    { key: 'about', icon: InfoCircleFilled }
 ]
 
 /** 由当前子路由决定高亮分组。 */
 const activeGroup = computed<Group>(() => {
-  const n = route.name
-  return typeof n === 'string' && n.startsWith('settings-') ? (n.slice(9) as Group) : 'general'
+    const n = route.name
+    return typeof n === 'string' && n.startsWith('settings-') ? (n.slice(9) as Group) : 'general'
 })
 
 function go(g: Group): void {
-  void router.push(`/settings/${g}`)
+    void router.push(`/settings/${g}`)
 }
 
 const loading = ref(false)
 
 // 进入设置时把磁盘设置填进 store（store 的 watch 会随之应用主题/语言）。
 onMounted(async () => {
-  loading.value = true
-  try {
-    const s = await window.api.getSettings()
-    actions.fillFrom(s)
-  } finally {
-    loading.value = false
-  }
-  await actions.loadVersion()
-  void actions.loadVersions()
+    loading.value = true
+    try {
+        const s = await window.api.getSettings()
+        actions.fillFrom(s)
+    } finally {
+        loading.value = false
+    }
+    await actions.loadVersion()
+    void actions.loadVersions()
 })
 </script>
 
 <template>
-  <div class="settings">
-    <aside class="side">
-      <div class="side__cap">{{ $t('sv.cap') }}</div>
-      <nav class="nav">
-        <button
-          v-for="m in menus"
-          :key="m.key"
-          type="button"
-          class="nav__item"
-          :class="{ on: activeGroup === m.key }"
-          @click="go(m.key)"
-        >
-          <el-icon :size="18"><component :is="m.icon" /></el-icon>
-          <span class="nav__label">{{ $t('sv.nav.' + m.key) }}</span>
-        </button>
-      </nav>
-    </aside>
+    <div class="settings">
+        <aside class="side">
+            <div class="side__cap">{{ $t('sv.cap') }}</div>
+            <nav class="nav">
+                <button
+                    v-for="m in menus"
+                    :key="m.key"
+                    type="button"
+                    class="nav__item"
+                    :class="{ on: activeGroup === m.key }"
+                    @click="go(m.key)"
+                >
+                    <el-icon :size="18"><component :is="m.icon" /></el-icon>
+                    <span class="nav__label">{{ $t('sv.nav.' + m.key) }}</span>
+                </button>
+            </nav>
+        </aside>
 
-    <div class="main">
-      <!-- 页头由各子页自带（大图标标题头），此处不再渲染 -->
-      <el-scrollbar v-loading="loading" class="main__scroll">
-        <div class="cols">
-          <router-view />
+        <div class="main">
+            <!-- 页头由各子页自带（大图标标题头），此处不再渲染 -->
+            <el-scrollbar v-loading="loading" class="main__scroll">
+                <div class="cols">
+                    <router-view />
+                </div>
+            </el-scrollbar>
         </div>
-      </el-scrollbar>
     </div>
-  </div>
 </template>
 
 <!--

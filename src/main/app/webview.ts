@@ -22,27 +22,27 @@ export const WEBKIT_TOKEN = '537.36'
  *  - Linux：`X11; Linux x86_64` / `aarch64`
  */
 export function platformToken(platform: string, arch: string, osRelease: string): string {
-  if (platform === 'win32') {
-    const nt = /^(\d+\.\d+)/.exec(osRelease)?.[1] ?? '10.0'
-    const cpu = arch === 'arm64' ? 'Win64; ARM64' : arch === 'ia32' ? 'WOW64' : 'Win64; x64'
-    return `Windows NT ${nt}; ${cpu}`
-  }
-  if (platform === 'darwin') return 'Macintosh; Intel Mac OS X 10_15_7'
-  const cpu = arch === 'arm64' ? 'aarch64' : arch === 'ia32' ? 'i686' : 'x86_64'
-  return `X11; Linux ${cpu}`
+    if (platform === 'win32') {
+        const nt = /^(\d+\.\d+)/.exec(osRelease)?.[1] ?? '10.0'
+        const cpu = arch === 'arm64' ? 'Win64; ARM64' : arch === 'ia32' ? 'WOW64' : 'Win64; x64'
+        return `Windows NT ${nt}; ${cpu}`
+    }
+    if (platform === 'darwin') return 'Macintosh; Intel Mac OS X 10_15_7'
+    const cpu = arch === 'arm64' ? 'aarch64' : arch === 'ia32' ? 'i686' : 'x86_64'
+    return `X11; Linux ${cpu}`
 }
 
 /** 默认 UserAgent：Mozilla/5.0 (平台) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/<Chromium> Safari/537.36 XEonSKY/<程序版本>。 */
 export function defaultUserAgent(): string {
-  const plat = platformToken(process.platform, process.arch, os.release())
-  const chrome = process.versions.chrome ?? '0.0.0.0'
-  return `Mozilla/5.0 (${plat}) AppleWebKit/${WEBKIT_TOKEN} (KHTML, like Gecko) Chrome/${chrome} Safari/${WEBKIT_TOKEN} XEonSKY/${app.getVersion()}`
+    const plat = platformToken(process.platform, process.arch, os.release())
+    const chrome = process.versions.chrome ?? '0.0.0.0'
+    return `Mozilla/5.0 (${plat}) AppleWebKit/${WEBKIT_TOKEN} (KHTML, like Gecko) Chrome/${chrome} Safari/${WEBKIT_TOKEN} XEonSKY/${app.getVersion()}`
 }
 
 /** 实际生效的 UA：设置里留空就用默认。 */
 export function effectiveUserAgent(cfg: Settings = loadSettings()): string {
-  const custom = (cfg.webviewUserAgent || '').trim()
-  return custom || defaultUserAgent()
+    const custom = (cfg.webviewUserAgent || '').trim()
+    return custom || defaultUserAgent()
 }
 
 /** 已应用到 defaultSession 的值（幂等用）。 */
@@ -54,14 +54,14 @@ let appliedUa = ''
  * 拿到的就是它。值没变时什么都不做。
  */
 export function applyWebviewUserAgent(cfg: Settings = loadSettings()): void {
-  const ua = effectiveUserAgent(cfg)
-  if (ua === appliedUa) return
-  try {
-    session.defaultSession.setUserAgent(ua)
-    appliedUa = ua
-  } catch {
+    const ua = effectiveUserAgent(cfg)
+    if (ua === appliedUa) return
+    try {
+        session.defaultSession.setUserAgent(ua)
+        appliedUa = ua
+    } catch {
     /* ready 之前调用会抛：忽略，启动流程里 ready 后还会再调一次 */
-  }
+    }
 }
 
 /**
@@ -69,5 +69,5 @@ export function applyWebviewUserAgent(cfg: Settings = loadSettings()): void {
  * 所以它只在启动时读一次设置 —— 改动它必须重启应用，UI 里也是这么提示的。
  */
 export function applyHardwareAcceleration(cfg: Settings = loadSettings()): void {
-  if (cfg.hardwareAcceleration === false) app.disableHardwareAcceleration()
+    if (cfg.hardwareAcceleration === false) app.disableHardwareAcceleration()
 }

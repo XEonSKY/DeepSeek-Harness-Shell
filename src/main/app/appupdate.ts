@@ -25,8 +25,8 @@ let lastEvent: AppUpdateEvent | null = null
 
 /** 向渲染层广播一次自动更新事件，并留存供后挂载的页面查询。 */
 function emit(e: AppUpdateEvent): void {
-  lastEvent = e
-  broadcast('appupdate:event', e)
+    lastEvent = e
+    broadcast('appupdate:event', e)
 }
 
 /**
@@ -40,7 +40,7 @@ function emit(e: AppUpdateEvent): void {
  * 「有人本地 `electron-builder --win portable`」这种情况。
  */
 function isPortableBuild(): boolean {
-  return !!process.env['PORTABLE_EXECUTABLE_DIR']
+    return !!process.env['PORTABLE_EXECUTABLE_DIR']
 }
 
 // ---------------------------------------------------------------------------
@@ -69,13 +69,13 @@ let appliedProxy: string | null = null
  *    系统级代理一并关掉。只有从「有」变「无」时才显式回落到 system。
  */
 async function applyUpdaterProxy(cfg: Settings): Promise<void> {
-  const url = proxyActive(cfg, 'update') ? proxyUrl(cfg) : null
-  if (appliedProxy === url) return
-  const updaterSession = session.fromPartition(UPDATER_SESSION, { cache: false })
-  await updaterSession.setProxy(
-    url ? { proxyRules: url, proxyBypassRules: '<local>' } : { mode: 'system' }
-  )
-  appliedProxy = url
+    const url = proxyActive(cfg, 'update') ? proxyUrl(cfg) : null
+    if (appliedProxy === url) return
+    const updaterSession = session.fromPartition(UPDATER_SESSION, { cache: false })
+    await updaterSession.setProxy(
+        url ? { proxyRules: url, proxyBypassRules: '<local>' } : { mode: 'system' }
+    )
+    appliedProxy = url
 }
 
 // ---------------------------------------------------------------------------
@@ -84,15 +84,15 @@ async function applyUpdaterProxy(cfg: Settings): Promise<void> {
 
 /** createRequest 收到的请求选项（由 builder-util-runtime 的 configureRequestUrl 填好）。 */
 interface ExecRequestOptions {
-  protocol?: string
-  hostname?: string
-  port?: string
-  path?: string
+    protocol?: string
+    hostname?: string
+    port?: string
+    path?: string
 }
 
 /** 我们只依赖 httpExecutor 的这一个方法（它是所有 HTTP 的唯一出口）。 */
 interface UpdaterExecutor {
-  createRequest(options: ExecRequestOptions, callback: (response: unknown) => void): unknown
+    createRequest(options: ExecRequestOptions, callback: (response: unknown) => void): unknown
 }
 
 let mirrorPatched = false
@@ -105,14 +105,14 @@ let activeMirror: string | null = null
  * 解析失败返回 null（按直连处理，不让一个笔误把更新彻底弄坏）。
  */
 function normalizeMirror(raw: string | undefined): string | null {
-  const s = (raw ?? '').trim()
-  if (!s) return null
-  try {
-    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`)
-    return (u.origin + u.pathname).replace(/\/+$/, '')
-  } catch {
-    return null
-  }
+    const s = (raw ?? '').trim()
+    if (!s) return null
+    try {
+        const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`)
+        return (u.origin + u.pathname).replace(/\/+$/, '')
+    } catch {
+        return null
+    }
 }
 
 /**
@@ -131,22 +131,22 @@ function normalizeMirror(raw: string | undefined): string | null {
  * 「元数据始终走官方」不符，已修正。镜像现在只搬运发布资产（安装包与 blockmap）。
  */
 function rewriteGithubAsset(options: ExecRequestOptions): void {
-  const mirror = activeMirror
-  if (!mirror) return
-  if (options.hostname !== 'github.com') return
-  const path = options.path ?? ''
-  if (!/^\/[^/]+\/[^/]+\/releases\/download\//.test(path)) return
-  let base: URL
-  try {
-    base = new URL(mirror)
-  } catch {
-    return
-  }
-  options.protocol = base.protocol
-  options.hostname = base.hostname
-  if (base.port) options.port = base.port
-  else delete options.port
-  options.path = `${base.pathname.replace(/\/+$/, '')}/https://github.com${path}`
+    const mirror = activeMirror
+    if (!mirror) return
+    if (options.hostname !== 'github.com') return
+    const path = options.path ?? ''
+    if (!/^\/[^/]+\/[^/]+\/releases\/download\//.test(path)) return
+    let base: URL
+    try {
+        base = new URL(mirror)
+    } catch {
+        return
+    }
+    options.protocol = base.protocol
+    options.hostname = base.hostname
+    if (base.port) options.port = base.port
+    else delete options.port
+    options.path = `${base.pathname.replace(/\/+$/, '')}/https://github.com${path}`
 }
 
 /**
@@ -160,23 +160,23 @@ function rewriteGithubAsset(options: ExecRequestOptions): void {
  * `electron-updater/out/ElectronHttpExecutor.js` 是否仍以 `createRequest` 作为唯一出口。
  */
 function installMirrorRewrite(): void {
-  if (mirrorPatched) return
-  // 注：electron-updater 的 .d.ts 并未声明 httpExecutor（只在运行时赋值），故从 autoUpdater 整体断言。
-  const exec = (autoUpdater as unknown as { httpExecutor?: UpdaterExecutor | null }).httpExecutor
-  const orig = exec?.createRequest
-  if (!exec || typeof orig !== 'function') return
-  const bound = orig.bind(exec)
-  exec.createRequest = (options, callback) => {
-    rewriteGithubAsset(options)
-    return bound(options, callback)
-  }
-  mirrorPatched = true
+    if (mirrorPatched) return
+    // 注：electron-updater 的 .d.ts 并未声明 httpExecutor（只在运行时赋值），故从 autoUpdater 整体断言。
+    const exec = (autoUpdater as unknown as { httpExecutor?: UpdaterExecutor | null }).httpExecutor
+    const orig = exec?.createRequest
+    if (!exec || typeof orig !== 'function') return
+    const bound = orig.bind(exec)
+    exec.createRequest = (options, callback) => {
+        rewriteGithubAsset(options)
+        return bound(options, callback)
+    }
+    mirrorPatched = true
 }
 
 /** 读取设置并刷新镜像前缀（空串 / 非法值 = 直连）。 */
 function applyMirror(cfg: Settings): void {
-  installMirrorRewrite()
-  activeMirror = normalizeMirror(cfg.updateMirrorUrl)
+    installMirrorRewrite()
+    activeMirror = normalizeMirror(cfg.updateMirrorUrl)
 }
 
 /**
@@ -184,24 +184,24 @@ function applyMirror(cfg: Settings): void {
  * 设置可在运行期被改（网络面板），故每次都读一遍而不是只做一次。
  */
 async function prepareUpdater(cfg: Settings): Promise<void> {
-  await applyUpdaterProxy(cfg)
-  applyMirror(cfg)
+    await applyUpdaterProxy(cfg)
+    applyMirror(cfg)
 }
 
 // ---------------------------------------------------------------------------
 
 /** 惰性初始化：注册 electron-updater 事件到广播。 */
 function ensureInited(): void {
-  if (inited) return
-  inited = true
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.on('checking-for-update', () => emit({ kind: 'checking' }))
-  autoUpdater.on('update-available', (info) => emit({ kind: 'available', version: info?.version ?? null }))
-  autoUpdater.on('update-not-available', (info) => emit({ kind: 'not-available', version: info?.version ?? null }))
-  autoUpdater.on('download-progress', (p) => emit({ kind: 'progress', percent: typeof p?.percent === 'number' ? p.percent : 0 }))
-  autoUpdater.on('update-downloaded', (info) => emit({ kind: 'downloaded', version: info?.version ?? null }))
-  autoUpdater.on('error', (err) => emit({ kind: 'error', message: err && err.message ? err.message : String(err) }))
+    if (inited) return
+    inited = true
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('checking-for-update', () => emit({ kind: 'checking' }))
+    autoUpdater.on('update-available', (info) => emit({ kind: 'available', version: info?.version ?? null }))
+    autoUpdater.on('update-not-available', (info) => emit({ kind: 'not-available', version: info?.version ?? null }))
+    autoUpdater.on('download-progress', (p) => emit({ kind: 'progress', percent: typeof p?.percent === 'number' ? p.percent : 0 }))
+    autoUpdater.on('update-downloaded', (info) => emit({ kind: 'downloaded', version: info?.version ?? null }))
+    autoUpdater.on('error', (err) => emit({ kind: 'error', message: err && err.message ? err.message : String(err) }))
 }
 
 /**
@@ -215,58 +215,58 @@ function ensureInited(): void {
  * 这里改为「设置项 OR 当前版本本身是预发布」——即：想跨到正式版可以单独开，但没人会被卡死。
  */
 function setPrerelease(on: boolean): void {
-  autoUpdater.allowPrerelease = on || isPrerelease(app.getVersion())
+    autoUpdater.allowPrerelease = on || isPrerelease(app.getVersion())
 }
 
 /** 运行环境元信息（关于页显示当前版本/架构）。 */
 export function appMeta(): AppMeta {
-  let version: string | null = null
-  try {
-    version = app.getVersion() || null
-  } catch {
+    let version: string | null = null
+    try {
+        version = app.getVersion() || null
+    } catch {
     /* not packaged */
-  }
-  return { version, arch: process.arch, platform: process.platform }
+    }
+    return { version, arch: process.arch, platform: process.platform }
 }
 
 /** 最近一次自动更新状态；关于页挂载晚于事件时据此补齐（从未有过事件则为 null）。 */
 export function appUpdateState(): AppUpdateEvent | null {
-  return lastEvent
+    return lastEvent
 }
 
 /** 触发一次检查；有可用更新时 electron-updater 自动进入后台下载。 */
 export async function triggerAppUpdate(opts: { prerelease: boolean }): Promise<{ ok: boolean; message: string }> {
-  if (!app.isPackaged) return { ok: false, message: mt('m.appUpdate.onlyPackaged') }
-  if (isPortableBuild()) return { ok: false, message: mt('m.appUpdate.portable') }
-  ensureInited()
-  setPrerelease(opts.prerelease)
-  try {
-    await prepareUpdater(loadSettings())
-    await autoUpdater.checkForUpdates()
-    return { ok: true, message: '' }
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) }
-  }
+    if (!app.isPackaged) return { ok: false, message: mt('m.appUpdate.onlyPackaged') }
+    if (isPortableBuild()) return { ok: false, message: mt('m.appUpdate.portable') }
+    ensureInited()
+    setPrerelease(opts.prerelease)
+    try {
+        await prepareUpdater(loadSettings())
+        await autoUpdater.checkForUpdates()
+        return { ok: true, message: '' }
+    } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    }
 }
 
 /** 立即重启并安装已下载的更新。 */
 export function restartAndInstall(): void {
-  if (app.isPackaged && !isPortableBuild()) autoUpdater.quitAndInstall()
+    if (app.isPackaged && !isPortableBuild()) autoUpdater.quitAndInstall()
 }
 
 /** 启动时按设置自动检查一次（静默；失败不打扰）。 */
 export function startAutoCheckIfEnabled(): void {
-  if (!app.isPackaged || isPortableBuild()) return
-  const s = loadSettings()
-  if (!s.appAutoUpdate) return
-  ensureInited()
-  setPrerelease(s.appCheckPrerelease)
-  void (async () => {
-    try {
-      await prepareUpdater(s)
-      await autoUpdater.checkForUpdates()
-    } catch {
-      /* silent */
-    }
-  })()
+    if (!app.isPackaged || isPortableBuild()) return
+    const s = loadSettings()
+    if (!s.appAutoUpdate) return
+    ensureInited()
+    setPrerelease(s.appCheckPrerelease)
+    void (async () => {
+        try {
+            await prepareUpdater(s)
+            await autoUpdater.checkForUpdates()
+        } catch {
+            /* silent */
+        }
+    })()
 }

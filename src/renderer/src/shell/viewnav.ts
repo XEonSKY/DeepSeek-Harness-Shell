@@ -20,18 +20,18 @@ export const TERMINAL_PATH = '/settings/log'
 
 /** 当前顶层视图（由 hash 路由推导）。 */
 export function useView(): ComputedRef<ViewKey> {
-  const route = useRoute()
-  return computed<ViewKey>(() => (route.path.startsWith('/settings') ? 'settings' : 'web'))
+    const route = useRoute()
+    return computed<ViewKey>(() => (route.path.startsWith('/settings') ? 'settings' : 'web'))
 }
 
 /** 切到某顶层视图；路径未变则不做任何事。 */
 export function useGoView(): (k: ViewKey) => void {
-  const route = useRoute()
-  const router = useRouter()
-  return (k: ViewKey): void => {
-    const path = k === 'web' ? '/' : '/settings'
-    if (route.path !== path) void router.push(path)
-  }
+    const route = useRoute()
+    const router = useRouter()
+    return (k: ViewKey): void => {
+        const path = k === 'web' ? '/' : '/settings'
+        if (route.path !== path) void router.push(path)
+    }
 }
 
 /**
@@ -39,10 +39,10 @@ export function useGoView(): (k: ViewKey) => void {
  * 不写成 `go(view==='web' ? ... )` 是因为终端现在是设置页的子页，顶层视图这一个维度表达不了它。
  */
 export function useToggleTerminal(): () => void {
-  const route = useRoute()
-  const router = useRouter()
-  return (): void => {
-    const next = route.path === TERMINAL_PATH ? '/' : TERMINAL_PATH
-    if (route.path !== next) void router.push(next)
-  }
+    const route = useRoute()
+    const router = useRouter()
+    return (): void => {
+        const next = route.path === TERMINAL_PATH ? '/' : TERMINAL_PATH
+        if (route.path !== next) void router.push(next)
+    }
 }

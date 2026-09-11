@@ -9,63 +9,63 @@ import type { SettingsState } from '../settingsStore'
  */
 
 type DshActions = {
-  loadVersion(): Promise<void>
-  refreshRunning(): Promise<void>
-  startDsh(): Promise<void>
-  stopDsh(): Promise<void>
-  restartDsh(): Promise<void>
+    loadVersion(): Promise<void>
+    refreshRunning(): Promise<void>
+    startDsh(): Promise<void>
+    stopDsh(): Promise<void>
+    restartDsh(): Promise<void>
 }
 
 export function createDshActions(state: SettingsState): DshActions {
-  async function loadVersion(): Promise<void> {
-    try {
-      state.version = await window.api.getDshVersion()
-    } catch {
-      state.version = null
+    async function loadVersion(): Promise<void> {
+        try {
+            state.version = await window.api.getDshVersion()
+        } catch {
+            state.version = null
+        }
     }
-  }
 
-  /** 刷新 dsh 运行状态。 */
-  async function refreshRunning(): Promise<void> {
-    try {
-      state.dshRunning = await window.api.isDshRunning()
-    } catch {
-      state.dshRunning = false
+    /** 刷新 dsh 运行状态。 */
+    async function refreshRunning(): Promise<void> {
+        try {
+            state.dshRunning = await window.api.isDshRunning()
+        } catch {
+            state.dshRunning = false
+        }
     }
-  }
 
-  /** 启动 dsh（未运行时拉起来）。 */
-  async function startDsh(): Promise<void> {
-    try {
-      await window.api.startDsh()
-    } catch (err) {
-      ElMessage.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      await refreshRunning()
+    /** 启动 dsh（未运行时拉起来）。 */
+    async function startDsh(): Promise<void> {
+        try {
+            await window.api.startDsh()
+        } catch (err) {
+            ElMessage.error(err instanceof Error ? err.message : String(err))
+        } finally {
+            await refreshRunning()
+        }
     }
-  }
 
-  /** 停止 dsh。 */
-  async function stopDsh(): Promise<void> {
-    try {
-      await window.api.stopDsh()
-    } catch (err) {
-      ElMessage.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      await refreshRunning()
+    /** 停止 dsh。 */
+    async function stopDsh(): Promise<void> {
+        try {
+            await window.api.stopDsh()
+        } catch (err) {
+            ElMessage.error(err instanceof Error ? err.message : String(err))
+        } finally {
+            await refreshRunning()
+        }
     }
-  }
 
-  /** 用当前配置重启 dsh。 */
-  async function restartDsh(): Promise<void> {
-    try {
-      await window.api.restartDsh()
-    } catch (err) {
-      ElMessage.error(err instanceof Error ? err.message : String(err))
-    } finally {
-      await refreshRunning()
+    /** 用当前配置重启 dsh。 */
+    async function restartDsh(): Promise<void> {
+        try {
+            await window.api.restartDsh()
+        } catch (err) {
+            ElMessage.error(err instanceof Error ? err.message : String(err))
+        } finally {
+            await refreshRunning()
+        }
     }
-  }
 
-  return { loadVersion, refreshRunning, startDsh, stopDsh, restartDsh }
+    return { loadVersion, refreshRunning, startDsh, stopDsh, restartDsh }
 }

@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  DeepSeekFilled,
-  MessageFilled,
-  WalletFilled,
-  SettingFilled,
-  MinusOutlined,
-  FullscreenOutlined,
-  FullscreenExitOutlined,
-  CloseOutlined,
-  ReloadOutlined,
-  PlusOutlined,
-  StarOutlined,
-  StarFilled
+    DeepSeekFilled,
+    MessageFilled,
+    WalletFilled,
+    SettingFilled,
+    MinusOutlined,
+    FullscreenOutlined,
+    FullscreenExitOutlined,
+    CloseOutlined,
+    ReloadOutlined,
+    PlusOutlined,
+    StarOutlined,
+    StarFilled
 } from '@antdv-next/icons'
 import { useAppIcon } from '../lib/appIcon'
 import { useView, useGoView } from '../shell/viewnav'
@@ -41,103 +41,103 @@ const { bindTabsBar, onTabPointerDown, draggingTabId, slotBeforeId, hoverMask, g
  * Ctrl/⌘+点击则改用系统浏览器打开该标签网址（与普通点击一致的处理入口）。
  */
 function onTabClick(id: string, ev?: MouseEvent): void {
-  if (ev && (ev.ctrlKey || ev.metaKey)) {
-    const tab = findTab(id)
-    if (tab?.url) {
-      ev.preventDefault()
-      void window.api.openExternal(tab.url)
-      return
+    if (ev && (ev.ctrlKey || ev.metaKey)) {
+        const tab = findTab(id)
+        if (tab?.url) {
+            ev.preventDefault()
+            void window.api.openExternal(tab.url)
+            return
+        }
     }
-  }
-  activateTab(id)
-  go('web')
+    activateTab(id)
+    go('web')
 }
 
 /** 点击标签页关闭按钮。 */
 function onTabClose(id: string): void {
-  closeTab(id)
+    closeTab(id)
 }
 
 /** 点击“保活固定”按钮（仅动态标签页）。 */
 function onTabKeep(id: string): void {
-  toggleKeep(id)
+    toggleKeep(id)
 }
 
 /** 中键(mouse button 1)关闭标签页。 */
 function onTabMouseDown(id: string, e: MouseEvent): void {
-  if (e.button === 1) {
-    e.preventDefault()
-    closeTab(id)
-  }
+    if (e.button === 1) {
+        e.preventDefault()
+        closeTab(id)
+    }
 }
 
 /** 右键菜单状态：位置 + 目标标签。 */
 const ctx = ref<{ x: number; y: number; id: string } | null>(null)
 function onTabContext(id: string, e: MouseEvent): void {
-  ctx.value = { x: e.clientX, y: e.clientY, id }
+    ctx.value = { x: e.clientX, y: e.clientY, id }
 }
 function closeCtx(): void {
-  ctx.value = null
+    ctx.value = null
 }
 /** 复制标签页。 */
 function ctxDup(): void {
-  const tab = ctx.value ? findTab(ctx.value.id) : undefined
-  closeCtx()
-  if (!tab) return
-  if (tab.kind === 'newtab') openNewTab()
-  else openTab(tab.url ?? '', tab.title)
+    const tab = ctx.value ? findTab(ctx.value.id) : undefined
+    closeCtx()
+    if (!tab) return
+    if (tab.kind === 'newtab') openNewTab()
+    else openTab(tab.url ?? '', tab.title)
 }
 /** 关闭标签页。 */
 function ctxClose(): void {
-  const id = ctx.value?.id
-  closeCtx()
-  if (id) closeTab(id)
+    const id = ctx.value?.id
+    closeCtx()
+    if (id) closeTab(id)
 }
 
 /** 在新窗口打开：把该标签目标（动态页 URL，或内置导航页伪链接 dssh://about:blank）开到一个独立窗口。 */
 async function ctxOpenWindow(): Promise<void> {
-  const tab = ctx.value ? findTab(ctx.value.id) : undefined
-  closeCtx()
-  if (!tab) return
-  const target = tab.kind === 'newtab' ? NEWTAB_URL : tab.url
-  if (target) await window.api.openWebWindow(target)
+    const tab = ctx.value ? findTab(ctx.value.id) : undefined
+    closeCtx()
+    if (!tab) return
+    const target = tab.kind === 'newtab' ? NEWTAB_URL : tab.url
+    if (target) await window.api.openWebWindow(target)
 }
 
 /** 移动到其它窗口：弹出目标窗口选择；目标开该标签（含内置导航页），再从本窗口移除；取消则保留。 */
 async function ctxMove(): Promise<void> {
-  const tab = ctx.value ? findTab(ctx.value.id) : undefined
-  closeCtx()
-  if (!tab) return
-  const target = tab.kind === 'newtab' ? NEWTAB_URL : tab.url
-  if (!target) return
-  const moved = await window.api.moveTabToWindow(target)
-  if (moved) closeTab(tab.id)
+    const tab = ctx.value ? findTab(ctx.value.id) : undefined
+    closeCtx()
+    if (!tab) return
+    const target = tab.kind === 'newtab' ? NEWTAB_URL : tab.url
+    if (!target) return
+    const moved = await window.api.moveTabToWindow(target)
+    if (moved) closeTab(tab.id)
 }
 
 /** 跳转到核心窗口（副窗口用）：经 IPC 聚焦当前核心窗口；无核心则主进程重建一个。 */
 async function jumpToCore(): Promise<void> {
-  await window.api.focusCoreWindow()
+    await window.api.focusCoreWindow()
 }
 
 /** 滚轮滚动标签条时改为横向滚动。 */
 function onTabsWheel(e: WheelEvent): void {
-  const el = e.currentTarget as HTMLElement | null
-  if (!el || el.scrollWidth <= el.clientWidth) return
-  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-  if (delta === 0) return
-  el.scrollLeft += delta
+    const el = e.currentTarget as HTMLElement | null
+    if (!el || el.scrollWidth <= el.clientWidth) return
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+    if (delta === 0) return
+    el.scrollLeft += delta
 }
 
 /** ＋ 新建：按设置开内置导航页或自定义 URL。 */
 async function onPlus(): Promise<void> {
-  try {
-    const s = await window.api.getSettings()
-    if (s.newTabMode === 'url' && s.newTabUrl) openTab(s.newTabUrl)
-    else openNewTab()
-  } catch {
-    openNewTab()
-  }
-  go('web')
+    try {
+        const s = await window.api.getSettings()
+        if (s.newTabMode === 'url' && s.newTabUrl) openTab(s.newTabUrl)
+        else openNewTab()
+    } catch {
+        openNewTab()
+    }
+    go('web')
 }
 
 /** 动态/新标签页（由新开链接/＋ 产生）；固定三站以图标按钮呈现，不在此列。 */
@@ -145,16 +145,16 @@ const dynamicTabs = computed(() => webTabs.list.filter((tab) => tab.kind === 'dy
 
 /** 某个 web 标签是否当前激活（仅 web 宿主视图内高亮）。 */
 function isWebActive(id: string): boolean {
-  return view.value === 'web' && webTabs.activeId === id
+    return view.value === 'web' && webTabs.activeId === id
 }
 
 /** 某个 web 标签是否当前激活（仅 web 宿主视图内高亮）。 */
 const navVisible = computed(() => view.value === 'web' && activeTab()?.kind === 'dynamic')
 /** 激活的是否三个固定站之一（固定站才显示标题栏旧版刷新按钮）。 */
 const fixedPageReload = computed(() => {
-  if (view.value !== 'web') return false
-  const k = activeTab()?.kind
-  return k === 'home' || k === 'chat' || k === 'platform'
+    if (view.value !== 'web') return false
+    const k = activeTab()?.kind
+    return k === 'home' || k === 'chat' || k === 'platform'
 })
 
 const winMinimize = (): void => window.api.windowMinimize()
@@ -170,152 +170,152 @@ const maximized = ref(false)
 let offMaximized: (() => void) | null = null
 
 onMounted(async () => {
-  try {
-    maximized.value = await window.api.isWindowMaximized()
-  } catch {
+    try {
+        maximized.value = await window.api.isWindowMaximized()
+    } catch {
     /* 取不到就按未最大化渲染 */
-  }
-  offMaximized = window.api.onWindowMaximized((v) => {
-    maximized.value = v
-  })
+    }
+    offMaximized = window.api.onWindowMaximized((v) => {
+        maximized.value = v
+    })
 })
 
 onBeforeUnmount(() => {
-  offMaximized?.()
+    offMaximized?.()
 })
 </script>
 
 <template>
-  <!-- Custom (frameless) title bar: the whole bar is a drag region. -->
-  <header class="titlebar" :class="{ 'titlebar--flush': navVisible }">
-    <div class="left">
-      <img :src="appIcon" class="icon" alt="" draggable="false" />
-      <span class="title">{{ $t('app.title') }}</span>
+    <!-- Custom (frameless) title bar: the whole bar is a drag region. -->
+    <header class="titlebar" :class="{ 'titlebar--flush': navVisible }">
+        <div class="left">
+            <img :src="appIcon" class="icon" alt="" draggable="false" />
+            <span class="title">{{ $t('app.title') }}</span>
 
-      <!-- 核心窗口：显示固定三站图标；非核心窗口：显示“跳转核心窗口”按钮 -->
-      <div class="quick">
-        <template v-if="shellMeta.isCore">
-          <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
-            <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home', $event)">
-              <el-icon><DeepSeekFilled /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
-            <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat', $event)">
-              <el-icon><MessageFilled /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
-            <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform', $event)">
-              <el-icon><WalletFilled /></el-icon>
-            </button>
-          </el-tooltip>
-        </template>
-        <template v-else>
-          <el-tooltip :content="$t('app.jumpCoreHint')" placement="bottom" :show-after="300">
-            <button class="icon-btn core-jump" type="button" @click="jumpToCore">
-              <el-icon :size="18"><DeepSeekFilled /></el-icon>
-              <span class="core-jump__txt">{{ $t('app.jumpCore') }}</span>
-            </button>
-          </el-tooltip>
-        </template>
-        <span class="divider" />
-      </div>
+            <!-- 核心窗口：显示固定三站图标；非核心窗口：显示“跳转核心窗口”按钮 -->
+            <div class="quick">
+                <template v-if="shellMeta.isCore">
+                    <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
+                        <button class="icon-btn" :class="{ active: isWebActive('home') }" type="button" @click="onTabClick('home', $event)">
+                            <el-icon><DeepSeekFilled /></el-icon>
+                        </button>
+                    </el-tooltip>
+                    <el-tooltip :content="$t('app.nav.chat')" placement="bottom" :show-after="300">
+                        <button class="icon-btn" :class="{ active: isWebActive('chat') }" type="button" @click="onTabClick('chat', $event)">
+                            <el-icon><MessageFilled /></el-icon>
+                        </button>
+                    </el-tooltip>
+                    <el-tooltip :content="$t('app.nav.platform')" placement="bottom" :show-after="300">
+                        <button class="icon-btn" :class="{ active: isWebActive('platform') }" type="button" @click="onTabClick('platform', $event)">
+                            <el-icon><WalletFilled /></el-icon>
+                        </button>
+                    </el-tooltip>
+                </template>
+                <template v-else>
+                    <el-tooltip :content="$t('app.jumpCoreHint')" placement="bottom" :show-after="300">
+                        <button class="icon-btn core-jump" type="button" @click="jumpToCore">
+                            <el-icon :size="18"><DeepSeekFilled /></el-icon>
+                            <span class="core-jump__txt">{{ $t('app.jumpCore') }}</span>
+                        </button>
+                    </el-tooltip>
+                </template>
+                <span class="divider" />
+            </div>
 
-      <!-- 动态标签页条：可开很多，多标签时原生横向滚动；空白区可拖窗口 -->
-      <div class="tabs" :ref="bindTabsBar" @wheel="onTabsWheel">
-        <div
-          v-for="tab in dynamicTabs"
-          :key="tab.id"
-          class="tab"
-          :class="{ on: isWebActive(tab.id), dragging: draggingTabId === tab.id, slot: slotBeforeId === tab.id }"
-          :title="tab.url ?? ''"
-          @click="onTabClick(tab.id, $event)"
-          @mousedown="onTabMouseDown(tab.id, $event)"
-          @contextmenu.prevent="onTabContext(tab.id, $event)"
-          @pointerdown="onTabPointerDown(tab, $event)"
-        >
-          <span class="tab__label">{{ tabLabel(tab) }}</span>
-          <button
-            v-if="tab.kind === 'dynamic'"
-            class="tab__pin"
-            :class="{ on: tab.keep }"
-            type="button"
-            :title="$t('app.tabs.keep')"
-            @click.stop="onTabKeep(tab.id)"
-          >
-            <el-icon :size="11"><component :is="tab.keep ? StarFilled : StarOutlined" /></el-icon>
-          </button>
-          <button
-            class="tab__x"
-            type="button"
-            :title="$t('app.tabs.close')"
-            @click.stop="onTabClose(tab.id)"
-          >
-            <el-icon :size="12"><CloseOutlined /></el-icon>
-          </button>
+            <!-- 动态标签页条：可开很多，多标签时原生横向滚动；空白区可拖窗口 -->
+            <div class="tabs" :ref="bindTabsBar" @wheel="onTabsWheel">
+                <div
+                    v-for="tab in dynamicTabs"
+                    :key="tab.id"
+                    class="tab"
+                    :class="{ on: isWebActive(tab.id), dragging: draggingTabId === tab.id, slot: slotBeforeId === tab.id }"
+                    :title="tab.url ?? ''"
+                    @click="onTabClick(tab.id, $event)"
+                    @mousedown="onTabMouseDown(tab.id, $event)"
+                    @contextmenu.prevent="onTabContext(tab.id, $event)"
+                    @pointerdown="onTabPointerDown(tab, $event)"
+                >
+                    <span class="tab__label">{{ tabLabel(tab) }}</span>
+                    <button
+                        v-if="tab.kind === 'dynamic'"
+                        class="tab__pin"
+                        :class="{ on: tab.keep }"
+                        type="button"
+                        :title="$t('app.tabs.keep')"
+                        @click.stop="onTabKeep(tab.id)"
+                    >
+                        <el-icon :size="11"><component :is="tab.keep ? StarFilled : StarOutlined" /></el-icon>
+                    </button>
+                    <button
+                        class="tab__x"
+                        type="button"
+                        :title="$t('app.tabs.close')"
+                        @click.stop="onTabClose(tab.id)"
+                    >
+                        <el-icon :size="12"><CloseOutlined /></el-icon>
+                    </button>
+                </div>
+
+                <button class="tab tab--add" type="button" :title="$t('app.tabs.new')" @click="onPlus">
+                    <el-icon :size="16"><PlusOutlined /></el-icon>
+                </button>
+            </div>
         </div>
 
-        <button class="tab tab--add" type="button" :title="$t('app.tabs.new')" @click="onPlus">
-          <el-icon :size="16"><PlusOutlined /></el-icon>
-        </button>
-      </div>
+        <div class="right">
+            <!-- 三个固定站(非动态标签页)：用旧版刷新按钮重载当前固定站 -->
+            <el-tooltip v-if="fixedPageReload" :content="$t('app.reload')" placement="bottom" :show-after="300">
+                <button class="icon-btn" type="button" @click="winReload">
+                    <el-icon><ReloadOutlined /></el-icon>
+                </button>
+            </el-tooltip>
+            <el-tooltip :content="$t('app.nav.settings')" placement="bottom" :show-after="300">
+                <button
+                    class="icon-btn"
+                    :class="{ active: view === 'settings' }"
+                    type="button"
+                    @click="go('settings')"
+                >
+                    <el-icon><SettingFilled /></el-icon>
+                </button>
+            </el-tooltip>
+            <span class="divider" />
+            <el-tooltip :content="$t('app.minimize')" placement="bottom" :show-after="300">
+                <button class="icon-btn" type="button" @click="winMinimize">
+                    <el-icon><MinusOutlined /></el-icon>
+                </button>
+            </el-tooltip>
+            <el-tooltip :content="maximized ? $t('app.restore') : $t('app.maximize')" placement="bottom" :show-after="300">
+                <button class="icon-btn" type="button" @click="winMaximize">
+                    <el-icon><component :is="maximized ? FullscreenExitOutlined : FullscreenOutlined" /></el-icon>
+                </button>
+            </el-tooltip>
+            <el-tooltip :content="$t('app.closeHint')" placement="bottom" :show-after="300">
+                <button class="icon-btn danger" type="button" @click="winClose">
+                    <el-icon><CloseOutlined /></el-icon>
+                </button>
+            </el-tooltip>
+        </div>
+    </header>
+
+    <!-- 跨窗口拖拽：本窗口被悬停为目标 → 顶部标签栏浅蓝遮罩表示可接收 -->
+    <div v-if="hoverMask" class="tab-drop-mask"></div>
+    <!-- 拖动中的半透明“幽灵”标签，跟随指针 -->
+    <div v-if="ghost.visible" class="tab-ghost" :style="{ left: ghost.x + 'px', top: ghost.y + 'px' }">
+        {{ ghost.text }}
     </div>
 
-    <div class="right">
-      <!-- 三个固定站(非动态标签页)：用旧版刷新按钮重载当前固定站 -->
-      <el-tooltip v-if="fixedPageReload" :content="$t('app.reload')" placement="bottom" :show-after="300">
-        <button class="icon-btn" type="button" @click="winReload">
-          <el-icon><ReloadOutlined /></el-icon>
-        </button>
-      </el-tooltip>
-      <el-tooltip :content="$t('app.nav.settings')" placement="bottom" :show-after="300">
-        <button
-          class="icon-btn"
-          :class="{ active: view === 'settings' }"
-          type="button"
-          @click="go('settings')"
-        >
-          <el-icon><SettingFilled /></el-icon>
-        </button>
-      </el-tooltip>
-      <span class="divider" />
-      <el-tooltip :content="$t('app.minimize')" placement="bottom" :show-after="300">
-        <button class="icon-btn" type="button" @click="winMinimize">
-          <el-icon><MinusOutlined /></el-icon>
-        </button>
-      </el-tooltip>
-      <el-tooltip :content="maximized ? $t('app.restore') : $t('app.maximize')" placement="bottom" :show-after="300">
-        <button class="icon-btn" type="button" @click="winMaximize">
-          <el-icon><component :is="maximized ? FullscreenExitOutlined : FullscreenOutlined" /></el-icon>
-        </button>
-      </el-tooltip>
-      <el-tooltip :content="$t('app.closeHint')" placement="bottom" :show-after="300">
-        <button class="icon-btn danger" type="button" @click="winClose">
-          <el-icon><CloseOutlined /></el-icon>
-        </button>
-      </el-tooltip>
-    </div>
-  </header>
-
-  <!-- 跨窗口拖拽：本窗口被悬停为目标 → 顶部标签栏浅蓝遮罩表示可接收 -->
-  <div v-if="hoverMask" class="tab-drop-mask"></div>
-  <!-- 拖动中的半透明“幽灵”标签，跟随指针 -->
-  <div v-if="ghost.visible" class="tab-ghost" :style="{ left: ghost.x + 'px', top: ghost.y + 'px' }">
-    {{ ghost.text }}
-  </div>
-
-  <!-- 标签页右键菜单 -->
-  <template v-if="ctx">
-    <div class="ctx-bk" @mousedown="closeCtx" @contextmenu.prevent="closeCtx" />
-    <div class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
-      <button type="button" @click="ctxDup">{{ $t('app.tabs.dup') }}</button>
-      <button type="button" @click="ctxClose">{{ $t('app.tabs.close') }}</button>
-      <span class="ctx__sep" />
-      <button type="button" @click="ctxOpenWindow">{{ $t('app.tabs.openWindow') }}</button>
-      <button type="button" @click="ctxMove">{{ $t('app.tabs.moveWindow') }}</button>
-    </div>
-  </template>
+    <!-- 标签页右键菜单 -->
+    <template v-if="ctx">
+        <div class="ctx-bk" @mousedown="closeCtx" @contextmenu.prevent="closeCtx" />
+        <div class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+            <button type="button" @click="ctxDup">{{ $t('app.tabs.dup') }}</button>
+            <button type="button" @click="ctxClose">{{ $t('app.tabs.close') }}</button>
+            <span class="ctx__sep" />
+            <button type="button" @click="ctxOpenWindow">{{ $t('app.tabs.openWindow') }}</button>
+            <button type="button" @click="ctxMove">{{ $t('app.tabs.moveWindow') }}</button>
+        </div>
+    </template>
 </template>
 
 <style scoped>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ReloadOutlined, SendOutlined, GithubOutlined } from '@antdv-next/icons'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSettingsStore } from './useSettingsStore'
 import { friendlyPlatform } from './settingsStore'
-import type { AppMeta, AppUpdateEvent } from '@shared/types'
+import type { AppMeta, AppSlotsState, AppUpdateEvent } from '@shared/types'
 import { useAppIcon } from '../../lib/appIcon'
 import { tt } from '../../lib/locales'
 
@@ -189,7 +189,7 @@ function play(i: number): void {
     }, 320)
 }
 
-type Phase = 'idle' | 'checking' | 'downloading' | 'downloaded' | 'none' | 'error'
+type Phase = 'idle' | 'checking' | 'downloading' | 'staging' | 'downloaded' | 'none' | 'error'
 
 const meta = ref<AppMeta | null>(null)
 const phase = ref<Phase>('idle')
@@ -203,7 +203,41 @@ const remoteVersion = ref<string | null>(null)
 const percent = ref(0)
 const errMsg = ref('')
 
+/** A/B 版本槽状态（当前 / 压缩保留的上一版 / 待重启安装）。 */
+const slots = ref<AppSlotsState | null>(null)
+
 const envLabel = ref('')
+
+/** 刷新版本槽状态。 */
+async function refreshSlots(): Promise<void> {
+    try {
+        slots.value = await window.api.getAppSlots()
+    } catch {
+        /* ignore */
+    }
+}
+
+/** 归档大小显示（MB，保留一位小数）。 */
+function archiveSize(bytes: number): string {
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+}
+
+/** 手动回退到上一版（二次确认后重启应用）。 */
+async function rollback(): Promise<void> {
+    const version = slots.value?.previous?.version ?? ''
+    try {
+        await ElMessageBox.confirm(
+            tt('sv.about.rollbackConfirm', { version }),
+            tt('sv.about.rollbackConfirmTitle'),
+            { type: 'warning', confirmButtonText: tt('sv.about.rollback'), cancelButtonText: tt('sv.about.rollbackCancel') }
+        )
+    } catch {
+        return
+    }
+    const r = await window.api.rollbackAppUpdate()
+    if (r.ok) ElMessage.success(tt('sv.about.rollbackStarted'))
+    else ElMessage.error(tt('sv.about.rollbackFailed', { message: r.message }))
+}
 
 /** 项目主页（外部浏览器打开）。 */
 const REPO_URL = 'https://github.com/XEonSKY/DeepSeek-Harness-Shell'
@@ -227,14 +261,24 @@ function onEvent(e: AppUpdateEvent): void {
             phase.value = 'downloading'
             percent.value = Math.round(e.percent ?? 0)
             break
+        case 'staging':
+            targetVersion.value = e.version ?? targetVersion.value
+            phase.value = 'staging'
+            break
         case 'downloaded':
             targetVersion.value = e.version ?? targetVersion.value
             phase.value = 'downloaded'
             percent.value = 100
+            void refreshSlots()
             break
         case 'not-available':
             remoteVersion.value = e.version ?? null
             phase.value = 'none'
+            break
+        case 'rollback':
+            errMsg.value = e.message ?? ''
+            phase.value = 'idle'
+            void refreshSlots()
             break
         case 'error':
             errMsg.value = e.message ?? ''
@@ -274,6 +318,7 @@ onMounted(async () => {
     } catch {
     /* ignore */
     }
+    void refreshSlots()
     try {
         const m = await window.api.getAppMeta()
         meta.value = m
@@ -371,7 +416,7 @@ onBeforeUnmount(() => {
                         type="primary"
                         :icon="ReloadOutlined"
                         :loading="phase === 'checking'"
-                        :disabled="phase === 'checking' || phase === 'downloading'"
+                        :disabled="phase === 'checking' || phase === 'downloading' || phase === 'staging'"
                         @click="check"
                     >
                         {{ $t('sv.about.checkBtn') }}
@@ -391,6 +436,14 @@ onBeforeUnmount(() => {
                     <el-progress :percentage="percent" :status="percent >= 100 ? 'success' : 'active'" />
                 </template>
 
+                <el-alert
+                    v-else-if="phase === 'staging'"
+                    class="about-result"
+                    :title="$t('sv.about.staging', { version: targetVersion || '' })"
+                    type="info"
+                    show-icon
+                    :closable="false"
+                />
                 <el-alert
                     v-else-if="phase === 'downloaded'"
                     class="about-result"
@@ -420,6 +473,36 @@ onBeforeUnmount(() => {
                     show-icon
                     :closable="false"
                 />
+            </el-collapse-item>
+
+            <!-- A/B 版本回退 -->
+            <el-collapse-item name="about-slots">
+                <template #title>
+                    <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.about.slots') }}</div>
+                </template>
+
+                <div class="slot-row">
+                    <span class="slot-label">{{ $t('sv.about.slotsCurrent') }}</span>
+                    <el-tag size="small" type="success" effect="plain">{{ slots?.current || '—' }}</el-tag>
+                </div>
+                <div class="slot-row">
+                    <span class="slot-label">{{ $t('sv.about.slotsPrevious') }}</span>
+                    <el-tag v-if="slots?.previous" size="small" type="info" effect="plain">
+                        {{ slots.previous.version }} · {{ archiveSize(slots.previous.bytes) }}
+                    </el-tag>
+                    <span v-else class="slot-empty">{{ $t('sv.about.slotsEmpty') }}</span>
+                </div>
+                <div v-if="slots?.pending" class="slot-row">
+                    <span class="slot-label">{{ $t('sv.about.slotsPending') }}</span>
+                    <el-tag size="small" type="warning" effect="plain">{{ slots.pending }}</el-tag>
+                </div>
+
+                <div class="au-row">
+                    <el-button :icon="ReloadOutlined" @click="refreshSlots">{{ $t('sv.about.rollbackRefresh') }}</el-button>
+                    <el-button type="warning" :disabled="!slots?.canRollback" @click="rollback">
+                        {{ $t('sv.about.rollback') }}
+                    </el-button>
+                </div>
             </el-collapse-item>
         </el-collapse>
 
@@ -476,6 +559,24 @@ onBeforeUnmount(() => {
 }
 .repo-btn {
   flex: 0 0 auto;
+}
+
+/* A/B 版本槽：标签行 */
+.slot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.slot-label {
+  flex: 0 0 auto;
+  min-width: 120px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+.slot-empty {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
 }
 /* antdv 图标按 1em 取尺寸（不是 svg 的 width/height），故用 font-size 控制大小 */
 .gh-icon {

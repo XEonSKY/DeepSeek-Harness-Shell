@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElCheckbox, ElMessageBox } from 'element-plus'
+import { ElCheckbox, ElMessageBox, ElNotification } from 'element-plus'
 import KernelWizard from './components/KernelWizard.vue'
 import TitleBar from './components/TitleBar.vue'
 import { checkAndNotify } from './lib/update'
 import { applyTheme, applyColorScheme } from './lib/theme'
-import { applyFunToZh } from './lib/locales'
+import { applyFunToZh, tt } from './lib/locales'
 import { useView, useGoView, useToggleTerminal } from './shell/viewnav'
 import { webTabs, activeTab, activateTab, openTarget, setCoreRole, tabLabel } from './shell/tabs'
 import WebHost from './views/WebHost.vue'
 import { shellMeta } from './shell/shellmeta'
+import type { AppUpdateEvent } from '@shared/types'
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -80,6 +81,34 @@ let offToggle: (() => void) | null = null
 let offAskClose: (() => void) | null = null
 let offMissing: (() => void) | null = null
 let offCore: (() => void) | null = null
+let offAppUpdate: (() => void) | null = null
+
+/**
+ * 主进程后台更新事件：新版本就绪时全局提示「立即重启安装」（点击通知即重启），
+ * 自动回退时给出警告。这样即使不在「关于」页也不会错过。
+ */
+function onAppUpdateEvent(e: AppUpdateEvent): void {
+    if (e.kind === 'downloaded') {
+        ElNotification({
+            title: tt('sv.about.downloadedTitle'),
+            message: tt('sv.about.downloadedDesc'),
+            type: 'success',
+            position: 'top-right',
+            offset: 60,
+            duration: 0,
+            onClick: () => window.api.restartAndInstall()
+        })
+    } else if (e.kind === 'rollback' && e.message) {
+        ElNotification({
+            title: tt('sv.about.slots'),
+            message: e.message,
+            type: 'warning',
+            position: 'top-right',
+            offset: 60,
+            duration: 8000
+        })
+    }
+}
 
 // 内核未安装时由主进程通知 → 显示安装向导（向导组件自管全部安装状态与步骤）。
 const showMissing = ref(false)
@@ -112,6 +141,7 @@ onMounted(() => {
     offMissing = window.api.onKernelMissing(() => {
         showMissing.value = true
     })
+    offAppUpdate = window.api.onAppUpdateEvent(onAppUpdateEvent)
     void (async () => {
         const s = await window.api.getSettings()
         applyTheme(s.theme)
@@ -131,6 +161,7 @@ onBeforeUnmount(() => {
     offAskClose?.()
     offMissing?.()
     offCore?.()
+    offAppUpdate?.()
 })
 </script>
 

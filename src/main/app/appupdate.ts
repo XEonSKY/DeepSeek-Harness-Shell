@@ -1,21 +1,40 @@
 import { app, session } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import type { UpdateDownloadedEvent } from 'electron-updater'
+import semver from 'semver'
 import type { AppMeta, AppUpdateEvent, Settings } from '@shared/types'
-import { isPrerelease } from '@shared/version'
+import { isPrerelease, stripV } from '@shared/version'
 import { proxyActive, proxyUrl } from '../kernel/net'
 import { broadcast } from './runtime'
 import { loadSettings, mt } from './settings'
+import {
+    appSlotsState,
+    archiveRunningVersion,
+    clearPending,
+    dropPreviousIfCurrent,
+    noteBootAttempt,
+    readManifest,
+    restorePrevious,
+    stagePendingUpdate,
+    syncCurrentVersion
+} from './appslots'
 
 /**
- * App 自动更新：封装 electron-updater(GitHub provider)。
+ * App 自动更新（A/B 版本槽）：封装 electron-updater(GitHub)。
  * 仅打包成安装包且仓库有对应 Release 时实际可下载；开发/未打包时给出提示。
  * 下载进度等事件经 IPC 广播给渲染层的「关于」页。
  *
- * ⚠️ 发布侧的两个硬前提（否则本模块永远收不到更新）：
- *  1. Release 必须是**已发布**的，不能停在 draft —— electron-updater 走 `/releases/latest`
- *     或 `releases.atom`，两个端点都不返回 draft。已在 `package.json` 的
- *     `build.publish.releaseType` 设为 `"prerelease"`（schema 默认是 `"draft"`）。
- *  2. 预发布线用户必须保持 `allowPrerelease = true`，见 `setPrerelease()`。
+ * 与旧实现的关键差异：
+ *  1. **自己解析发布版本**：先用 GitHub Releases API 按「是否含预发布」筛出目标 tag，
+ *     再把更新源钉到该 tag 的资源目录（generic provider 读该 tag 的 latest*.yml）。
+ *     CI 在每个 tag 下同时发布安装包与 channel 文件，因此不再依赖 electron-updater 的
+ *     通道推断，也就不会再把「远端最新」解析成更旧的版本。
+ *  2. **后台安装 + 提示重启**：`appAutoUpdate` 开启时启动即静默检查并后台下载；
+ *     下载完成后把当前版本压缩归档为「上一版」（只留一个）并提示重启。
+ *  3. **A/B 回退**：新版连续启动失败会自动还原上一版；用户也可手动回退一个版本。
+ *
+ * ⚠️ 发布侧硬前提：Release 必须已发布（不能停在 draft）——CI 的 electron-builder
+ * `--publish always` 已保证；`releaseType` 由工作流按版本号决定。
  */
 
 let inited = false
@@ -189,6 +208,63 @@ async function prepareUpdater(cfg: Settings): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 发布解析：对齐 CI 产物（GitHub Releases API + 各平台 channel 文件）
+// ---------------------------------------------------------------------------
+
+/** 更新源 owner/repo（与 package.json 的 build.publish 一致）。 */
+const OWNER = 'XEonSKY'
+const REPO = 'DeepSeek-Harness-Shell'
+
+/** GitHub Releases API 精简项。 */
+interface ReleaseItem {
+    tag: string
+    version: string
+    prerelease: boolean
+}
+
+/** 用更新器专属 session 请求（自动带上「更新」范围配置的代理）。 */
+async function fetchReleases(): Promise<ReleaseItem[]> {
+    const updaterSession = session.fromPartition(UPDATER_SESSION, { cache: false })
+    const res = await updaterSession.fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases?per_page=30`, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'dsh-shell-updater' }
+    })
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`)
+    const arr = (await res.json()) as Array<{ tag_name?: string; prerelease?: boolean; draft?: boolean }>
+    return arr
+        .filter((r) => !r.draft && typeof r.tag_name === 'string')
+        .map((r) => ({ tag: r.tag_name as string, version: stripV(r.tag_name as string), prerelease: !!r.prerelease }))
+        .filter((r) => semver.valid(r.version) !== null)
+}
+
+/** 在候选里取最大版本；默认剔除预发布。 */
+function pickRelease(list: ReleaseItem[], allowPrerelease: boolean): ReleaseItem | null {
+    const pool = list.filter((r) => allowPrerelease || !r.prerelease)
+    pool.sort((a, b) => semver.rcompare(a.version, b.version))
+    return pool[0] ?? null
+}
+
+/** 目标 Release 的资源根：该 tag 目录下就是 CI 产出的安装包与 latest*.yml。 */
+function feedUrlFor(tag: string): string {
+    return `https://github.com/${OWNER}/${REPO}/releases/download/${tag}`
+}
+
+/** 已钉住的 tag（避免重复 setFeedURL）。 */
+let pinnedTag: string | null = null
+
+/** 把更新源钉到某个 tag 的资源目录（generic provider，读该 tag 的 latest*.yml）。 */
+function pinFeed(tag: string): void {
+    if (pinnedTag === tag) return
+    // GitHub 资源不适合多段 Range 请求，关掉可避免一部分镜像/代理下下载卡住。
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrlFor(tag), useMultipleRangeRequest: false })
+    pinnedTag = tag
+}
+
+/** 统一取错误文案。 */
+function messageOf(err: unknown): string {
+    return err instanceof Error ? err.message : String(err)
+}
+
+// ---------------------------------------------------------------------------
 
 /** 惰性初始化：注册 electron-updater 事件到广播。 */
 function ensureInited(): void {
@@ -200,22 +276,79 @@ function ensureInited(): void {
     autoUpdater.on('update-available', (info) => emit({ kind: 'available', version: info?.version ?? null }))
     autoUpdater.on('update-not-available', (info) => emit({ kind: 'not-available', version: info?.version ?? null }))
     autoUpdater.on('download-progress', (p) => emit({ kind: 'progress', percent: typeof p?.percent === 'number' ? p.percent : 0 }))
-    autoUpdater.on('update-downloaded', (info) => emit({ kind: 'downloaded', version: info?.version ?? null }))
+    autoUpdater.on('update-downloaded', (info) => void onDownloaded(info))
     autoUpdater.on('error', (err) => emit({ kind: 'error', message: err && err.message ? err.message : String(err) }))
 }
 
 /**
- * 控制是否采纳预发布版本。
+ * 控制是否采纳预发布版本。**仅用于** GitHub API 解析失败时的兜底默认通道。
  *
- * **不能**直接用设置里的 `appCheckPrerelease` 覆盖：electron-updater 构造时会按当前版本自动
- * 设置 `allowPrerelease`（AppUpdater：`allowPrerelease = hasPrereleaseComponents(currentVersion)`），
- * 对 `0.1.5-alpha-2` 这类预发布版本本来就是 `true`。若用默认值为 `false` 的设置项强行覆盖，
- * 预发布线用户会被钉死在「只看正式版」，永远收不到同线更新。
- *
- * 这里改为「设置项 OR 当前版本本身是预发布」——即：想跨到正式版可以单独开，但没人会被卡死。
+ * 正常路径下我们已用 GitHub Releases API 解析好确切 tag 并钉住 generic 源，预发布与否由
+ * 设置项直接决定，不经过 electron-updater 的通道推断。但兜底路径仍需保持旧语义：
+ * **不能**用设置项强行覆盖，否则预发布线用户会被钉死在「只看正式版」——
+ * 这里取「设置项 OR 当前版本本身是预发布」，想跨到正式版可单独开，但没人会被卡死。
  */
 function setPrerelease(on: boolean): void {
     autoUpdater.allowPrerelease = on || isPrerelease(app.getVersion())
+}
+
+// ---------------------------------------------------------------------------
+// A/B：下载完成后的归档登记 + 启动守卫 / 自动回退
+// ---------------------------------------------------------------------------
+
+/** 新版首次启动的「健康观察期」；熬过去即视为安装成功。 */
+const HEALTHY_MS = 30_000
+/** 允许的「启动新版但未确认健康」次数；超出即自动回退。 */
+const MAX_BOOT_ATTEMPTS = 3
+
+/**
+ * 下载完成：把当前版本压缩归档为「上一版」，登记待重启安装。
+ * 归档是回退的唯一来源；失败只影响回退能力，不阻塞安装。
+ */
+async function onDownloaded(info: UpdateDownloadedEvent): Promise<void> {
+    const version = info?.version ?? null
+    const current = app.getVersion()
+    if (!version || version === current) {
+        emit({ kind: 'downloaded', version, canRollback: appSlotsState().canRollback })
+        return
+    }
+    emit({ kind: 'staging', version })
+    await archiveRunningVersion()
+    stagePendingUpdate(version, typeof info.downloadedFile === 'string' ? info.downloadedFile : null)
+    const slots = appSlotsState()
+    emit({ kind: 'downloaded', version, canRollback: slots.canRollback, previous: slots.previous?.version ?? null })
+}
+
+/**
+ * 启动守卫：
+ *  - 写入当前版本，并在「当前版本 == 上一版归档」时清掉已过期的归档记录；
+ *  - 若存在待安装记录而当前版本不是目标版本，说明安装没发生，清掉记录；
+ *  - 若当前正是新装版本，累计一次启动尝试；超过阈值自动回退，否则起健康计时器。
+ * 返回 false 表示已安排自动回退，调用方不应继续做更新检查。
+ */
+function runBootGuard(): boolean {
+    const running = app.getVersion()
+    syncCurrentVersion(running)
+    dropPreviousIfCurrent(running)
+
+    const pending = readManifest().pending
+    if (!pending) return true
+    if (pending.to !== running) {
+        clearPending()
+        return true
+    }
+    if (noteBootAttempt(running) > MAX_BOOT_ATTEMPTS) {
+        const previous = readManifest().previous?.version ?? null
+        emit({ kind: 'rollback', version: previous, message: mt('m.appUpdate.autoRollback', { version: previous ?? '?' }) })
+        setTimeout(() => {
+            const res = restorePrevious()
+            if (res.ok) setTimeout(() => app.quit(), 400)
+            else emit({ kind: 'error', message: res.message })
+        }, 1500)
+        return false
+    }
+    setTimeout(() => clearPending(), HEALTHY_MS)
+    return true
 }
 
 /** 运行环境元信息（关于页显示当前版本/架构）。 */
@@ -234,39 +367,78 @@ export function appUpdateState(): AppUpdateEvent | null {
     return lastEvent
 }
 
-/** 触发一次检查；有可用更新时 electron-updater 自动进入后台下载。 */
+/**
+ * 触发一次检查：
+ *  1. 解析 GitHub Releases，按 `prerelease` 选出目标版本；
+ *  2. 有更新则把更新源钉到该 tag，交给 electron-updater 后台下载；
+ *  3. 无更新直接广播 `not-available`（带上远端真实版本，便于排查）；
+ *  4. 解析失败（离线 / API 限流）退回 electron-updater 的默认 GitHub 通道。
+ */
 export async function triggerAppUpdate(opts: { prerelease: boolean }): Promise<{ ok: boolean; message: string }> {
     if (!app.isPackaged) return { ok: false, message: mt('m.appUpdate.onlyPackaged') }
     if (isPortableBuild()) return { ok: false, message: mt('m.appUpdate.portable') }
     ensureInited()
-    setPrerelease(opts.prerelease)
+
+    await prepareUpdater(loadSettings())
+    emit({ kind: 'checking' })
+
+    const current = app.getVersion()
+    let target: ReleaseItem | null
     try {
-        await prepareUpdater(loadSettings())
+        target = pickRelease(await fetchReleases(), opts.prerelease)
+    } catch {
+        setPrerelease(opts.prerelease)
+        try {
+            await autoUpdater.checkForUpdates()
+            return { ok: true, message: '' }
+        } catch (err) {
+            return { ok: false, message: messageOf(err) }
+        }
+    }
+
+    if (!target || !semver.gt(target.version, current)) {
+        emit({ kind: 'not-available', version: target?.version ?? null })
+        return { ok: true, message: '' }
+    }
+
+    pinFeed(target.tag)
+    try {
         await autoUpdater.checkForUpdates()
         return { ok: true, message: '' }
     } catch (err) {
-        return { ok: false, message: err instanceof Error ? err.message : String(err) }
+        return { ok: false, message: messageOf(err) }
     }
 }
 
-/** 立即重启并安装已下载的更新。 */
+/** 立即重启并安装已下载的更新（后台下载完成后调用）。 */
 export function restartAndInstall(): void {
     if (app.isPackaged && !isPortableBuild()) autoUpdater.quitAndInstall()
 }
 
-/** 启动时按设置自动检查一次（静默；失败不打扰）。 */
+/** 手动回退到压缩保留的上一版；成功后会重启应用。 */
+export function rollbackAppUpdate(): { ok: boolean; message: string } {
+    if (!app.isPackaged || isPortableBuild()) return { ok: false, message: mt('m.appUpdate.onlyPackaged') }
+    const r = restorePrevious()
+    if (r.ok) {
+        emit({ kind: 'rollback', version: r.version, message: r.message })
+        setTimeout(() => app.quit(), 400)
+    }
+    return { ok: r.ok, message: r.message }
+}
+
+/** 版本槽状态（设置页展示；转发自 appslots）。 */
+export { appSlotsState }
+
+/**
+ * 启动时先跑 A/B 启动守卫，再按设置做一次静默的后台检查（失败不打扰）。
+ * `appAutoUpdate` 开启时，electron-updater 会自动后台下载；下载完成后由 onDownloaded
+ * 归档旧版并广播「待重启」事件。
+ */
 export function startAutoCheckIfEnabled(): void {
     if (!app.isPackaged || isPortableBuild()) return
+    ensureInited()
+    if (!runBootGuard()) return
     const s = loadSettings()
     if (!s.appAutoUpdate) return
-    ensureInited()
-    setPrerelease(s.appCheckPrerelease)
-    void (async () => {
-        try {
-            await prepareUpdater(s)
-            await autoUpdater.checkForUpdates()
-        } catch {
-            /* silent */
-        }
-    })()
+    void triggerAppUpdate({ prerelease: s.appCheckPrerelease })
 }

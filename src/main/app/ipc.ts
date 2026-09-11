@@ -6,7 +6,7 @@ import { resolveLocale, localeCodeOf } from '@shared/i18n'
 import { readDiskSettings, persistSettings, syncDshTheme, syncNativeTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, normalizeNpmSource } from './settings'
 import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from '../kernel/kernel'
 import { getLogHistory, restart, isDshRunning, stopServer } from '../kernel/dsh'
-import { appMeta, appUpdateState, triggerAppUpdate, restartAndInstall } from './appupdate'
+import { appMeta, appSlotsState, appUpdateState, triggerAppUpdate, restartAndInstall, rollbackAppUpdate } from './appupdate'
 import { broadcast, getCurrentUrl, getMainWindow, setQuitting, sendCore, sendToWindow, sendToWcId } from './runtime'
 import { isCoreWindow, windowByContentsId, listWindows } from './windowreg'
 import { openStandaloneWindow, focusCoreWindow, takeOpenIntent, createSecondaryShellWindow, syncGlobalHotkey, globalHotkeyState } from './ui'
@@ -100,6 +100,8 @@ export function registerIpc(): void {
     ipcMain.handle('appupdate:meta', () => appMeta())
     ipcMain.handle('appupdate:trigger', (_e, opts: { prerelease: boolean }) => triggerAppUpdate(opts))
     ipcMain.handle('appupdate:state', () => appUpdateState())
+    ipcMain.handle('appupdate:slots', () => appSlotsState())
+    ipcMain.handle('appupdate:rollback', () => rollbackAppUpdate())
     ipcMain.on('appupdate:restart', () => restartAndInstall())
     ipcMain.handle('kernel:update', (_e, opts) => updateKernel(opts))
     ipcMain.handle('kernel:install', (_e, opts) => installKernel(opts))

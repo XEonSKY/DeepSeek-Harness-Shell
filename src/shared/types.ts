@@ -230,6 +230,23 @@ export interface AppMeta {
     platform: string | null
 }
 
+/** 已压缩保留的一个旧版本（A/B 双槽里的「上一版」）。 */
+export interface AppSlotRecord {
+    version: string
+    /** 归档文件名（位于配置目录 `app-slots` 下）。 */
+    archive: string
+    createdAt: number
+    bytes: number
+}
+
+/** 版本槽状态：当前版本 / 压缩保留的上一版 / 待重启安装的版本。 */
+export interface AppSlotsState {
+    current: string | null
+    previous: AppSlotRecord | null
+    pending: string | null
+    canRollback: boolean
+}
+
 /** 首次安装向导探测到的本机运行环境。 */
 export interface EnvProbe {
     platform: string
@@ -308,11 +325,15 @@ export interface HotkeyState {
 
 /** 自动更新过程状态（由主进程 electron-updater 事件桥接而来）。 */
 export interface AppUpdateEvent {
-    kind: 'checking' | 'available' | 'not-available' | 'progress' | 'downloaded' | 'error'
+    kind: 'checking' | 'available' | 'not-available' | 'progress' | 'staging' | 'downloaded' | 'rollback' | 'error'
     version?: string | null
     /** progress 时的下载百分比 0-100。 */
     percent?: number
     message?: string
+    /** 当前是否保留了可回退的上一版（downloaded / rollback 时给出）。 */
+    canRollback?: boolean
+    /** 上一版版本号（若有）。 */
+    previous?: string | null
 }
 
 /** Everything the renderer (shell UI) can ask of the main process. */
@@ -368,6 +389,10 @@ export interface RendererApi {
     onAppUpdateEvent(cb: (e: AppUpdateEvent) => void): () => void
     /** 立即重启并安装已下载的更新。 */
     restartAndInstall(): void
+    /** 版本槽状态：当前版本、压缩保留的上一版、待重启安装的版本。 */
+    getAppSlots(): Promise<AppSlotsState>
+    /** 回退到压缩保留的上一版（会重启应用）。 */
+    rollbackAppUpdate(): Promise<{ ok: boolean; message: string }>
     /**
    * Install / switch the kernel to a specific version (or latest when no
    * version is given). If nothing was installed, dsh is started afterwards.

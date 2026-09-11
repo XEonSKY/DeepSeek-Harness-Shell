@@ -6,7 +6,7 @@ import type { ProxyScope } from '@shared/types'
 
 const { state } = useSettingsStore()
 
-const open = ref(['network-registry', 'network-proxy', 'network-mirror'])
+const open = ref(['network-registry', 'network-proxy', 'network-download', 'network-mirror'])
 const SCOPES: ProxyScope[] = ['npm', 'node', 'update']
 
 function toggleScope(s: ProxyScope): void {
@@ -96,6 +96,21 @@ function toggleScope(s: ProxyScope): void {
                     </el-form-item>
                 </el-form>
             </el-collapse-item>
+
+            <el-collapse-item name="network-download">
+                <template #title>
+                    <div class="sec__title"><el-icon><DownloadOutlined /></el-icon> {{ $t('sv.network.download') }}</div>
+                </template>
+                <el-form label-position="top">
+                    <el-form-item :label="$t('sv.network.downloadThreads')">
+                        <div class="row">
+                            <el-input-number v-model="state.downloadThreads" :min="1" :max="16" :step="1" />
+                            <span class="hint">{{ $t('sv.network.downloadThreadsValue', { n: state.downloadThreads }) }}</span>
+                        </div>
+                        <div class="hint">{{ $t('sv.network.downloadThreadsHint') }}</div>
+                    </el-form-item>
+                </el-form>
+            </el-collapse-item>
         </el-collapse>
     </div>
 </template>
@@ -119,5 +134,8 @@ function toggleScope(s: ProxyScope): void {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.row .hint {
+  align-self: center;
 }
 </style>

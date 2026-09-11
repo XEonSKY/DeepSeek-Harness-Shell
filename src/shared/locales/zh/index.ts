@@ -65,10 +65,14 @@ export default {
         configDir: '配置目录',
         choose: '选择…',
         restoreDefault: '恢复默认',
-        configDirHint: '设置、本地内核与内置 npm 都会放入该目录；切换后会尽量迁移已有内容。',
+        configDirHint: '设置、本地内核与内置 npm 都会放入该目录；更改后在重启应用时自动迁移已有内容。',
+        configDirPending: '配置目录已更改，将在重启应用后自动迁移原目录内容。',
         version: '版本',
         npmSystem: '系统 npm',
         npmHint: '系统 npm 用本机已装；内置 npm 首次会在线拉取一份缓存；本地 Node 自带 npm 仅在部署本地 Node 后出现。',
+        npmPreparing: '正在下载内置 npm…',
+        npmBundledReady: '内置 npm 已缓存，可直接进入下一步。',
+        npmBundledWillDownload: '内置 npm 尚未缓存：进入下一步会先下载并缓存，完成后再继续。',
         unavailable: '不可用',
         wiz: {
             source: '镜像源',
@@ -92,6 +96,7 @@ export default {
             hintElectron: '使用应用自带的 Electron Node，无需额外安装，开箱即用。',
             hintLocal: '把 Node LTS 发行包按当前系统/架构下载并解压到配置目录，离线可复用，不依赖系统。',
             deployHint: '尚未部署本地 Node。点击下方按钮将下载当前平台的最新 LTS 并解压到配置目录（进度见日志）。',
+            deploying: '正在下载并部署 Node LTS…',
             deploy: '下载并部署 Node LTS',
             redeploy: '重新部署',
             localReady: '已部署本地 Node',
@@ -110,7 +115,16 @@ export default {
         closeLog: '关闭',
         preLabel: '包含测试版',
         versionPlaceholder: '选择要安装的版本（默认最新）',
-        versionHint: '取消勾选「包含测试版」只列出正式版并默认安装最新正式版；勾选后也会列出并安装 rc / beta 等预发布版本。清除选择即安装当前范围内的最新版本。'
+        versionHint: '取消勾选「包含测试版」只列出正式版并默认安装最新正式版；勾选后也会列出并安装 rc / beta 等预发布版本。清除选择即安装当前范围内的最新版本。',
+        pickNodeVersion: '选择 Node 版本',
+        nodeVersionDefault: '选择要部署的版本（默认最新 LTS）',
+        includeNonLts: '包含非 LTS（Current）',
+        pickNpmVersion: '选择 npm 版本',
+        npmVersionDefault: '选择要下载的版本（默认最新）',
+        cancel: '取消',
+        canceling: '正在取消…',
+        extractingNode: '正在解压 Node…',
+        extractingNpm: '正在解压内置 npm…'
     },
     engine: {
         baidu: '百度',
@@ -203,6 +217,20 @@ export default {
             askEvery: '每次询问',
             rememberChoice: '记住选择',
             askEveryHint: '开启则每次关闭都询问。',
+            configDirSection: '配置文件夹',
+            configDir: '当前配置目录',
+            configDirChange: '更改…',
+            configDirReset: '恢复默认',
+            configDirHint: '设置、本地内核、内置 npm、本地 Node 与工作目录都放在该目录；更改后将在重启时自动迁移，迁移过程可见进度。',
+            configDirPending: '重启后自动迁移到：{to}',
+            configDirCancel: '取消更改',
+            configDirConfirmTitle: '迁移配置目录',
+            configDirConfirm: '配置目录将改为：{to}。原目录内容会在下次重启应用时自动迁移；选择「取消更改」将撤销本次修改。',
+            configDirOk: '确定',
+            configDirWillMigrate: '已记录更改：重启应用后会自动迁移到 {to}。',
+            configDirRestart: '立即重启',
+            configDirReverted: '已撤销配置目录更改。',
+            configDirInvalid: '该目录与当前配置目录互为父子关系，无法迁移；请选择其它位置。',
             reset: '恢复默认设置',
             resetTxt: '恢复默认并重启 dsh。',
             resetBtn: '一键恢复默认'
@@ -258,7 +286,11 @@ export default {
             mirror: 'GitHub 镜像',
             mirrorUrl: '镜像前缀',
             mirrorHint: '留空则直连 GitHub。填入公共镜像前缀（如 https://ghproxy.com）后，应用更新的安装包下载会经其加速；版本查询等元数据仍走官方，因此镜像不支持 GitHub API 也不会让更新检查失效。',
-            mirrorBroken: '镜像失效时清空此项即可恢复直连。'
+            mirrorBroken: '镜像失效时清空此项即可恢复直连。',
+            download: '下载',
+            downloadThreads: '并发连接数',
+            downloadThreadsValue: '当前：{n} 个连接',
+            downloadThreadsHint: '文件下载（Node / npm / 应用更新）默认多线程分段下载；1 = 单线程，网络不稳时可调低，最多 16。'
         },
         dsh: {
             kernelVersion: '内核版本',
@@ -314,6 +346,17 @@ export default {
             nodeSystem: '系统自带',
             nodeLocal: '本地部署',
             nodeRuntimeHint: '三个来源任选其一；改动后需重启生效。',
+            installedVersions: '已安装版本',
+            activeVersion: '当前生效',
+            switchVersion: '切换',
+            removeVersion: '删除',
+            removeVersionConfirm: '确定删除版本 {version}？',
+            versionSwitched: '已切换到 {version}',
+            installedNone: '尚无已安装版本',
+            installNew: '安装新版本',
+            extracting: '解压中…',
+            cancelInstall: '取消',
+            canceling: '取消中…',
             applyTxt: '改完 Node 运行环境后，点右侧立即重启 dsh 生效。',
             applyBtn: '立即应用',
             runtimeUnusable: '当前选中的运行时不可用：未检测到可用的 Node（系统来源需 ≥ {major}，本地来源需先部署）。应用后 dsh 无法启动。',
@@ -519,5 +562,16 @@ export default {
             workspaceMissing: '配置的工作目录不存在：\n{path}\n\nDeepSeek Harness 将改用用户主目录启动。',
             startFailedTitle: 'DeepSeek Harness Shell 无法启动'
         }
+    },
+    /** 配置目录迁移（重启引导阶段的全屏进度框） */
+    configMigration: {
+        title: '正在迁移配置目录',
+        desc: '正在把原目录内容迁移到新位置：{from} → {to}',
+        preparing: '正在统计文件…',
+        moving: '正在移动文件：',
+        count: '{moved} / {total} 个文件',
+        cancel: '取消迁移',
+        canceled: '已取消迁移，继续使用原配置目录。',
+        failed: '迁移未完成，已保留原配置目录。'
     }
 }

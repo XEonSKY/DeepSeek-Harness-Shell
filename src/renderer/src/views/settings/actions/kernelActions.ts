@@ -93,7 +93,8 @@ export function createKernelActions(state: SettingsState): KernelActions {
                 // 装/切换完版本后清掉「检查过」标记：否则「内核」页会拿旧的检查结果继续显示「已是最新」。
                 kernelCheck.checked = false
                 ElMessage.success(r.message)
-            } else {
+            } else if (!r.canceled) {
+                // 用户主动取消不算失败，静默返回。
                 ElMessage.error(r.message || '')
             }
         } catch (err) {
@@ -109,7 +110,11 @@ export function createKernelActions(state: SettingsState): KernelActions {
         if (!(await confirmStopDshIfRunning(tt('msg.switchStopText')))) return
         state.switchingKernel = true
         try {
-            const r = await window.api.installKernel({ version: target, registry: state.npmRegistry })
+            // 目标版本已在本地安装列表中 → 只切生效指针（不重装）；否则才真正下载安装。
+            const local = await window.api.listInstalledVersions('kernel')
+            const r = local.installed.includes(target)
+                ? await window.api.useInstalledVersion('kernel', target)
+                : await window.api.installKernel({ version: target, registry: state.npmRegistry })
             if (r.ok) {
                 state.version = r.version
                 kernelCheck.found = false
@@ -118,7 +123,8 @@ export function createKernelActions(state: SettingsState): KernelActions {
                 kernelCheck.checked = false
                 await loadVersions()
                 ElMessage.success(r.message)
-            } else {
+            } else if (!r.canceled) {
+                // 用户主动取消不算失败，静默返回。
                 ElMessage.error(r.message || '')
             }
         } catch (err) {

@@ -4,23 +4,39 @@ import os from 'node:os'
 import fs from 'node:fs'
 import { parseDocument } from 'yaml'
 import { DEFAULT_SETTINGS, COLOR_SCHEME_IDS } from '@shared/types'
-import type { Settings, Theme, ResolvedLocale, LocaleCode, ColorSchemeId } from '@shared/types'
+import type { ConfigDirInfo, ConfigMigrationPlan, ConfigMigrationProgress, Settings, Theme, ResolvedLocale, LocaleCode, ColorSchemeId } from '@shared/types'
 import { resolveLocale, t as tl } from '@shared/i18n'
 import { broadcast } from './runtime'
+import { clearMigrationPlan, migrateTree, readMigrationPlan, rollbackMoves, scanTree, writeMigrationPlan } from './configmigrate'
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 /**
- * 配置目录：默认在用户主目录 `.config` 隐藏目录，开发态与发行态分开——
- *   - 发行（打包）：`~/.config/dsh_shell`
- *   - 开发（dev/start）：`~/.config/dsh_shell_dev`
- * 用户可在首次安装向导里自选覆盖。覆盖指针存于 userData（固定位置，先于
+ * 配置目录：默认在用户主目录的隐藏目录 .dsbox 下，开发态与发行态分开——
+ *   - 发行（打包）：~/.dsbox/release
+ *   - 开发（dev/start）：~/.dsbox/dev
+ * 用户可在「设置 → 常规」自选覆盖。覆盖指针存于 userData（固定位置，先于
  * settings.json 读取，避免“配置目录本身由配置决定”的鸡生蛋问题）。
+ * 更改目录不会立即搬迁，而是落一份迁移计划，待下次重启的引导阶段执行。
  */
 function defaultConfigDir(): string {
-    return path.join(os.homedir(), '.config', app.isPackaged ? 'dsh_shell' : 'dsh_shell_dev')
+    return path.join(os.homedir(), '.dsbox', app.isPackaged ? 'release' : 'dev')
+}
+
+/**
+ * 曾经用过的默认目录（升级时自动迁移到 ~/.dsbox）：
+ *  - ~/dsbox/{release,dev}：短暂用过的中间默认位置；
+ *  - ~/.config/dsh_shell[_dev]：最初的默认位置。
+ * 按「越新越靠前」返回，升级时取第一个存在者作为迁移源。
+ */
+function legacyDefaultConfigDirs(): string[] {
+    const release = app.isPackaged
+    return [
+        path.join(os.homedir(), 'dsbox', release ? 'release' : 'dev'),
+        path.join(os.homedir(), '.config', release ? 'dsh_shell' : 'dsh_shell_dev')
+    ]
 }
 
 /** 自选配置目录的指针文件（放 userData，与 configDir 解耦，保证可先读）。 */
@@ -37,41 +53,8 @@ function readConfigOverride(): string | null {
     }
 }
 
-/** 当前有效配置目录（覆盖或默认）。 */
-export function configDir(): string {
-    return readConfigOverride() || defaultConfigDir()
-}
-
-/** 向导 / 设置页展示：当前有效 + 默认。 */
-export function configDirInfo(): { current: string; default: string } {
-    return { current: configDir(), default: defaultConfigDir() }
-}
-
-/** 把旧目录已存在、新目录还没有的内容（settings.json / kernel / npm）搬过去。 */
-function migrateConfigContents(from: string, to: string): void {
-    if (from === to || !fs.existsSync(from)) return
-    try {
-        fs.mkdirSync(to, { recursive: true })
-        for (const name of ['settings.json', 'kernel', 'npm']) {
-            const s = path.join(from, name)
-            const d = path.join(to, name)
-            if (fs.existsSync(s) && !fs.existsSync(d)) {
-                try {
-                    fs.renameSync(s, d)
-                } catch {
-                    /* best effort */
-                }
-            }
-        }
-    } catch {
-    /* best effort */
-    }
-}
-
-/** 设置自选配置目录；传 null 恢复默认。返回新的当前有效目录。 */
-export function setConfigDir(dir: string | null): string {
-    const old = configDir()
-    if (dir) migrateConfigContents(old, dir)
+/** 写入 / 清除覆盖指针（null 表示回归默认目录）。 */
+function writeConfigOverride(dir: string | null): void {
     try {
         fs.mkdirSync(path.dirname(configPointerFile()), { recursive: true })
         if (dir) fs.writeFileSync(configPointerFile(), dir, 'utf8')
@@ -85,26 +68,274 @@ export function setConfigDir(dir: string | null): string {
     } catch (err) {
         console.error('[Manager] failed to persist config-dir override:', err)
     }
-    const next = configDir()
-    if (next !== old) rewatchConfig()
-    return next
 }
 
+/** 内存中的迁移计划缓存（仅本模块写，避免热点路径反复读盘）。undefined = 尚未读取。 */
+let pendingMigration: ConfigMigrationPlan | null | undefined
+
+/** 待执行的配置目录迁移计划（无则 null）。 */
+export function configMigrationPlan(): ConfigMigrationPlan | null {
+    if (pendingMigration === undefined) pendingMigration = readMigrationPlan()
+    return pendingMigration
+}
+
+/** 两个目录是否互为父子（Windows 下大小写不敏感）；互为父子时迁移会自我递归。 */
+function isNestedDir(a: string, b: string): boolean {
+    const norm = (p: string): string => (process.platform === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p))
+    const na = norm(a)
+    const nb = norm(b)
+    if (na === nb) return false
+    return nb.startsWith(na + path.sep) || na.startsWith(nb + path.sep)
+}
+
+/** 更新迁移计划（内存 + 磁盘）。 */
+function setMigrationPlan(plan: ConfigMigrationPlan | null): void {
+    pendingMigration = plan
+    if (plan) writeMigrationPlan(plan)
+    else clearMigrationPlan()
+}
+
+/** 当前有效配置目录：迁移未完成时仍是旧目录（内容尚未搬走）。 */
+export function configDir(): string {
+    const plan = configMigrationPlan()
+    if (plan) return plan.from
+    return readConfigOverride() || defaultConfigDir()
+}
+
+/** 向导 / 设置页展示：当前有效 + 默认 + 覆盖值 + 待迁移计划。 */
+export function configDirInfo(): ConfigDirInfo {
+    return {
+        current: configDir(),
+        default: defaultConfigDir(),
+        override: readConfigOverride(),
+        pending: configMigrationPlan()
+    }
+}
+
+/**
+ * 设置自选配置目录；传 null 恢复默认。
+ *
+ * 旧目录存在内容时不立即搬迁，只记录「重启后迁移」计划（返回值的 pending 非空），
+ * 由调用方提示用户重启；用户取消则用 revertConfigDir() 撤销。旧目录不存在
+ *（首次安装）时直接生效，无需重启。
+ */
+export function setConfigDir(dir: string | null): ConfigDirInfo {
+    const from = configDir()
+    const to = dir || defaultConfigDir()
+    const override = !!dir
+    if (to !== from && isNestedDir(from, to)) {
+        // 互为父子目录：搬迁会自我递归，直接拒绝并保持原目录（渲染层据此提示用户）
+        console.warn('[Manager] refuse nested config dir:', from, '->', to)
+        return configDirInfo()
+    }
+    if (to === from) {
+        setMigrationPlan(null)
+        writeConfigOverride(override ? to : null)
+    } else if (!fs.existsSync(from)) {
+        setMigrationPlan(null)
+        writeConfigOverride(override ? to : null)
+        rewatchConfig()
+    } else {
+        setMigrationPlan({ from, to, override })
+    }
+    return configDirInfo()
+}
+
+/** 取消尚未执行的迁移：固定回旧目录，撤销本次更改。 */
+export function revertConfigDir(): ConfigDirInfo {
+    const plan = configMigrationPlan()
+    if (plan) {
+        setMigrationPlan(null)
+        writeConfigOverride(plan.from)
+        rewatchConfig()
+    }
+    return configDirInfo()
+}
+
+/**
+ * 升级默认目录：新默认位置为 ~/.dsbox/{release,dev}；旧默认目录（~/.config/dsh_shell[_dev]
+ * 或中间版本用过的 ~/dsbox/{release,dev}）有内容、且用户从未自选过目录
+ * 时，自动登记一份迁移计划，让本次重启走一次迁移。必须在任何 readDiskSettings() 之前
+ * 调用，否则会读到还不存在的新目录。
+ */
+export function ensureDefaultConfigMigration(): void {
+    try {
+        if (readConfigOverride() || configMigrationPlan()) return
+        const to = defaultConfigDir()
+        // 新目录已经有 settings.json 说明迁移过（或用户已在新位置使用），不再重复迁移。
+        if (fs.existsSync(path.join(to, 'settings.json'))) return
+        for (const from of legacyDefaultConfigDirs()) {
+            if (from === to || isNestedDir(from, to) || !fs.existsSync(from)) continue
+            setMigrationPlan({ from, to, override: false })
+            return
+        }
+    } catch (err) {
+        console.error('[Manager] failed to queue default config migration:', err)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 重启引导阶段的配置目录迁移（广播进度，供渲染层显示进度条与当前文件）
+// ---------------------------------------------------------------------------
+
+let migrationRunning = false
+let migrationCancel = false
+const migrationWaiters: Array<() => void> = []
+
+/** 请求取消正在执行的迁移（已搬内容会回滚）。 */
+export function cancelConfigMigration(): void {
+    if (migrationRunning) migrationCancel = true
+}
+
+function emitMigrationProgress(p: ConfigMigrationProgress): void {
+    broadcast('configdir:migration', p)
+}
+
+function settleMigrationWaiters(): void {
+    for (const done of migrationWaiters.splice(0)) done()
+}
+
+/**
+ * 执行待迁移计划：先统计文件数，再逐项搬迁并广播进度；成功后把当前目录指向新位置，
+ * 取消 / 失败则回滚（取消时）并保持原目录。进行中重复调用安全（直接忽略）。
+ */
+export async function runConfigMigration(): Promise<void> {
+    const plan = configMigrationPlan()
+    if (!plan || migrationRunning) return
+    migrationRunning = true
+    migrationCancel = false
+
+    const scan = scanTree(plan.from)
+    const total = scan.total
+    let moved = 0
+    let lastEmit = 0
+
+    emitMigrationProgress({ phase: 'scan', current: plan.from, moved: 0, total, percent: 0, done: false, ok: true })
+
+    const finish = (ok: boolean, canceled: boolean): void => {
+        if (ok) {
+            setMigrationPlan(null)
+            writeConfigOverride(plan.override ? plan.to : null)
+        } else {
+            setMigrationPlan(null)
+            writeConfigOverride(plan.from)
+        }
+        rewatchConfig()
+        const shown = Math.min(moved, total)
+        const percent = ok ? 100 : Math.round((shown / Math.max(1, total)) * 100)
+        emitMigrationProgress({ phase: 'done', current: '', moved: shown, total, percent, done: true, ok, canceled })
+        migrationRunning = false
+        settleMigrationWaiters()
+    }
+
+    try {
+        const result = await migrateTree(plan, {
+            scan,
+            onAdvance: (current, n) => {
+                moved += n
+                const now = Date.now()
+                if (now - lastEmit < 60 && moved < total) return
+                lastEmit = now
+                const shown = Math.min(moved, total)
+                emitMigrationProgress({
+                    phase: 'move',
+                    current,
+                    moved: shown,
+                    total,
+                    percent: Math.round((shown / Math.max(1, total)) * 100),
+                    done: false,
+                    ok: true
+                })
+            },
+            shouldStop: () => migrationCancel
+        })
+
+        if (result.stopped || migrationCancel) {
+            rollbackMoves(result.journal)
+            finish(false, true)
+            return
+        }
+        finish(true, false)
+    } catch (err) {
+        // 兜底：任何未预期异常都不能让引导阶段卡住（保持旧目录并放行启动）
+        console.error('[Manager] config migration crashed:', err)
+        finish(false, false)
+    }
+}
+
+/**
+ * 引导阶段等待迁移完成：无待迁移计划时立即返回；有则由渲染层触发执行，最长等待
+ * timeoutMs 后自行兜底执行，避免无人触发时卡住启动。
+ */
+export function waitForConfigMigration(timeoutMs = 30_000): Promise<void> {
+    if (!configMigrationPlan()) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+            if (!migrationRunning && configMigrationPlan()) void runConfigMigration()
+        }, timeoutMs)
+        migrationWaiters.push(() => {
+            clearTimeout(timer)
+            resolve()
+        })
+    })
+}
+
+/** 应用自身设置文件：`<configDir>/settings.json`。 */
 const settingsFile = (): string => path.join(configDir(), 'settings.json')
 
-/** 本地内核安装根目录（npm `--prefix`）：`<configDir>/kernel`。 */
-export function localKernelDir(): string {
-    return path.join(configDir(), 'kernel')
+/**
+ * 读取 `<root>/.active` 指向的版本目录；无指针 / 目录不存在 / 缺少关键文件时返回 null。
+ * 关键文件校验与 kernel/installs.ts 的 isVersionComplete 保持一致：残缺目录不能当成安装。
+ */
+function activeSubdir(root: string, keyRel: string): string | null {
+    const candidates: string[] = []
+    try {
+        const v = fs.readFileSync(path.join(root, '.active'), 'utf8').trim()
+        if (v) candidates.push(v)
+    } catch {
+        /* 尚无指针 */
+    }
+    try {
+        for (const n of fs.readdirSync(root)) {
+            if (/^v?\d+\.\d+\.\d+/.test(n) && !candidates.includes(n)) candidates.push(n)
+        }
+    } catch {
+        /* 根目录还不存在 */
+    }
+    for (const v of candidates) {
+        const dir = path.join(root, v)
+        if (fs.existsSync(path.join(dir, keyRel))) return dir
+    }
+    return null
 }
 
-/** 内置 npm 的解压/缓存目录（无系统 npm 时首次在线拉取到此处）：`<configDir>/npm`。 */
+/** 当前生效的内核版本目录（npm `--prefix`）：`<configDir>/kernel/<版本>`。 */
+export function localKernelDir(): string {
+    const root = path.join(configDir(), 'kernel')
+    return activeSubdir(root, path.join('node_modules', '@deepseek-ai', 'dsh', 'package.json')) ?? root
+}
+
+/** 当前生效的内置 npm 目录：`<configDir>/npm/<版本>`。 */
 export function bundledNpmDir(): string {
-    return path.join(configDir(), 'npm')
+    const root = path.join(configDir(), 'npm')
+    return activeSubdir(root, path.join('package', 'bin', 'npm-cli.js')) ?? root
 }
 
 /** 默认工作目录：`<configDir>/workspace`。 */
 export function defaultWorkspaceDir(): string {
     return path.join(configDir(), 'workspace')
+}
+
+/** 下载临时目录：`<工作目录>/temp/download`（所有内核下载共用）。 */
+export function tempDownloadDir(): string {
+    const ws = loadSettings().workspace ?? defaultWorkspaceDir()
+    return path.join(ws, 'temp', 'download')
+}
+
+/** npm 缓存目录：`<工作目录>/temp/npm`（所有 npm 调用统一指向这里，不污染 ~/.npm）。 */
+export function tempNpmDir(): string {
+    const ws = loadSettings().workspace ?? defaultWorkspaceDir()
+    return path.join(ws, 'temp', 'npm')
 }
 
 export function readDiskSettings(): Partial<Settings> {
@@ -169,6 +400,7 @@ export function loadSettings(): Settings {
         appAutoUpdate: disk.appAutoUpdate ?? DEFAULT_SETTINGS.appAutoUpdate,
         appCheckPrerelease: disk.appCheckPrerelease ?? DEFAULT_SETTINGS.appCheckPrerelease,
         updateMirrorUrl: disk.updateMirrorUrl ?? DEFAULT_SETTINGS.updateMirrorUrl,
+        downloadThreads: disk.downloadThreads ?? DEFAULT_SETTINGS.downloadThreads,
         devMode: disk.devMode ?? DEFAULT_SETTINGS.devMode,
         kernelSource: disk.kernelSource ?? DEFAULT_SETTINGS.kernelSource,
         nodeRuntime: disk.nodeRuntime ?? DEFAULT_SETTINGS.nodeRuntime,

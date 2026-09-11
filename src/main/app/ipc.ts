@@ -1,10 +1,10 @@
 import { app, dialog, ipcMain, shell, Menu } from 'electron'
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
 import { DEFAULT_SETTINGS, NEWTAB_URL } from '@shared/types'
-import type { Settings, ResolvedLocale } from '@shared/types'
+import type { InstallKind, InstalledVersions, NodeDeployProgress, ResolvedLocale, Settings } from '@shared/types'
 import { resolveLocale, localeCodeOf } from '@shared/i18n'
-import { readDiskSettings, persistSettings, syncDshTheme, syncNativeTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, normalizeNpmSource } from './settings'
-import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel } from '../kernel/kernel'
+import { readDiskSettings, persistSettings, syncDshTheme, syncNativeTheme, loadSettings, saveCloseChoice, dshLocale, writeDshLocale, configDirInfo, setConfigDir, revertConfigDir, runConfigMigration, cancelConfigMigration, normalizeNpmSource } from './settings'
+import { resolveInstall, kernelInstalled, listVersions, performUpdateCheck, updateKernel, installKernel, uninstallKernel, listInstalledKernelVersions, useKernelVersion, removeInstalledKernelVersion } from '../kernel/kernel'
 import { getLogHistory, restart, isDshRunning, stopServer } from '../kernel/dsh'
 import { appMeta, appSlotsState, appUpdateState, triggerAppUpdate, restartAndInstall, rollbackAppUpdate } from './appupdate'
 import { broadcast, getCurrentUrl, getMainWindow, setQuitting, sendCore, sendToWindow, sendToWcId } from './runtime'
@@ -12,8 +12,9 @@ import { isCoreWindow, windowByContentsId, listWindows } from './windowreg'
 import { openStandaloneWindow, focusCoreWindow, takeOpenIntent, createSecondaryShellWindow, syncGlobalHotkey, globalHotkeyState } from './ui'
 import { applyWebviewUserAgent, defaultUserAgent, effectiveUserAgent } from './webview'
 import { findSystemNode, findSystemNpm, nodeVersionOf, localNodeExecPath } from '../kernel/tools'
-import { deployLocalNode, listNodeVersions, nodeStatus } from '../kernel/nodeenv'
-import { listNpmVersions, npmStatus, updateNpm } from '../kernel/npmRunner'
+import { deployLocalNode, listNodeVersions, nodeStatus, listInstalledNodeVersions, useNodeVersion, removeInstalledNodeVersion } from '../kernel/nodeenv'
+import { listNpmVersions, npmStatus, updateNpm, ensureBundledNpmReady, listInstalledNpmVersions, useNpmVersion, removeInstalledNpmVersion } from '../kernel/npmRunner'
+import { cancelActive } from '../kernel/cancel'
 import { APP_TITLE } from './const'
 
 /**
@@ -24,6 +25,29 @@ import { APP_TITLE } from './const'
 function windowOfSender(e: { sender: { id: number } }): BrowserWindow | null {
     const w = windowByContentsId(e.sender.id)
     return w && !w.isDestroyed() ? w : (getMainWindow() && !getMainWindow()!.isDestroyed() ? getMainWindow() : null)
+}
+
+/** 安装进度统一整形：解压阶段百分比无意义，仅保留 phase 供前端切动画。 */
+function installProgress(p: NodeDeployProgress): NodeDeployProgress {
+    return {
+        phase: p.phase,
+        percent: Math.max(0, Math.min(100, Math.round(p.percent))),
+        downloaded: p.downloaded,
+        total: p.total,
+        speed: p.speed
+    }
+}
+
+/** 版本化安装对象（node / npm / kernel）的入参校验。 */
+function asInstallKind(v: unknown): InstallKind | null {
+    return v === 'node' || v === 'npm' || v === 'kernel' ? v : null
+}
+
+/** 已安装 / 生效的版本列表。 */
+function versionsFor(kind: InstallKind): InstalledVersions {
+    if (kind === 'node') return listInstalledNodeVersions()
+    if (kind === 'npm') return listInstalledNpmVersions()
+    return listInstalledKernelVersions()
 }
 
 /** 聚焦某个壳窗口（若最小化先还原、不可见先显示），常用于“标签移入/新开后的接收窗口”。 */
@@ -123,22 +147,47 @@ export function registerIpc(): void {
     )
     ipcMain.handle('nodeenv:deploy', async (_e, opts: { version?: string } | undefined) => {
         const version = typeof opts?.version === 'string' && opts.version ? opts.version : undefined
-        return deployLocalNode(
-            (p) =>
-                broadcast('nodeenv:deploy-progress', { percent: Math.max(0, Math.min(100, Math.round(p.percent))), downloaded: p.downloaded, total: p.total }),
-            version
-        )
+        return deployLocalNode((p) => broadcast('nodeenv:deploy-progress', installProgress(p)), version)
     })
     ipcMain.handle('npmenv:status', () => npmStatus())
     ipcMain.handle('npmenv:versions', (_e, opts: { prerelease?: boolean } | undefined) =>
         listNpmVersions(loadSettings(), opts?.prerelease === true)
     )
     ipcMain.handle('npmenv:update', (_e, opts: { source?: unknown; version?: unknown } | undefined) =>
-        updateNpm({
-            source: normalizeNpmSource(opts?.source),
-            version: typeof opts?.version === 'string' && opts.version ? opts.version : undefined
-        })
+        updateNpm(
+            {
+                source: normalizeNpmSource(opts?.source),
+                version: typeof opts?.version === 'string' && opts.version ? opts.version : undefined
+            },
+            (p) => broadcast('npmenv:progress', installProgress(p))
+        )
     )
+    ipcMain.handle('npmenv:ensure', (_e, opts: { version?: unknown } | undefined) =>
+        ensureBundledNpmReady(
+            { version: typeof opts?.version === 'string' && opts.version ? opts.version : undefined },
+            (p) => broadcast('npmenv:progress', installProgress(p))
+        )
+    )
+    // ---- 取消 / 版本管理（node · npm · kernel 通用） ----
+    ipcMain.handle('install:cancel', () => cancelActive())
+    ipcMain.handle('versions:list', (_e, kind: unknown) => {
+        const k = asInstallKind(kind)
+        return k ? versionsFor(k) : { installed: [], active: null }
+    })
+    ipcMain.handle('versions:use', (_e, kind: unknown, version: unknown) => {
+        const k = asInstallKind(kind)
+        if (!k || typeof version !== 'string' || !version) return { ok: false, message: '参数不合法', version: null }
+        if (k === 'node') return useNodeVersion(version)
+        if (k === 'npm') return useNpmVersion(version)
+        return useKernelVersion(version)
+    })
+    ipcMain.handle('versions:remove', (_e, kind: unknown, version: unknown) => {
+        const k = asInstallKind(kind)
+        if (!k || typeof version !== 'string' || !version) return { ok: false, message: '参数不合法', version: null }
+        if (k === 'node') return removeInstalledNodeVersion(version)
+        if (k === 'npm') return removeInstalledNpmVersion(version)
+        return removeInstalledKernelVersion(version)
+    })
     ipcMain.handle('configdir:get', () => configDirInfo())
     ipcMain.handle('hotkey:state', () => globalHotkeyState())
     ipcMain.handle('webview:info', () => ({
@@ -148,6 +197,14 @@ export function registerIpc(): void {
     ipcMain.handle('configdir:set', (_e, dir: string | null) => {
         return setConfigDir(typeof dir === 'string' && dir ? dir : null)
     })
+    // 撤销尚未执行的迁移：固定回原配置目录。
+    ipcMain.handle('configdir:revert', () => revertConfigDir())
+    // 重启引导阶段由渲染层触发实际搬迁（异步，进度经 configdir:migration 广播）。
+    ipcMain.handle('configdir:migrate-run', () => {
+        void runConfigMigration()
+    })
+    // 请求取消正在执行的迁移（已搬内容回滚）。
+    ipcMain.handle('configdir:migrate-cancel', () => cancelConfigMigration())
     // 本窗口元信息：winId + 是否核心窗口（核心窗口才承载 dsh 内核 UI）。
     ipcMain.handle('shell:meta', (e) => {
         return { winId: e.sender.id, isCore: isCoreWindow(e.sender.id) }

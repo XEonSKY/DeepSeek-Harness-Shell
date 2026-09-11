@@ -2,9 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppstoreOutlined, DeploymentUnitOutlined, DownloadOutlined, LinkOutlined, ReloadOutlined } from '@antdv-next/icons'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { NodeRuntimeKind, NodeStatus, NpmRuntimeStatus, NpmSource, NpmStatus } from '@shared/types'
+import type { InstalledVersions, NodeRuntimeKind, NodeStatus, NpmRuntimeStatus, NpmSource, NpmStatus } from '@shared/types'
 import { MIN_KERNEL_NODE_MAJOR, nodeMajor } from '@shared/version'
 import { tt } from '../../lib/locales'
+import { formatDownload } from '../../lib/format'
 import { useSettingsStore } from './useSettingsStore'
 
 /**
@@ -64,21 +65,55 @@ async function loadStatus(): Promise<void> {
 
 const deploying = ref(false)
 const percent = ref(0)
-let offProgress: (() => void) | null = null
+const downloaded = ref(0)
+const total = ref(0)
+const speed = ref(0)
+/** 当前部署阶段：extract 时显示不确定动画，不显示百分比。 */
+const deployPhase = ref<'download' | 'extract'>('download')
+/** 进度条下方的「已下载 / 总大小 · 速度」。 */
+const progressInfo = computed(() => formatDownload(total.value, downloaded.value, speed.value))
+let offNodeProgress: (() => void) | null = null
+let offNpmProgress: (() => void) | null = null
+
+/** 内置 npm 的下载进度（非 bundled 来源不上报，用 progressSeen 区分）。 */
+const npmInstalling = ref(false)
+const npmPercent = ref(0)
+const npmDownloaded = ref(0)
+const npmTotal = ref(0)
+const npmSpeed = ref(0)
+const npmPhase = ref<'download' | 'extract'>('download')
+const npmProgressSeen = ref(false)
+const npmProgressInfo = computed(() => formatDownload(npmTotal.value, npmDownloaded.value, npmSpeed.value))
 
 onMounted(() => {
-    // 下载进度由主进程广播（与内核向导同一个事件源）。
-    offProgress = window.api.onNodeDeployProgress((p) => {
+    // Node 部署下载 / 解压进度由主进程广播（与内核向导同一个事件源）。
+    offNodeProgress = window.api.onNodeDeployProgress((p) => {
+        deployPhase.value = p.phase
         percent.value = p.percent
+        downloaded.value = p.downloaded
+        total.value = p.total
+        speed.value = p.speed
+    })
+    // 内置 npm 下载 / 解压进度（只有 bundled 来源广播）。
+    offNpmProgress = window.api.onNpmDeployProgress((p) => {
+        npmProgressSeen.value = true
+        npmPhase.value = p.phase
+        npmPercent.value = p.percent
+        npmDownloaded.value = p.downloaded
+        npmTotal.value = p.total
+        npmSpeed.value = p.speed
     })
     void loadStatus()
     void loadVersions()
     void loadNpmStatus()
     void loadNpmVersions()
+    void loadInstalledNode()
+    void loadInstalledNpm()
 })
 
 onBeforeUnmount(() => {
-    offProgress?.()
+    offNodeProgress?.()
+    offNpmProgress?.()
 })
 
 /** 统一显示成带 v 前缀：`process.versions.node` 不带 v，`node --version` 带。 */
@@ -201,19 +236,26 @@ async function stopDshForNode(): Promise<'ok' | 'stopped' | 'cancelled'> {
 }
 
 /**
- * 部署 / 切换本地 Node：不传版本时是最新 LTS（「更新到 vX」/「部署 Node」那条快按钮）。
- * 「切换版本」的语义是整体替换配置目录里已部署的那份（与内核版本管理一致，不做多版本并存）。
+ * 部署本地 Node：不传版本时是最新 LTS（「更新到 vX」/「部署 Node」那条快按钮）。
+ * 多版本并存于 <configDir>/node/<版本>，部署完把生效指针切到该版本；行内切换见 switchInstalled。
  */
 async function installNode(version?: string): Promise<void> {
     if (deploying.value) return
     const stop = await stopDshForNode()
     if (stop === 'cancelled') return
     deploying.value = true
+    deployPhase.value = 'download'
     percent.value = 0
+    downloaded.value = 0
+    total.value = 0
+    speed.value = 0
     try {
         const r = await window.api.deployLocalNode(version ? { version } : {})
-        if (r.ok) ElMessage.success(tt('sv.env.deployOk', { version: withV(r.version) }))
-        else ElMessage.error(r.message || tt('sv.env.deployFail'))
+        // 用户主动取消不算失败，静默返回即可（不弹错误 toast）。
+        if (!r.canceled) {
+            if (r.ok) ElMessage.success(tt('sv.env.deployOk', { version: withV(r.version) }))
+            else ElMessage.error(r.message || tt('sv.env.deployFail'))
+        }
     } catch (err) {
         ElMessage.error(err instanceof Error ? err.message : String(err))
     } finally {
@@ -222,6 +264,101 @@ async function installNode(version?: string): Promise<void> {
         if (stop === 'stopped') await actions.restartDsh()
         await loadStatus()
         await loadVersions()
+        await loadInstalledNode()
+    }
+}
+
+/** 取消按钮的进行中状态（Node / npm / 内核通用）。 */
+const canceling = ref(false)
+
+/** 取消正在进行的安装（下载与解压阶段生效）。 */
+async function cancelInstall(): Promise<void> {
+    if (canceling.value) return
+    canceling.value = true
+    try {
+        await window.api.cancelInstall()
+    } catch {
+        /* 取消失败无需打扰用户 */
+    } finally {
+        canceling.value = false
+    }
+}
+
+// ---- 已安装版本：多版本并存，列表行内切换 / 删除 ----------------------------
+
+const installedNode = ref<InstalledVersions>({ installed: [], active: null })
+const installedNpm = ref<InstalledVersions>({ installed: [], active: null })
+const switchingNode = ref('')
+const switchingNpm = ref('')
+
+async function loadInstalledNode(): Promise<void> {
+    try {
+        installedNode.value = await window.api.listInstalledVersions('node')
+    } catch {
+        installedNode.value = { installed: [], active: null }
+    }
+}
+
+async function loadInstalledNpm(): Promise<void> {
+    try {
+        installedNpm.value = await window.api.listInstalledVersions('npm')
+    } catch {
+        installedNpm.value = { installed: [], active: null }
+    }
+}
+
+/** 切换生效版本只改指针、不重装；切换后刷新列表与状态。 */
+async function switchInstalled(kind: 'node' | 'npm', version: string): Promise<void> {
+    const switching = kind === 'node' ? switchingNode : switchingNpm
+    if (switching.value) return
+    switching.value = version
+    try {
+        const r = await window.api.useInstalledVersion(kind, version)
+        if (r.ok) {
+            ElMessage.success(tt('sv.env.versionSwitched', { version: withV(r.version) }))
+            if (kind === 'node') {
+                await loadInstalledNode()
+                await loadStatus()
+            } else {
+                await loadInstalledNpm()
+                await loadNpmStatus()
+            }
+        } else {
+            ElMessage.error(r.message || '')
+        }
+    } catch (err) {
+        ElMessage.error(err instanceof Error ? err.message : String(err))
+    } finally {
+        switching.value = ''
+    }
+}
+
+/** 删除已安装版本；删除前确认，删除生效版本时主进程会自动切到剩余最新版。 */
+async function removeInstalled(kind: 'node' | 'npm', version: string): Promise<void> {
+    try {
+        await ElMessageBox.confirm(tt('sv.env.removeVersionConfirm', { version: withV(version) }), tt('sv.env.removeVersion'), {
+            confirmButtonText: tt('sv.env.removeVersion'),
+            cancelButtonText: tt('msg.cancelBtn'),
+            type: 'warning'
+        })
+    } catch {
+        return // 用户取消
+    }
+    try {
+        const r = await window.api.removeInstalledVersion(kind, version)
+        if (r.ok) {
+            if (kind === 'node') {
+                await loadInstalledNode()
+                await loadStatus()
+            } else {
+                await loadInstalledNpm()
+                await loadNpmStatus()
+            }
+        } else {
+            ElMessage.error(r.message || '')
+        }
+    } catch (err) {
+        ElMessage.error(err instanceof Error ? err.message : String(err))
     }
 }
 
@@ -277,7 +414,6 @@ const npmVersions = ref<string[]>([])
 const npmVersionsLoading = ref(false)
 const npmIncludePre = ref(false)
 const npmSelected = ref('')
-const npmInstalling = ref(false)
 
 async function loadNpmVersions(): Promise<void> {
     if (npmVersionsLoading.value) return
@@ -328,16 +464,26 @@ async function installNpm(version?: string): Promise<void> {
     if (npmInstalling.value) return
     const source = state.npmSource
     npmInstalling.value = true
+    npmProgressSeen.value = false
+    npmPhase.value = 'download'
+    npmPercent.value = 0
+    npmDownloaded.value = 0
+    npmTotal.value = 0
+    npmSpeed.value = 0
     try {
         const r = await window.api.updateNpm(version ? { source, version } : { source })
-        if (r.ok) ElMessage.success(tt('sv.env.npmOk', { version: withV(r.version) }))
-        else ElMessage.error(r.message || tt('sv.env.npmFail'))
+        // 用户主动取消不算失败，静默返回即可（不弹错误 toast）。
+        if (!r.canceled) {
+            if (r.ok) ElMessage.success(tt('sv.env.npmOk', { version: withV(r.version) }))
+            else ElMessage.error(r.message || tt('sv.env.npmFail'))
+        }
     } catch (err) {
         ElMessage.error(err instanceof Error ? err.message : String(err))
     } finally {
         npmInstalling.value = false
         await loadNpmStatus()
         await loadNpmVersions()
+        await loadInstalledNpm()
     }
 }
 </script>
@@ -421,7 +567,24 @@ async function installNpm(version?: string): Promise<void> {
                             {{ latestUnknown ? $t('sv.env.latestUnknown') : $t('sv.env.localHint') }}
                         </div>
 
-                        <el-progress v-if="deploying" :percentage="percent" :stroke-width="6" class="dep-progress" />
+                        <el-progress
+                            v-if="deploying"
+                            :percentage="deployPhase === 'extract' ? 0 : percent"
+                            :indeterminate="deployPhase === 'extract'"
+                            :show-text="deployPhase !== 'extract'"
+                            :stroke-width="6"
+                            class="dep-progress"
+                        />
+                        <div v-if="deploying" class="hint dep-info">
+                            {{ deployPhase === 'extract' ? $t('sv.env.extracting') : progressInfo }}
+                        </div>
+
+                        <!-- 安装期间可取消（下载与解压阶段）。 -->
+                        <div v-if="deploying" class="act">
+                            <el-button size="small" :loading="canceling" @click="cancelInstall()">
+                                {{ canceling ? $t('sv.env.canceling') : $t('sv.env.cancelInstall') }}
+                            </el-button>
+                        </div>
 
                         <div v-if="localNeedsAction" class="act">
                             <el-button type="primary" size="small" :icon="DownloadOutlined" :loading="deploying" @click="installNode()">
@@ -469,6 +632,25 @@ async function installNpm(version?: string): Promise<void> {
                                 <div class="hint">{{ $t('sv.env.versionListHint') }}</div>
                             </el-form-item>
                         </el-form>
+
+                        <!-- 已安装版本：多版本并存，可在行内切换 / 删除 -->
+                        <div class="upd-sep" />
+                        <div class="iv">
+                            <div class="iv__title">{{ $t('sv.env.installedVersions') }}</div>
+                            <div v-if="!installedNode.installed.length" class="hint">{{ $t('sv.env.installedNone') }}</div>
+                            <div v-for="v in installedNode.installed" :key="v" class="iv__row">
+                                <code class="kv__v">{{ withV(v) }}</code>
+                                <el-tag v-if="v === installedNode.active" size="small" type="success" effect="plain">
+                                    {{ $t('sv.env.activeVersion') }}
+                                </el-tag>
+                                <el-button v-else size="small" :loading="switchingNode === v" @click="switchInstalled('node', v)">
+                                    {{ $t('sv.env.switchVersion') }}
+                                </el-button>
+                                <el-button size="small" type="danger" plain @click="removeInstalled('node', v)">
+                                    {{ $t('sv.env.removeVersion') }}
+                                </el-button>
+                            </div>
+                        </div>
                     </el-tab-pane>
                 </el-tabs>
 
@@ -528,8 +710,44 @@ async function installNpm(version?: string): Promise<void> {
                                 {{ npmActionLabel(t.key) }}
                             </el-button>
                         </div>
+
+                        <!-- 内置 npm 的已安装版本列表（只有 bundled 来源由应用代管多版本） -->
+                        <div v-if="t.key === 'bundled'" class="iv">
+                            <div class="iv__title">{{ $t('sv.env.installedVersions') }}</div>
+                            <div v-if="!installedNpm.installed.length" class="hint">{{ $t('sv.env.installedNone') }}</div>
+                            <div v-for="v in installedNpm.installed" :key="v" class="iv__row">
+                                <code class="kv__v">{{ withV(v) }}</code>
+                                <el-tag v-if="v === installedNpm.active" size="small" type="success" effect="plain">
+                                    {{ $t('sv.env.activeVersion') }}
+                                </el-tag>
+                                <el-button v-else size="small" :loading="switchingNpm === v" @click="switchInstalled('npm', v)">
+                                    {{ $t('sv.env.switchVersion') }}
+                                </el-button>
+                                <el-button size="small" type="danger" plain @click="removeInstalled('npm', v)">
+                                    {{ $t('sv.env.removeVersion') }}
+                                </el-button>
+                            </div>
+                        </div>
                     </el-tab-pane>
                 </el-tabs>
+
+                <!-- 内置 npm 下载 / 解压进度与取消：只有 bundled 来源会广播进度 -->
+                <div v-if="npmInstalling" class="act">
+                    <el-progress
+                        v-if="npmProgressSeen"
+                        :percentage="npmPhase === 'extract' ? 0 : npmPercent"
+                        :indeterminate="npmPhase === 'extract'"
+                        :show-text="npmPhase !== 'extract'"
+                        :stroke-width="6"
+                        class="dep-progress"
+                    />
+                    <div v-if="npmProgressSeen" class="hint dep-info">
+                        {{ npmPhase === 'extract' ? $t('sv.env.extracting') : npmProgressInfo }}
+                    </div>
+                    <el-button size="small" :loading="canceling" @click="cancelInstall()">
+                        {{ canceling ? $t('sv.env.canceling') : $t('sv.env.cancelInstall') }}
+                    </el-button>
+                </div>
 
                 <!-- 版本选择器放在标签之外共用：三个来源都能装任意版本，抄三遍纯属重复 -->
                 <div class="upd-sep" />
@@ -569,6 +787,10 @@ async function installNpm(version?: string): Promise<void> {
 </template>
 
 <style scoped>
+.dep-info {
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
 /* 只留本组件专用规则；跨组件通用样式一律进 styles/*.css（见 AGENT.md §3 样式约定）。 */
 .kv {
   display: flex;
@@ -594,5 +816,20 @@ async function installNpm(version?: string): Promise<void> {
 }
 .dep-progress {
   margin-top: 14px;
+}
+/* 已安装版本列表 */
+.iv {
+  margin-top: 6px;
+}
+.iv__title {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-bottom: 6px;
+}
+.iv__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
 }
 </style>

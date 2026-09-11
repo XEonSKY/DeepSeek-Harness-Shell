@@ -2,10 +2,12 @@ import path from 'node:path'
 import { app } from 'electron'
 import { registerIpc } from './app/ipc'
 import { startAutoCheckIfEnabled } from './app/appupdate'
-import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme } from './app/settings'
+import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme, ensureDefaultConfigMigration, waitForConfigMigration } from './app/settings'
 import { createShellWindow, createTray, showMainWindow, syncGlobalHotkey } from './app/ui'
 import { applyHardwareAcceleration, applyWebviewUserAgent } from './app/webview'
 import { resolveInstall } from './kernel/kernel'
+import { migrateLegacyInstalls } from './kernel/installs'
+import { nodeVersionOf } from './kernel/tools'
 import { restart, killServer, killAllChildren, stopDshGracefully } from './kernel/dsh'
 import { getTray, setQuitting, destroyTray } from './app/runtime'
 
@@ -17,11 +19,19 @@ import { getTray, setQuitting, destroyTray } from './app/runtime'
 // keeps the dev Chromium/updater profile apart too). Must run BEFORE
 // requestSingleInstanceLock() below. The release build keeps the default path.
 // NOTE: the app's own settings.json does NOT live under userData — see
-// main/settings.ts configDir() (~/.config/dsh_shell[_dev]).
+// main/settings.ts configDir() (~/.dsbox/{release,dev}).
 // ---------------------------------------------------------------------------
 if (!app.isPackaged) {
     app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} (dev)`))
 }
+
+// ---------------------------------------------------------------------------
+// 配置目录默认位置迁到 ~/.dsbox/{release,dev}：若旧默认目录（~/.config/dsh_shell[_dev]
+// 或短暂用过的 ~/dsbox/{release,dev}）仍有内容且用户从未自选过目录，登记一份迁移计划，
+// 本次重启的引导阶段执行。
+// 必须在任何 readDiskSettings() 之前调用，否则会读到还不存在的新目录。
+// ---------------------------------------------------------------------------
+ensureDefaultConfigMigration()
 
 // 忽略系统显示缩放：若设置开启，在 ready 前强制设备缩放系数为 1（需重启生效）。
 try {
@@ -69,10 +79,16 @@ if (!gotLock) {
         // UA 只能在 ready 之后设（defaultSession 尚不存在），且必须早于建窗：webview 创建时就该拿到它。
         applyWebviewUserAgent(cfg)
         registerIpc()
-        startConfigWatchers()
         createShellWindow() // 首个窗口注册为核心窗口（内部登记角色并设为主窗口）
         createTray()
         syncGlobalHotkey() // 系统全局快捷键（默认 Ctrl+Alt+H 回到主窗口）
+
+        // 有配置目录迁移计划时，先等渲染层把进度显示完、主进程搬完，再启动内核：
+        // 否则内核目录会在运行时被搬走。（无计划时立即返回。）
+        await waitForConfigMigration()
+        // 旧的平铺安装目录（<root>/node.exe、<root>/package、<root>/node_modules）迁移为版本化布局。
+        await migrateLegacyInstalls(nodeVersionOf)
+        startConfigWatchers()
 
         // Launch dsh only if the kernel is present. When missing we do not show a
         // native prompt anymore — the renderer detects it on load and shows the

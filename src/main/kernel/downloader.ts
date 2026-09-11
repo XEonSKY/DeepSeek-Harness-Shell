@@ -1,8 +1,20 @@
-import { DownloaderHelper } from 'node-downloader-helper'
+import fs from 'node:fs'
+import path from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 /**
- * 统一文件下载器（基于 node-downloader-helper）：
- * 带进度回调、失败重试、覆盖旧文件。用于 Node 发行包、内置 npm 等大文件下载。
+ * 统一文件下载器：默认多线程（HTTP Range 分段并发）。
+ *
+ * 先探测服务端是否支持 Range：支持且文件不小于 1MB 时按并发数把文件切成若干段并行
+ * 下载（每段直接写目标文件的对应偏移，省掉合并拷贝），否则退回单流下载。无论哪条路径，
+ * 进度回调都给出总大小、已下载、百分比与瞬时下载速度（供进度条展示速度与文件大小）。
+ *
+ * 临时文件先写到 opts.tmpDir（应用侧统一传「工作目录/temp/download」），成功后再搬到
+ * 目标位置；临时目录与目标目录可能不同盘，此时 rename 会失败，由 moveFile 拷贝兜底。
+ *
+ * 同一目标文件的重复请求会合并到同一个在途任务：后到的调用共享结果并订阅同一份进度，
+ * 不会重复发起下载（见 downloadFile / isFileDownloading）。
  */
 
 export interface DlProgress {
@@ -18,36 +30,307 @@ export interface DownloadFileOpts {
     url: string
     destDir: string
     fileName?: string
+    /** 临时文件目录；默认与目标目录相同（应用侧统一传「工作目录/temp/download」）。 */
+    tmpDir?: string
     onProgress?: (p: DlProgress) => void
+    /** 并发连接数（1 = 单线程）；非法值回退默认。 */
+    threads?: number
+    /** 外部取消信号（安装流程的 CancelToken）；中止时清理临时文件并返回 canceled=true。 */
+    signal?: AbortSignal
 }
 
-export async function downloadFile(o: DownloadFileOpts): Promise<{ ok: boolean; message?: string }> {
-    return new Promise((resolve) => {
-        const dl = new DownloaderHelper(o.url, o.destDir, {
-            fileName: o.fileName,
-            override: true,
-            retry: { maxRetries: 3, delay: 1000 },
-            progressThrottle: 150,
-            removeOnFail: true,
-            removeOnStop: true
+/** 一次下载的结果。 */
+type DlResult = { ok: boolean; message?: string; canceled?: boolean }
+
+/** 同一目标文件的在途下载任务（用于去重合并）。 */
+interface InFlight {
+    subscribers: Set<(p: DlProgress) => void>
+    promise: Promise<DlResult>
+}
+
+/** 在途下载表：键为最终文件的绝对路径（小写，Windows 大小写不敏感）。 */
+const inFlightDownloads = new Map<string, InFlight>()
+
+/** 默认并发连接数（可在「设置 → 网络」调整）。 */
+export const DEFAULT_DOWNLOAD_THREADS = 4
+/** 并发上限：别把服务端与本机同时打爆。 */
+export const MAX_DOWNLOAD_THREADS = 16
+/** 小于该大小不值得分段（分段本身有额外请求开销）。 */
+const MIN_SEGMENT_BYTES = 1024 * 1024
+/** 单个请求的最大重试次数。 */
+const MAX_RETRY = 3
+/** 进度事件节流（毫秒）。 */
+const EMIT_INTERVAL = 120
+
+/** 归一化并发数：非数字 / 小于 1 回退默认，上限 MAX。 */
+export function normalizeDownloadThreads(n: unknown): number {
+    const v = Math.floor(Number(n))
+    if (!Number.isFinite(v) || v < 1) return DEFAULT_DOWNLOAD_THREADS
+    return Math.min(MAX_DOWNLOAD_THREADS, v)
+}
+
+/** 从 URL 推断文件名；推断不出时用时间戳兜底。 */
+function fileNameFromUrl(url: string): string {
+    try {
+        const last = new URL(url).pathname.split('/').filter(Boolean).pop()
+        const name = last ? decodeURIComponent(last) : ''
+        return name || 'download-' + Date.now()
+    } catch {
+        return 'download-' + Date.now()
+    }
+}
+
+function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** node:stream 的 web ReadableStream 参数类型（避免 any）。 */
+type WebBody = Parameters<typeof Readable.fromWeb>[0]
+
+/** 静默关闭响应体（探测阶段用不到内容）。 */
+async function cancelBody(res: Response): Promise<void> {
+    try {
+        await res.body?.cancel()
+    } catch {
+        /* 已关闭 / 已锁定 */
+    }
+}
+
+/** 探测总大小与是否支持 Range。 */
+async function probe(url: string, signal: AbortSignal): Promise<{ total: number; ranges: boolean }> {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-0' }, signal })
+    if (res.status === 206) {
+        const total = Number((res.headers.get('content-range') ?? '').split('/').pop() ?? 0)
+        await cancelBody(res)
+        return { total, ranges: total > 0 }
+    }
+    const len = Number(res.headers.get('content-length') ?? 0)
+    await cancelBody(res)
+    return { total: Number.isFinite(len) && len > 0 ? len : 0, ranges: false }
+}
+
+/** 下载过程中的累计状态与速度平滑参数。 */
+interface DlState {
+    total: number
+    downloaded: number
+    speed: number
+    lastEmit: number
+    lastBytes: number
+    lastTime: number
+}
+
+/** 生成节流的进度上报函数（速度用指数滑动平均，避免进度条数字乱跳）。 */
+function makeReporter(emit: (p: DlProgress) => void, state: DlState): (force?: boolean) => void {
+    return (force = false): void => {
+        const now = Date.now()
+        if (!force && now - state.lastEmit < EMIT_INTERVAL) return
+        const dt = Math.max(1, now - state.lastTime) / 1000
+        const inst = (state.downloaded - state.lastBytes) / dt
+        state.speed = state.speed > 0 ? state.speed * 0.65 + inst * 0.35 : inst
+        state.lastEmit = now
+        state.lastBytes = state.downloaded
+        state.lastTime = now
+        emit({
+            total: state.total,
+            downloaded: state.downloaded,
+            percent: state.total > 0 ? Math.min(100, (state.downloaded / state.total) * 100) : 0,
+            speed: Math.max(0, state.speed)
         })
-        let done = false
-        const finish = (r: { ok: boolean; message?: string }): void => {
-            if (done) return
-            done = true
-            resolve(r)
+    }
+}
+
+/** 通用重试：失败后退避重试若干次（信号已中止则不再重试）。 */
+async function withRetry<T>(fn: () => Promise<T>, attempts: number, signal: AbortSignal): Promise<T> {
+    let last: unknown
+    for (let i = 1; i <= attempts; i++) {
+        try {
+            return await fn()
+        } catch (err) {
+            last = err
+            if (signal.aborted || i === attempts) break
+            await delay(400 * i)
         }
-        dl.on('progress.throttled', (s: { total?: number | null; downloaded?: number; progress?: number; speed?: number }) => {
-            if (!o.onProgress) return
-            o.onProgress({
-                total: s.total ?? 0,
-                downloaded: s.downloaded ?? 0,
-                percent: typeof s.progress === 'number' ? s.progress : 0,
-                speed: s.speed ?? 0
-            })
-        })
-        dl.on('error', (e: { message?: string } | Error) => finish({ ok: false, message: 'message' in e && e.message ? e.message : String(e) }))
-        dl.on('end', () => finish({ ok: true }))
-        dl.start().catch((e: unknown) => finish({ ok: false, message: String(e) }))
+    }
+    throw last
+}
+
+/** 单流下载到目标文件（服务器不支持 Range / 文件较小 / 并发=1 时使用）。 */
+async function singleStream(url: string, file: string, signal: AbortSignal, state: DlState, report: (force?: boolean) => void): Promise<void> {
+    const res = await fetch(url, { signal })
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status)
+    const len = Number(res.headers.get('content-length') ?? 0)
+    if (Number.isFinite(len) && len > 0) state.total = len
+    const src = Readable.fromWeb(res.body as unknown as WebBody)
+    src.on('data', (chunk: Buffer) => {
+        state.downloaded += chunk.length
+        report()
     })
+    await pipeline(src, fs.createWriteStream(file, { flags: 'w' }))
+}
+
+/** 下载 [start, end] 区间到目标文件的对应偏移；断流后从断点续传。 */
+async function rangeStream(
+    url: string,
+    file: string,
+    start: number,
+    end: number,
+    signal: AbortSignal,
+    state: DlState,
+    report: (force?: boolean) => void
+): Promise<void> {
+    let pos = start
+    let attempt = 0
+    while (pos <= end) {
+        try {
+            const res = await fetch(url, { headers: { Range: 'bytes=' + pos + '-' + end }, signal })
+            if (res.status !== 206 || !res.body) {
+                await cancelBody(res)
+                throw new Error('HTTP ' + res.status)
+            }
+            const src = Readable.fromWeb(res.body as unknown as WebBody)
+            src.on('data', (chunk: Buffer) => {
+                pos += chunk.length
+                state.downloaded += chunk.length
+                report()
+            })
+            await pipeline(src, fs.createWriteStream(file, { flags: 'r+', start: pos }))
+        } catch (err) {
+            if (signal.aborted) throw err
+            attempt += 1
+            if (attempt > MAX_RETRY) throw err
+            await delay(300 * attempt)
+        }
+    }
+}
+
+/** 预分配目标文件（分段写入需要文件已存在且长度足够）。 */
+function preallocate(file: string, size: number): void {
+    const fd = fs.openSync(file, 'w')
+    try {
+        fs.ftruncateSync(fd, size)
+    } finally {
+        fs.closeSync(fd)
+    }
+}
+
+/** 尽力删除文件。 */
+function removeQuietly(file: string): void {
+    try {
+        fs.rmSync(file, { force: true })
+    } catch {
+        /* ignore */
+    }
+}
+
+/** 把临时文件搬到最终位置；跨盘时 rename 会失败，退回拷贝再删源。 */
+function moveFile(from: string, to: string): void {
+    try {
+        fs.renameSync(from, to)
+    } catch {
+        fs.copyFileSync(from, to)
+        removeQuietly(from)
+    }
+}
+
+/** 执行一次真实下载（不做去重）；进度同时派发给所有订阅者。 */
+async function runDownload(
+    o: DownloadFileOpts,
+    fileName: string,
+    finalPath: string,
+    subscribers: Set<(p: DlProgress) => void>
+): Promise<DlResult> {
+    // 临时文件独立存放，避免在目标目录留下半成品；下载完成再搬到最终位置。
+    const tmpDir = o.tmpDir ?? o.destDir
+    const tmpPath = path.join(tmpDir, fileName + '.download')
+    const threads = normalizeDownloadThreads(o.threads)
+    const ctrl = new AbortController()
+    // 外部的取消信号（取消按钮）联动到本地控制器；已取消则立即中止。
+    if (o.signal) {
+        if (o.signal.aborted) ctrl.abort()
+        else o.signal.addEventListener('abort', () => ctrl.abort(), { once: true })
+    }
+    const state: DlState = { total: 0, downloaded: 0, speed: 0, lastEmit: 0, lastBytes: 0, lastTime: Date.now() }
+    const report = makeReporter((p) => {
+        for (const fn of subscribers) fn(p)
+    }, state)
+
+    try {
+        fs.mkdirSync(o.destDir, { recursive: true })
+        fs.mkdirSync(tmpDir, { recursive: true })
+        removeQuietly(tmpPath)
+        removeQuietly(finalPath)
+
+        const { total, ranges } = await withRetry(() => probe(o.url, ctrl.signal), MAX_RETRY, ctrl.signal)
+        state.total = total
+        const segmented = ranges && threads > 1 && total >= MIN_SEGMENT_BYTES
+
+        if (!segmented) {
+            await withRetry(
+                () => {
+                    state.downloaded = 0
+                    return singleStream(o.url, tmpPath, ctrl.signal, state, report)
+                },
+                MAX_RETRY,
+                ctrl.signal
+            )
+        } else {
+            preallocate(tmpPath, total)
+            const chunkSize = Math.ceil(total / threads)
+            const jobs: Array<Promise<void>> = []
+            for (let i = 0; i < threads; i++) {
+                const start = i * chunkSize
+                if (start >= total) break
+                const end = Math.min(start + chunkSize - 1, total - 1)
+                jobs.push(rangeStream(o.url, tmpPath, start, end, ctrl.signal, state, report))
+            }
+            await Promise.all(jobs)
+        }
+
+        report(true)
+        moveFile(tmpPath, finalPath)
+        return { ok: true }
+    } catch (err) {
+        removeQuietly(tmpPath)
+        removeQuietly(finalPath)
+        if (ctrl.signal.aborted) return { ok: false, canceled: true, message: '操作已取消' }
+        return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    }
+}
+
+/**
+ * 下载一个文件到 destDir/fileName（默认多线程）。
+ *
+ * 同一目标文件的重复请求会合并：在途期间再次调用不会重新下载，而是订阅同一份进度并等待
+ * 同一个结果。成功返回 ok=true；失败会清理临时文件并返回 ok=false 与错误信息。
+ */
+export async function downloadFile(o: DownloadFileOpts): Promise<DlResult> {
+    const fileName = o.fileName ?? fileNameFromUrl(o.url)
+    const finalPath = path.join(o.destDir, fileName)
+    const key = downloadKey(o.destDir, fileName)
+    const running = inFlightDownloads.get(key)
+    if (running) {
+        if (o.onProgress) running.subscribers.add(o.onProgress)
+        return running.promise
+    }
+    const subscribers = new Set<(p: DlProgress) => void>()
+    if (o.onProgress) subscribers.add(o.onProgress)
+    const promise = runDownload(o, fileName, finalPath, subscribers)
+    const entry: InFlight = {
+        subscribers,
+        promise: promise.finally(() => {
+            if (inFlightDownloads.get(key) === entry) inFlightDownloads.delete(key)
+        })
+    }
+    inFlightDownloads.set(key, entry)
+    return entry.promise
+}
+
+/** 该目标文件当前是否有在途下载（同一文件的重复请求会被合并）。 */
+export function isFileDownloading(destDir: string, fileName: string): boolean {
+    return inFlightDownloads.has(downloadKey(destDir, fileName))
+}
+
+/** 去重键：最终文件的绝对路径小写（Windows 大小写不敏感）。 */
+function downloadKey(destDir: string, fileName: string): string {
+    return path.resolve(path.join(destDir, fileName)).toLowerCase()
 }

@@ -1,17 +1,19 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { spawn } from 'node:child_process'
-import type { NodeDeployResult, NodeRuntimeStatus, NodeStatus } from '@shared/types'
-import { configDir, loadSettings } from '../app/settings'
+import type { InstalledVersions, NodeDeployProgress, NodeDeployResult, NodeRuntimeStatus, NodeStatus } from '@shared/types'
+import { loadSettings, tempDownloadDir } from '../app/settings'
 import { isDshRunning, pushLog, rememberChild } from './dsh'
 import { findSystemNode, localNodeExecPath, nodeVersionOf } from './tools'
 import { compareVersions, stripV } from './semver'
 import { downloadFile } from './downloader'
-import type { DlProgress } from './downloader'
+import { beginCancelable, CANCELED_MESSAGE } from './cancel'
+import { activeVersion, installRoot, listInstalled, prepareVersionDir, removeVersion, resolveActive, setActiveVersion, versionDir } from './installs'
 
 /**
- * 按当前平台 / 架构下载 Node.js LTS 发行包并解压到配置目录的 `node` 子目录，
- * 供 `nodeRuntime: 'local'` 使用。平台名/扩展名/内部目录均按 Node 官方发行命名。
+ * Node.js 版本管理：按当前平台 / 架构下载官方发行包，解压后放进
+ * `<configDir>/node/<版本>/`，允许多版本并存；`.active` 指向生效版本。
+ * 平台名 / 扩展名 / 内部目录均按 Node 官方发行命名。
  */
 
 const NODE_DIST = 'https://nodejs.org/dist'
@@ -26,9 +28,10 @@ function extOf(): string {
     return nodeOs() === 'win' ? 'zip' : 'tar.gz'
 }
 
-/** 本地部署的 Node 根目录：<configDir>/node。 */
+/** 当前生效的本地 Node 目录（尚无版本时为安装根目录）。 */
 export function localNodeDir(): string {
-    return path.join(configDir(), 'node')
+    const active = resolveActive('node')
+    return active ? versionDir('node', active) : installRoot('node')
 }
 
 /**
@@ -73,11 +76,16 @@ export async function latestLtsVersion(): Promise<string | null> {
     return list?.find((x) => x.lts)?.version ?? null
 }
 
-/** 可安装的 Node 版本列表（新 → 旧）；`includeNonLts=false` 时只给 LTS。 */
+/**
+ * 可安装的 Node 版本列表（新 → 旧）；`includeNonLts=false` 时优先只给 LTS。
+ * 万一索引里一个 LTS 都没有（罕见），退回全部版本 —— 不能让下拉框空着。
+ */
 export async function listNodeVersions(includeNonLts: boolean): Promise<string[]> {
     const list = await nodeDistIndex()
     if (!list) return []
-    return list.filter((x) => includeNonLts || x.lts).map((x) => x.version)
+    if (includeNonLts) return list.map((x) => x.version)
+    const lts = list.filter((x) => x.lts).map((x) => x.version)
+    return lts.length > 0 ? lts : list.map((x) => x.version)
 }
 
 /**
@@ -102,128 +110,150 @@ export async function nodeStatus(): Promise<NodeStatus> {
     return { latest, system: mk(systemVersion, !!sysPath), local: mk(localVersion, !!localPath) }
 }
 
-/** 跑一个子进程并把输出写进日志，返回是否成功。 */
-function run(exec: string, argv: string[], label: string): Promise<boolean> {
+/** 尽力删除文件 / 目录。 */
+function removeQuietly(target: string): void {
+    try {
+        fs.rmSync(target, { recursive: true, force: true })
+    } catch {
+        /* ignore */
+    }
+}
+
+/** 解压发行包；取消时杀掉子进程并返回 false。 */
+function extract(stage: string, file: string, signal: AbortSignal): Promise<boolean> {
     return new Promise((resolve) => {
-        pushLog('o', `[Manager] ${label}`)
+        const win = nodeOs() === 'win'
+        const exec = win ? 'powershell.exe' : 'tar'
+        const argv = win
+            ? ['-NoProfile', '-NonInteractive', '-Command', "Expand-Archive -Path '" + file + "' -DestinationPath '" + stage + "' -Force"]
+            : ['-xzf', file, '-C', stage]
+        pushLog('o', '[Manager] 解压 Node 压缩包…')
         const child = rememberChild(spawn(exec, argv, { windowsHide: true, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }))
         let settled = false
-        const settle = (ok: boolean): void => {
+        function finish(ok: boolean): void {
             if (settled) return
             settled = true
+            signal.removeEventListener('abort', onAbort)
             resolve(ok)
         }
+        function onAbort(): void {
+            try {
+                child.kill('SIGKILL')
+            } catch {
+                /* ignore */
+            }
+            finish(false)
+        }
+        if (signal.aborted) onAbort()
+        else signal.addEventListener('abort', onAbort, { once: true })
         child.stdout!.on('data', (d: Buffer) => pushLog('o', d.toString()))
         child.stderr!.on('data', (d: Buffer) => pushLog('e', d.toString()))
-        child.on('error', () => settle(false))
-        child.on('exit', (code) => settle(code === 0))
+        child.on('error', () => finish(false))
+        child.on('exit', (code) => finish(code === 0))
     })
 }
 
-async function extract(stage: string, file: string): Promise<boolean> {
-    if (nodeOs() === 'win') {
-    // PowerShell Expand-Archive 解压 zip。
-        return run(
-            'powershell.exe',
-            ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -Path '${file}' -DestinationPath '${stage}' -Force`],
-            '解压 Node 压缩包…'
-        )
+/** 已安装 / 生效的本地 Node 版本。 */
+export function listInstalledNodeVersions(): InstalledVersions {
+    return { installed: listInstalled('node'), active: activeVersion('node') }
+}
+
+/** 切换本地 Node 生效版本（只改指针，不重装；重启 dsh 后生效）。 */
+export function useNodeVersion(version: string): NodeDeployResult {
+    if (!listInstalled('node').includes(version)) return { ok: false, message: `未安装 Node ${version}`, version: null }
+    setActiveVersion('node', version)
+    return { ok: true, message: `已切换到 Node ${version}（重启 dsh 后生效）`, version }
+}
+
+/** 删除某个本地 Node 版本；正在使用该版本运行 dsh 时拒绝。 */
+export function removeInstalledNodeVersion(version: string): NodeDeployResult {
+    if (activeVersion('node') === version && loadSettings().nodeRuntime === 'local' && isDshRunning()) {
+        return { ok: false, message: 'dsh 正在使用该 Node 版本运行，请先停止 dsh。', version }
     }
-    return run('tar', ['-xzf', file, '-C', stage], '解压 Node 压缩包…')
+    removeVersion('node', version)
+    return { ok: true, message: `已删除 Node ${version}`, version }
 }
 
 /**
- * 按当前平台 / 架构下载指定（默认最新 LTS）Node 发行包并解压部署到配置目录，
- * 覆盖 `<configDir>/node`。结果也经日志广播给向导。
- *
- * 「切换版本」的语义就是**整体替换**已部署的那份（与内核版本管理一致，不做多版本并存）。
+ * 下载指定（默认最新 LTS）Node 发行包，解压到 `<configDir>/node/<版本>/` 并设为生效版本。
+ * 多版本并存：不会动其它已安装版本。下载与解压阶段均可取消。
  */
 export async function deployLocalNode(
-    onProgress?: (p: DlProgress) => void,
+    onProgress?: (p: NodeDeployProgress) => void,
     version?: string
 ): Promise<NodeDeployResult> {
-    const cfgDir = configDir()
-    const ver = version ?? (await latestLtsVersion())
-    if (!ver) return { ok: false, message: '无法获取 Node 版本（网络不可用？）', version: null }
-    // 版本号会被拼进下载 URL 与目录名，必须挡住意外/恶意字符串。
-    if (!/^v\d+\.\d+\.\d+$/.test(ver)) return { ok: false, message: `Node 版本号不合法：${ver}`, version: null }
-    // 正在用本地 Node 跑 dsh 时不能替换：Windows 上运行中的 node.exe 被锁，删除会失败且可能
-    // 留下残缺的运行时。渲染层会先停 dsh，这里再兜一道（防止绕过 UI 直接调用）。
-    if (loadSettings().nodeRuntime === 'local' && isDshRunning()) {
-        return { ok: false, message: 'dsh 正在使用本地 Node 运行，请先停止 dsh 再安装 / 切换版本。', version: ver }
-    }
-
-    const dir = `node-${ver}-${nodeOs()}-${process.arch}`
-    const url = `${NODE_DIST}/${ver}/${dir}.${extOf()}`
-    const file = path.join(cfgDir, `${dir}.${extOf()}`)
-    const stage = path.join(cfgDir, '.node-tmp')
-
+    const token = beginCancelable()
     try {
-        fs.mkdirSync(cfgDir, { recursive: true })
-        fs.mkdirSync(stage, { recursive: true })
-    } catch {
-        return { ok: false, message: '无法创建配置目录', version: ver }
-    }
-
-    pushLog('o', `[Manager] 下载 ${url}`)
-    const dl = await downloadFile({
-        url,
-        destDir: cfgDir,
-        fileName: `${dir}.${extOf()}`,
-        onProgress: (p) => onProgress?.(p)
-    })
-    if (!dl.ok) return { ok: false, message: dl.message ?? '下载 Node 失败', version: ver }
-
-    const okExtract = await extract(stage, file)
-    try {
-        fs.unlinkSync(file)
-    } catch {
-    /* best effort */
-    }
-    if (!okExtract) {
-        fs.rmSync(stage, { recursive: true, force: true })
-        return { ok: false, message: '解压 Node 失败', version: ver }
-    }
-
-    const src = path.join(stage, dir)
-    if (!fs.existsSync(src)) {
-        fs.rmSync(stage, { recursive: true, force: true })
-        return { ok: false, message: '解压后未找到 Node 目录', version: ver }
-    }
-
-    // 换版本：先把已部署的那份**改名挪开**再放新的，而不是先删 —— 直接 rmSync 一旦删到被占用的
-    // 文件就中途抛出，会留下一个残缺的 Node（内核随后起不来）。挪开失败（目录被占用）时原样保留。
-    const target = localNodeDir()
-    const backup = `${target}.old`
-    fs.rmSync(backup, { recursive: true, force: true })
-    if (fs.existsSync(target)) {
-        try {
-            fs.renameSync(target, backup)
-        } catch {
-            fs.rmSync(stage, { recursive: true, force: true })
-            return { ok: false, message: '无法替换已部署的 Node（可能正被占用 / 正在运行）', version: ver }
+        const ver = version ?? (await latestLtsVersion())
+        if (!ver) return { ok: false, message: '无法获取 Node 版本（网络不可用？）', version: null }
+        // 版本号会被拼进下载 URL 与目录名，必须挡住意外/恶意字符串。
+        if (!/^v\d+\.\d+\.\d+$/.test(ver)) return { ok: false, message: `Node 版本号不合法：${ver}`, version: null }
+        // 正在用该版本的本地 Node 跑 dsh 时不能覆盖它（Windows 上运行中的 node.exe 被锁）。
+        if (loadSettings().nodeRuntime === 'local' && isDshRunning() && activeVersion('node') === ver) {
+            return { ok: false, message: 'dsh 正在使用该 Node 版本运行，请先停止 dsh 再重装。', version: ver }
         }
-    }
-    try {
-        fs.renameSync(src, target)
-    } catch {
+
+        const dir = `node-${ver}-${nodeOs()}-${process.arch}`
+        const url = `${NODE_DIST}/${ver}/${dir}.${extOf()}`
+        const stage = path.join(installRoot('node'), '.tmp')
+        const file = path.join(stage, `${dir}.${extOf()}`)
         try {
-            fs.cpSync(src, target, { recursive: true })
-            fs.rmSync(src, { recursive: true, force: true })
+            fs.rmSync(stage, { recursive: true, force: true })
+            fs.mkdirSync(stage, { recursive: true })
         } catch {
-            // 回滚：把原来的那份放回去，别让用户既没旧的也没新的。
+            return { ok: false, message: '无法创建配置目录', version: ver }
+        }
+
+        pushLog('o', `[Manager] 下载 ${url}`)
+        const dl = await downloadFile({
+            url,
+            destDir: stage,
+            fileName: `${dir}.${extOf()}`,
+            tmpDir: tempDownloadDir(),
+            threads: loadSettings().downloadThreads,
+            signal: token.signal,
+            onProgress: (p) => onProgress?.({ phase: 'download', ...p })
+        })
+        if (dl.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: ver }
+        if (!dl.ok) return { ok: false, message: dl.message ?? '下载 Node 失败', version: ver }
+
+        onProgress?.({ phase: 'extract', percent: 100, downloaded: 0, total: 0, speed: 0 })
+        const okExtract = await extract(stage, file, token.signal)
+        removeQuietly(file)
+        if (token.signal.aborted) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: ver }
+        if (!okExtract) {
+            removeQuietly(stage)
+            return { ok: false, message: '解压 Node 失败', version: ver }
+        }
+
+        const src = path.join(stage, dir)
+        if (!fs.existsSync(src)) {
+            removeQuietly(stage)
+            return { ok: false, message: '解压后未找到 Node 目录', version: ver }
+        }
+
+        let dest: string
+        try {
+            dest = prepareVersionDir('node', ver)
+            // 逐项搬进版本目录（同盘 rename 很快）；被占用时退回整目录拷贝。
             try {
-                fs.rmSync(target, { recursive: true, force: true })
-                if (fs.existsSync(backup)) fs.renameSync(backup, target)
+                for (const n of fs.readdirSync(src)) fs.renameSync(path.join(src, n), path.join(dest, n))
+                removeQuietly(src)
             } catch {
-                /* 回滚也失败：备份仍在 <configDir>/node.old，保留给用户手工恢复 */
+                removeQuietly(dest)
+                fs.cpSync(src, dest, { recursive: true })
+                removeQuietly(src)
             }
-            fs.rmSync(stage, { recursive: true, force: true })
-            return { ok: false, message: '移动 Node 到配置目录失败', version: ver }
+        } catch (err) {
+            removeVersion('node', ver)
+            removeQuietly(stage)
+            return { ok: false, message: err instanceof Error ? err.message : '移动 Node 到配置目录失败', version: ver }
         }
+        setActiveVersion('node', ver)
+        removeQuietly(stage)
+        pushLog('o', `[Manager] Node ${ver} 已部署到 ${dest}`)
+        return { ok: true, message: `Node ${ver} 已部署并生效`, version: ver }
+    } finally {
+        token.done()
     }
-    fs.rmSync(backup, { recursive: true, force: true })
-    fs.rmSync(stage, { recursive: true, force: true })
-    pushLog('o', `[Manager] Node ${ver} 已部署到 ${target}`)
-    return { ok: true, message: `Node ${ver} 已部署到配置目录`, version: ver }
 }

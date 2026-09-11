@@ -1,4 +1,4 @@
-/** Settings persisted in the app's config dir: ~/.config/dsh_shell[_dev]/settings.json. */
+/** Settings persisted in the app's config dir: ~/.dsbox/{release,dev}/settings.json. */
 export interface Settings {
     /** Bind host for dsh. dsh only allows 127.0.0.1 today. */
     host: string
@@ -37,12 +37,14 @@ export interface Settings {
    * 版本元数据仍走官方 —— 这样即使镜像不支持 GitHub API 也不会让检查整体失效。
    */
     updateMirrorUrl: string
+    /** 文件下载并发连接数：1 = 单线程，默认 4（可在「设置 → 网络」调整）。 */
+    downloadThreads: number
     /** 开发模式：开启后 F12 才允许打开 DevTools 控制台（默认关）。 */
     devMode: boolean
     /**
    * 内核来源：
    *  - 'local'（默认）：由应用把 @deepseek-ai/dsh 安装/运行在应用自己的目录
-   *    （~/.config/dsh_shell/kernel），用所选 Node 运行。
+   *    （<configDir>/kernel），用所选 Node 运行。
    *  - 'global'：使用系统 npm install -g 装在 PATH 上的 @deepseek-ai/dsh。
    */
     kernelSource: 'local' | 'global'
@@ -175,6 +177,7 @@ export const DEFAULT_SETTINGS: Settings = {
     appAutoUpdate: true,
     appCheckPrerelease: false,
     updateMirrorUrl: '',
+    downloadThreads: 4,
     devMode: false,
     kernelSource: 'local',
     nodeRuntime: 'electron',
@@ -204,6 +207,8 @@ export interface KernelAction {
     ok: boolean
     message: string
     version: string | null
+    /** 是否因用户取消而中止。 */
+    canceled?: boolean
 }
 
 export type LogKind = 'o' | 'e'
@@ -247,6 +252,43 @@ export interface AppSlotsState {
     canRollback: boolean
 }
 
+/** 一次待执行的配置目录迁移（重启引导阶段执行）。 */
+export interface ConfigMigrationPlan {
+    /** 旧配置目录（迁移前正在使用的）。 */
+    from: string
+    /** 新配置目录（迁移后使用）。 */
+    to: string
+    /** 迁移完成后是否把 `to` 记为显式覆盖；false 表示回归默认目录。 */
+    override: boolean
+}
+
+/** 配置目录状态：当前有效 / 默认 / 显式覆盖值 / 待迁移计划。 */
+export interface ConfigDirInfo {
+    current: string
+    default: string
+    override: string | null
+    pending: ConfigMigrationPlan | null
+}
+
+/** 配置目录迁移进度（main → renderer 广播）。 */
+export interface ConfigMigrationProgress {
+    /** scan=统计文件数，move=正在搬迁，done=结束。 */
+    phase: 'scan' | 'move' | 'done'
+    /** 当前正在处理的路径。 */
+    current: string
+    /** 已处理文件数。 */
+    moved: number
+    /** 总文件数（scan 阶段结束后有效）。 */
+    total: number
+    /** 0–100。 */
+    percent: number
+    done: boolean
+    /** done 时有效：是否成功完成。 */
+    ok: boolean
+    /** done 时有效：是否被用户取消（已回滚）。 */
+    canceled?: boolean
+}
+
 /** 首次安装向导探测到的本机运行环境。 */
 export interface EnvProbe {
     platform: string
@@ -264,13 +306,29 @@ export interface NodeDeployResult {
     ok: boolean
     message: string
     version: string | null
+    /** 是否因用户取消而中止。 */
+    canceled?: boolean
 }
 
-/** 下载部署本地 Node 的进度广播。 */
+/** 可版本化的安装对象：Node / 内置 npm / 内核。 */
+export type InstallKind = 'node' | 'npm' | 'kernel'
+
+/** 安装进度广播：下载阶段带百分比 / 速度，解压阶段前端显示不确定动画。 */
 export interface NodeDeployProgress {
+    phase: 'download' | 'extract'
     percent: number
     downloaded: number
     total: number
+    /** 瞬时下载速度（bytes/s）。 */
+    speed: number
+}
+
+/** 某个工具的已安装版本与当前生效版本。 */
+export interface InstalledVersions {
+    /** 已安装版本（新 → 旧）。 */
+    installed: string[]
+    /** 当前生效版本（无则 null）。 */
+    active: string | null
 }
 
 /** 单个 Node 运行时的版本状态（设置 → 环境页的标签）。 */
@@ -313,6 +371,8 @@ export interface ToolActionResult {
     ok: boolean
     message: string
     version: string | null
+    /** 是否因用户取消而中止。 */
+    canceled?: boolean
 }
 
 /** 系统全局快捷键的注册状态（主进程 globalShortcut 的真实结果）。 */
@@ -329,6 +389,11 @@ export interface AppUpdateEvent {
     version?: string | null
     /** progress 时的下载百分比 0-100。 */
     percent?: number
+    /** progress 时的瞬时下载速度（bytes/s）。 */
+    speed?: number
+    /** progress 时已下载 / 总字节数。 */
+    transferred?: number
+    total?: number
     message?: string
     /** 当前是否保留了可回退的上一版（downloaded / rollback 时给出）。 */
     canRollback?: boolean
@@ -452,6 +517,8 @@ export interface RendererApi {
     listNpmVersions(opts: { prerelease: boolean }): Promise<string[]>
     /** 按来源下载 / 切换 npm 版本（不传 version 为最新版）。 */
     updateNpm(opts: { source: NpmSource; version?: string }): Promise<ToolActionResult>
+    /** 首次安装向导用：确保「程序内置」npm 已就绪（不传 version 时已缓存即免下载）。 */
+    ensureBundledNpm(opts?: { version?: string }): Promise<ToolActionResult>
     /** 系统全局快捷键的注册状态（设置 → 快捷键页）。 */
     getHotkeyState(): Promise<HotkeyState>
     /** 系统全局快捷键注册状态变化（改设置后重新注册的结果）。 */
@@ -460,10 +527,28 @@ export interface RendererApi {
     getWebviewInfo(): Promise<WebviewInfo>
     /** 本地 Node 部署进度广播。 */
     onNodeDeployProgress(cb: (p: NodeDeployProgress) => void): () => void
-    /** 当前有效 + 默认的应用配置目录。 */
-    getConfigDir(): Promise<{ current: string; default: string }>
-    /** 设置自选配置目录（传 null 恢复默认）；返回新的当前有效目录。 */
-    setConfigDir(dir: string | null): Promise<string>
+    /** 「程序内置」npm 下载 / 解压进度广播。 */
+    onNpmDeployProgress(cb: (p: NodeDeployProgress) => void): () => void
+    /** 取消正在进行的 Node / npm / 内核安装（下载与解压阶段）。 */
+    cancelInstall(): Promise<boolean>
+    /** 某个工具的已安装版本与生效版本（Node / npm / 内核）。 */
+    listInstalledVersions(kind: InstallKind): Promise<InstalledVersions>
+    /** 切换某个工具的生效版本（不重装）。 */
+    useInstalledVersion(kind: InstallKind, version: string): Promise<ToolActionResult>
+    /** 删除某个已安装版本。 */
+    removeInstalledVersion(kind: InstallKind, version: string): Promise<ToolActionResult>
+    /** 配置目录状态：当前有效 / 默认 / 覆盖值 / 待迁移计划。 */
+    getConfigDir(): Promise<ConfigDirInfo>
+    /** 设置自选配置目录（传 null 恢复默认）；旧目录有内容时返回带 pending 的状态，需重启迁移。 */
+    setConfigDir(dir: string | null): Promise<ConfigDirInfo>
+    /** 撤销尚未执行的配置目录迁移，固定回原目录。 */
+    revertConfigDir(): Promise<ConfigDirInfo>
+    /** 开始执行待迁移计划（重启引导阶段由渲染层触发）。 */
+    runConfigMigration(): Promise<void>
+    /** 请求取消正在执行的迁移（已搬内容会回滚）。 */
+    cancelConfigMigration(): Promise<void>
+    /** 配置目录迁移进度广播（进度条 + 当前文件）。 */
+    onConfigMigrationProgress(cb: (p: ConfigMigrationProgress) => void): () => void
     /** 本窗口元信息：窗口 id 与是否核心窗口（核心窗口才承载 dsh 内核 UI）。 */
     getShellMeta(): Promise<{ winId: number; isCore: boolean }>
     /** 把一个 URL 开到一个独立（副）窗口（右键“在新窗口打开 / 移动”）。 */

@@ -7,6 +7,7 @@ import { friendlyPlatform } from './settingsStore'
 import type { AppMeta, AppSlotsState, AppUpdateEvent } from '@shared/types'
 import { useAppIcon } from '../../lib/appIcon'
 import { tt } from '../../lib/locales'
+import { formatDownload } from '../../lib/format'
 
 const { state } = useSettingsStore()
 // 应用 Logo：随深浅色切换（深色用 icon-dark.png），见 lib/appIcon.ts
@@ -201,6 +202,11 @@ const targetVersion = ref<string | null>(null)
  */
 const remoteVersion = ref<string | null>(null)
 const percent = ref(0)
+const speed = ref(0)
+const transferred = ref(0)
+const totalBytes = ref(0)
+/** 进度条下方的「已下载 / 总大小 · 速度」。 */
+const progressInfo = computed(() => formatDownload(totalBytes.value, transferred.value, speed.value))
 const errMsg = ref('')
 
 /** A/B 版本槽状态（当前 / 压缩保留的上一版 / 待重启安装）。 */
@@ -256,10 +262,16 @@ function onEvent(e: AppUpdateEvent): void {
             targetVersion.value = e.version ?? null
             phase.value = 'downloading'
             percent.value = 0
+            speed.value = 0
+            transferred.value = 0
+            totalBytes.value = 0
             break
         case 'progress':
             phase.value = 'downloading'
             percent.value = Math.round(e.percent ?? 0)
+            speed.value = e.speed ?? 0
+            transferred.value = e.transferred ?? 0
+            totalBytes.value = e.total ?? 0
             break
         case 'staging':
             targetVersion.value = e.version ?? targetVersion.value
@@ -434,6 +446,7 @@ onBeforeUnmount(() => {
                 <template v-if="phase === 'downloading'">
                     <p class="au-note">{{ $t('sv.about.downloading', { version: targetVersion || '' }) }}</p>
                     <el-progress :percentage="percent" :status="percent >= 100 ? 'success' : 'active'" />
+                    <div class="au-note au-speed">{{ progressInfo }}</div>
                 </template>
 
                 <el-alert
@@ -533,6 +546,9 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.au-speed {
+  font-variant-numeric: tabular-nums;
+}
 /* 关于页使用应用图标（icon.png）替代默认的 Info 图标。 */
 .about-logo {
   background: transparent;

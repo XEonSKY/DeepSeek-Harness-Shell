@@ -1,19 +1,82 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { FolderOutlined, ReloadOutlined, PoweroffOutlined, SettingOutlined, DesktopOutlined, PlusOutlined, DeleteOutlined } from '@antdv-next/icons'
+import type { ConfigDirInfo } from '@shared/types'
 import { useSettingsStore } from './useSettingsStore'
 import { SEARCH_ENGINE_IDS, ENGINE_LABEL_KEY } from '../../lib/engines'
 
 const { state, actions } = useSettingsStore()
+const { t } = useI18n({ useScope: 'global' })
 
 // el-collapse：默认全部展开
-const open = ref(['general-run', 'general-close', 'general-newtab', 'general-reset'])
+const open = ref(['general-run', 'general-configdir', 'general-close', 'general-newtab', 'general-reset'])
 
 function addShortcut(): void {
     state.shortcuts.push({ title: '', url: '' })
 }
 function removeShortcut(i: number): void {
     state.shortcuts.splice(i, 1)
+}
+
+// ---- 配置文件夹：默认 ~/.dsbox/{release,dev}，更改后在下次重启自动迁移 ----
+const cfg = ref<ConfigDirInfo | null>(null)
+const cfgPendingTo = computed(() => cfg.value?.pending?.to ?? '')
+
+async function refreshConfigDir(): Promise<void> {
+    try {
+        cfg.value = await window.api.getConfigDir()
+    } catch {
+        /* 读不到就留空 */
+    }
+}
+onMounted(() => void refreshConfigDir())
+
+/** 应用新的配置目录选择：旧目录有内容时提示「重启后迁移」，取消则撤销本次更改。 */
+async function applyConfigDir(next: ConfigDirInfo, wanted: string): Promise<void> {
+    cfg.value = next
+    // 主进程拒绝互为父子的目录（返回的仍是原目录）——据此提示用户换一个位置。
+    const accepted = next.pending ? next.pending.to === wanted : next.current === wanted
+    if (!accepted) {
+        ElMessage.warning(t('sv.general.configDirInvalid'))
+        return
+    }
+    if (!next.pending) return
+    try {
+        await ElMessageBox.confirm(t('sv.general.configDirConfirm', { to: next.pending.to }), t('sv.general.configDirConfirmTitle'), {
+            confirmButtonText: t('sv.general.configDirOk'),
+            cancelButtonText: t('sv.general.configDirCancel'),
+            type: 'warning'
+        })
+        // 保留更改：真正的迁移等到下次重启的引导阶段执行
+        ElMessage.info(t('sv.general.configDirWillMigrate', { to: next.pending.to }))
+    } catch {
+        cfg.value = await window.api.revertConfigDir()
+        ElMessage.info(t('sv.general.configDirReverted'))
+    }
+}
+
+async function changeConfigDir(): Promise<void> {
+    const picked = await window.api.openDirectory()
+    if (!picked) return
+    await applyConfigDir(await window.api.setConfigDir(picked), picked)
+}
+
+async function resetConfigDir(): Promise<void> {
+    const next = await window.api.setConfigDir(null)
+    await applyConfigDir(next, next.default)
+}
+
+/** 立即重启，触发已登记的迁移。 */
+function restartNow(): void {
+    window.api.relaunch()
+}
+
+/** 撤销尚未执行的迁移（继续停留在原目录）。 */
+async function cancelPendingMigration(): Promise<void> {
+    cfg.value = await window.api.revertConfigDir()
+    ElMessage.info(t('sv.general.configDirReverted'))
 }
 </script>
 
@@ -49,6 +112,27 @@ function removeShortcut(i: number): void {
                             <el-input-number v-if="state.portMode === 'manual'" v-model="state.manualPort" :min="1" :max="65535" class="num" />
                         </div>
                         <div class="hint">{{ $t('sv.general.portHint') }}</div>
+                    </el-form-item>
+                </el-form>
+            </el-collapse-item>
+
+            <el-collapse-item name="general-configdir">
+                <template #title>
+                    <div class="sec__title"><el-icon><FolderOutlined /></el-icon> {{ $t('sv.general.configDirSection') }}</div>
+                </template>
+                <el-form label-position="top">
+                    <el-form-item :label="$t('sv.general.configDir')">
+                        <div class="row">
+                            <el-input :model-value="cfg?.current ?? ''" readonly />
+                            <el-button type="primary" :icon="FolderOutlined" @click="changeConfigDir">{{ $t('sv.general.configDirChange') }}</el-button>
+                            <el-button v-if="cfg?.override" @click="resetConfigDir">{{ $t('sv.general.configDirReset') }}</el-button>
+                        </div>
+                        <div class="hint">{{ $t('sv.general.configDirHint') }}</div>
+                        <div v-if="cfg?.pending" class="cfg-pending">
+                            <span>{{ $t('sv.general.configDirPending', { to: cfgPendingTo }) }}</span>
+                            <el-button link type="primary" @click="restartNow">{{ $t('sv.general.configDirRestart') }}</el-button>
+                            <el-button link type="danger" @click="cancelPendingMigration">{{ $t('sv.general.configDirCancel') }}</el-button>
+                        </div>
                     </el-form-item>
                 </el-form>
             </el-collapse-item>
@@ -134,5 +218,14 @@ function removeShortcut(i: number): void {
 }
 .sh-row .el-input {
   flex: 1 1 auto;
+}
+.cfg-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-color-warning);
+  word-break: break-all;
 }
 </style>

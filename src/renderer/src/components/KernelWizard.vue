@@ -3,9 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CloseOutlined, FileTextOutlined, DownloadOutlined, ReloadOutlined } from '@antdv-next/icons'
 import { ElMessage } from 'element-plus'
-import type { EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
+import type { ConfigDirInfo, EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
 import { MIN_KERNEL_NODE_MAJOR, nodeMajor } from '@shared/version'
 import { useAppIcon } from '../lib/appIcon'
+import { formatDownload } from '../lib/format'
 
 /**
  * 内核（@deepseek-ai/dsh）缺失时的全屏安装向导。
@@ -58,6 +59,44 @@ const systemNodeOk = computed(() => {
 const nodeRuntimeChoice = ref<NodeRuntimeKind>('electron')
 const deployingNode = ref(false)
 const deployPercent = ref(0)
+const deployDownloaded = ref(0)
+const deployTotal = ref(0)
+const deploySpeed = ref(0)
+/** 进度条下方的「已下载 / 总大小 · 速度」。 */
+const deployInfo = computed(() => formatDownload(deployTotal.value, deployDownloaded.value, deploySpeed.value))
+
+// 「程序内置」npm：第 2 步选中且尚未缓存时，点下一步先下载再继续（进度由主进程广播）。
+const installingNpm = ref(false)
+const npmPercent = ref(0)
+const npmDownloaded = ref(0)
+const npmTotal = ref(0)
+const npmSpeed = ref(0)
+const npmBundledPresent = ref(false)
+const npmInfo = computed(() => formatDownload(npmTotal.value, npmDownloaded.value, npmSpeed.value))
+
+// ---- Node 版本选择（第 1 步「部署并使用本地 Node」）----
+const nodeVersions = ref<string[]>([])
+const nodeVersionsLoading = ref(false)
+const nodeIncludeNonLts = ref(false)
+const nodeVersion = ref('')
+// 「当前生效」的兜底来源：envProbe.local.version 读不到时用已安装版本列表的 active。
+const nodeActiveVersion = ref<string | null>(null)
+/** 当前生效的本地 Node 版本：优先环境探测，其次已安装版本列表。 */
+const localNodeActive = computed(() => envProbe.value?.local.version ?? nodeActiveVersion.value)
+
+// ---- npm 版本选择（第 2 步「程序内置」）----
+const npmVersions = ref<string[]>([])
+const npmVersionsLoading = ref(false)
+const npmIncludePre = ref(false)
+const npmVersion = ref('')
+
+// 解压阶段改用不确定动画（不显示百分比）；取消进行中禁用「取消」按钮。
+const nodeExtracting = ref(false)
+const npmExtracting = ref(false)
+const canceling = ref(false)
+
+/** 没有专用进度条（Node / npm 下载）时，通用执行条的文案。 */
+const installLabel = computed(() => (step.value === 3 ? t('kernelMissing.progressDsh') : t('kernelMissing.executing')))
 
 const runtimeHint = computed(() => {
     const c = nodeRuntimeChoice.value
@@ -66,12 +105,22 @@ const runtimeHint = computed(() => {
     return t('kernelMissing.node.hintElectron')
 })
 
-async function deployOnce(): Promise<boolean> {
+async function deployOnce(version?: string): Promise<boolean> {
     if (deployingNode.value) return false
     deployingNode.value = true
+    canceling.value = false
+    nodeExtracting.value = false
     deployPercent.value = 0
+    deployDownloaded.value = 0
+    deployTotal.value = 0
+    deploySpeed.value = 0
     try {
-        const r = await window.api.deployLocalNode()
+        const r = await window.api.deployLocalNode(version ? { version } : {})
+        if (r.canceled) {
+            // 用户主动取消：不算失败，也不弹错误提示。
+            ElMessage.info(r.message || t('kernelMissing.cancel'))
+            return false
+        }
         if (r.ok) {
             deployPercent.value = 100
             ElMessage.success(r.message)
@@ -84,10 +133,100 @@ async function deployOnce(): Promise<boolean> {
         return false
     } finally {
         deployingNode.value = false
+        nodeExtracting.value = false
+        canceling.value = false
         await probeEnv()
+        await loadInstalledNode()
     }
 }
-const deployNode = (): Promise<void> => deployOnce().then(() => undefined)
+/** 下载并部署本地 Node：默认最新 LTS，选定版本时装指定版本。 */
+const deployNode = (): Promise<void> => deployOnce(nodeVersion.value || undefined).then(() => undefined)
+
+/** 确保「程序内置」npm 就绪：已缓存直接通过，未缓存 / 指定版本则先下载（带进度）再进入下一步。 */
+async function ensureNpmOnce(version?: string): Promise<boolean> {
+    canceling.value = false
+    npmExtracting.value = false
+    try {
+        const r = await window.api.ensureBundledNpm(version ? { version } : {})
+        if (r.canceled) {
+            // 用户主动取消：不算失败，也不弹错误提示。
+            ElMessage.info(r.message || t('kernelMissing.cancel'))
+            return false
+        }
+        if (r.ok) {
+            npmBundledPresent.value = true
+            return true
+        }
+        ElMessage.error(r.message)
+        return false
+    } catch (err) {
+        ElMessage.error(err instanceof Error ? err.message : String(err))
+        return false
+    } finally {
+        installingNpm.value = false
+        npmExtracting.value = false
+        canceling.value = false
+    }
+}
+
+/** 探测「程序内置」npm 是否已缓存：决定第 2 步是否需要先下载。 */
+async function loadNpmStatus(): Promise<void> {
+    try {
+        npmBundledPresent.value = (await window.api.getNpmStatus()).bundled.present
+    } catch {
+        npmBundledPresent.value = false
+    }
+}
+
+/** 拉取可部署的 Node 版本（新 → 旧）；默认只 LTS，勾选后含 Current，默认选中最新一项。 */
+async function loadNodeVersions(): Promise<void> {
+    if (nodeVersionsLoading.value) return
+    nodeVersionsLoading.value = true
+    try {
+        const list = await window.api.listNodeVersions({ includeNonLts: nodeIncludeNonLts.value })
+        nodeVersions.value = list
+        if (!list.includes(nodeVersion.value)) nodeVersion.value = list[0] ?? ''
+    } catch {
+        nodeVersions.value = []
+    } finally {
+        nodeVersionsLoading.value = false
+    }
+}
+
+/** 拉取可下载的 npm 版本（新 → 旧）；是否含预发布由开关决定，默认选中最新一项。 */
+async function loadNpmVersions(): Promise<void> {
+    if (npmVersionsLoading.value) return
+    npmVersionsLoading.value = true
+    try {
+        const list = await window.api.listNpmVersions({ prerelease: npmIncludePre.value })
+        npmVersions.value = list
+        if (!list.includes(npmVersion.value)) npmVersion.value = list[0] ?? ''
+    } catch {
+        npmVersions.value = []
+    } finally {
+        npmVersionsLoading.value = false
+    }
+}
+
+/** 读取本地 Node 已安装版本的生效项（envProbe 读不到时的兜底）。 */
+async function loadInstalledNode(): Promise<void> {
+    try {
+        nodeActiveVersion.value = (await window.api.listInstalledVersions('node')).active
+    } catch {
+        nodeActiveVersion.value = null
+    }
+}
+
+/** 取消正在进行的下载 / 解压；按钮在安装流程结束前保持禁用。 */
+async function cancelCurrentInstall(): Promise<void> {
+    if (canceling.value) return
+    canceling.value = true
+    try {
+        await window.api.cancelInstall()
+    } catch {
+        // 取消失败不额外打扰用户，等安装流程自行结束。
+    }
+}
 
 async function probeEnv(): Promise<void> {
     probingEnv.value = true
@@ -119,13 +258,19 @@ async function loadConfigDir(): Promise<void> {
     /* ignore */
     }
 }
+/** 同步向导里的配置目录展示；旧目录有内容时提示将在重启后迁移。 */
+function applyConfigDir(info: ConfigDirInfo): void {
+    cfgDir.value = info.current
+    cfgDefaultDir.value = info.default
+    if (info.pending) ElMessage.info(t('kernelMissing.configDirPending'))
+}
 async function pickConfigDir(): Promise<void> {
     const p = await window.api.openDirectory()
     if (!p) return
-    cfgDir.value = await window.api.setConfigDir(p)
+    applyConfigDir(await window.api.setConfigDir(p))
 }
 async function resetConfigDir(): Promise<void> {
-    cfgDir.value = await window.api.setConfigDir(null)
+    applyConfigDir(await window.api.setConfigDir(null))
 }
 const back = (): void => {
     if (step.value > 0) step.value = step.value - 1
@@ -180,12 +325,16 @@ async function runCurrentStep(): Promise<void> {
             ok = await persistWizard()
         } else if (step.value === 1) {
             ok = await persistWizard()
-            // 选了本地 Node 但尚未部署 → 自动下载部署（带进度）。
+            // 选了本地 Node 但尚未部署 → 自动按所选版本下载部署（带进度）。
             if (ok && nodeRuntimeChoice.value === 'local' && envProbe.value && !envProbe.value.local.present) {
-                ok = await deployOnce()
+                ok = await deployOnce(nodeVersion.value || undefined)
             }
         } else if (step.value === 2) {
             ok = await persistWizard()
+            // 「程序内置」npm 由应用代管：选版本时装该版本，未选则由主进程复用缓存 / 拉最新。
+            if (ok && installNpm.value === 'bundled') {
+                ok = await ensureNpmOnce(npmVersion.value || undefined)
+            }
         } else {
             ok = await performInstall()
         }
@@ -200,31 +349,63 @@ async function runCurrentStep(): Promise<void> {
     }
 }
 
+/** 已加载版本列表对应的（镜像源 + 预发布）组合，用于按需重建、避免无谓的联网请求。 */
+const versionsLoadedFor = ref('')
+function versionsScope(): string {
+    return installReg.value + '|' + String(installPrerelease.value)
+}
+
 async function loadInstallVersions(): Promise<void> {
     if (versionsLoading.value) return
     versionsLoading.value = true
+    const scope = versionsScope()
     try {
         const list = await window.api.listVersions({
             prerelease: installPrerelease.value,
             registry: installReg.value
         })
         installVersions.value = list
+        versionsLoadedFor.value = scope
         // Default to the newest version within the current selection scope.
         if (!list.includes(installVersion.value)) installVersion.value = list[0] ?? ''
     } catch {
         installVersions.value = []
+        versionsLoadedFor.value = ''
     } finally {
         versionsLoading.value = false
     }
 }
 
-// 预发布开关 / 镜像源变化时重建版本列表。
-watch([installPrerelease, installReg], () => void loadInstallVersions())
+/**
+ * 按步骤懒加载：进入第 2 步才探测内置 npm 缓存状态，进入第 3 步才拉取版本列表
+ * （不再在向导一挂载时就联网取版本）。
+ */
+watch(step, (s) => {
+    if (s === 1) {
+        void loadNodeVersions()
+        void loadInstalledNode()
+    }
+    if (s === 2) {
+        void loadNpmStatus()
+        void loadNpmVersions()
+    }
+    if (s === 3 && versionsLoadedFor.value !== versionsScope()) void loadInstallVersions()
+})
+
+// 预发布开关 / 镜像源变化时，若正停留在第 3 步则重建版本列表。
+watch([installPrerelease, installReg], () => {
+    if (step.value === 3) void loadInstallVersions()
+})
+
+// 「包含非 LTS（Current）」/「包含预发布」切换后重新拉取对应版本列表。
+watch(nodeIncludeNonLts, () => void loadNodeVersions())
+watch(npmIncludePre, () => void loadNpmVersions())
 
 const quitShell = (): void => window.api.quit()
 
 let offLog: (() => void) | null = null
 let offDeploy: (() => void) | null = null
+let offNpm: (() => void) | null = null
 
 onMounted(() => {
     // 安装时把主进程的 stdout/stderr 追加到本页日志。
@@ -235,7 +416,20 @@ onMounted(() => {
         if (installLog.value.length > 500) installLog.value.splice(0, installLog.value.length - 500)
     })
     offDeploy = window.api.onNodeDeployProgress((p) => {
+        // 解压阶段只显示不确定动画，不显示百分比。
+        nodeExtracting.value = p.phase === 'extract'
         deployPercent.value = p.percent
+        deployDownloaded.value = p.downloaded
+        deployTotal.value = p.total
+        deploySpeed.value = p.speed
+    })
+    offNpm = window.api.onNpmDeployProgress((p) => {
+        installingNpm.value = true
+        npmExtracting.value = p.phase === 'extract'
+        npmPercent.value = p.percent
+        npmDownloaded.value = p.downloaded
+        npmTotal.value = p.total
+        npmSpeed.value = p.speed
     })
     void (async () => {
         const s = await window.api.getSettings()
@@ -245,14 +439,15 @@ onMounted(() => {
         installNpm.value = s.npmSource ?? 'system'
         nodeRuntimeChoice.value = s.nodeRuntime ?? 'electron'
         await loadConfigDir()
+        await loadInstalledNode()
         await probeEnv()
-        await loadInstallVersions()
     })()
 })
 
 onBeforeUnmount(() => {
     offLog?.()
     offDeploy?.()
+    offNpm?.()
 })
 </script>
 
@@ -314,33 +509,75 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div v-if="nodeRuntimeChoice === 'local'" class="wiz-field nr-local">
-                        <template v-if="envProbe?.local.present">
-                            <el-tag type="success" size="small" effect="plain">{{ $t('kernelMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}</el-tag>
-                            <div class="wiz-btn-row">
-                                <el-button size="small" :loading="deployingNode" @click="deployNode">{{ $t('kernelMissing.node.redeploy') }}</el-button>
-                                <el-button size="small" :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
+                        <!-- 当前生效的本地 Node 版本（探测结果优先，其次已安装版本的 active） -->
+                        <div class="wiz-active">
+                            <span class="wiz-hint">{{ $t('sv.env.activeVersion') }}：</span>
+                            <code v-if="localNodeActive" class="node-ver">{{ localNodeActive }}</code>
+                            <span v-else class="muted">{{ $t('kernelMissing.node.notFound') }}</span>
+                        </div>
+                        <el-tag v-if="envProbe?.local.present" type="success" size="small" effect="plain">
+                            {{ $t('kernelMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}
+                        </el-tag>
+                        <p v-else class="wiz-hint">{{ $t('kernelMissing.node.deployHint') }}</p>
+
+                        <!-- 版本选择：默认最新 LTS，勾选后含 Current；旁边保留刷新 -->
+                        <div class="wiz-field">
+                            <label class="wiz-label">{{ $t('kernelMissing.pickNodeVersion') }}</label>
+                            <div class="missing-vrow">
+                                <el-select
+                                    v-model="nodeVersion"
+                                    filterable
+                                    clearable
+                                    :loading="nodeVersionsLoading"
+                                    :disabled="deployingNode"
+                                    :placeholder="$t('kernelMissing.nodeVersionDefault')"
+                                    class="missing-reg"
+                                >
+                                    <el-option v-for="v in nodeVersions" :key="v" :value="v" :label="v" />
+                                </el-select>
+                                <el-button :icon="ReloadOutlined" circle :loading="nodeVersionsLoading" @click="loadNodeVersions" />
                             </div>
-                        </template>
-                        <template v-else>
-                            <p class="wiz-hint">{{ $t('kernelMissing.node.deployHint') }}</p>
+                            <div class="missing-opt">
+                                <span>{{ $t('kernelMissing.includeNonLts') }}</span>
+                                <el-switch v-model="nodeIncludeNonLts" :disabled="deployingNode" />
+                            </div>
+                        </div>
+
+                        <!-- 下载 / 解压进度：同一时刻只保留一个动画，解压时用不确定动画 -->
+                        <template v-if="deployingNode">
+                            <template v-if="nodeExtracting">
+                                <div class="wiz-hint">{{ $t('kernelMissing.extractingNode') }}</div>
+                                <div class="activity-bar" />
+                            </template>
+                            <template v-else>
+                                <div class="wiz-hint">{{ $t('kernelMissing.node.deploying') }}</div>
+                                <el-progress
+                                    :percentage="deployPercent"
+                                    :status="deployPercent >= 100 ? 'success' : undefined"
+                                    :stroke-width="8"
+                                    class="deploy-progress"
+                                />
+                                <div class="wiz-hint deploy-info">{{ deployInfo }}</div>
+                            </template>
+                            <div class="wiz-btn-row">
+                                <el-button size="small" :disabled="canceling" @click="cancelCurrentInstall">
+                                    {{ canceling ? $t('kernelMissing.canceling') : $t('kernelMissing.cancel') }}
+                                </el-button>
+                            </div>
                         </template>
 
-                        <!-- 下载进度 -->
-                        <el-progress
-                            v-if="deployingNode"
-                            :percentage="deployPercent"
-                            :status="deployPercent >= 100 ? 'success' : undefined"
-                            :stroke-width="8"
-                            class="deploy-progress"
-                        />
-                        <template v-if="!envProbe?.local.present">
-                            <div class="wiz-btn-row">
-                                <el-button type="primary" :icon="DownloadOutlined" :loading="deployingNode" @click="deployNode">
-                                    {{ $t('kernelMissing.node.deploy') }}
-                                </el-button>
-                                <el-button :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">{{ $t('kernelMissing.node.rescan') }}</el-button>
-                            </div>
-                        </template>
+                        <!-- 部署按钮始终可用：已部署过也允许再装其它版本 -->
+                        <div class="wiz-btn-row">
+                            <el-button type="primary" :icon="DownloadOutlined" :disabled="deployingNode" @click="deployNode">
+                                {{ $t('kernelMissing.node.deploy') }}
+                            </el-button>
+                            <el-button v-if="envProbe?.local.present" size="small" :disabled="deployingNode" @click="deployNode">
+                                {{ $t('kernelMissing.node.redeploy') }}
+                            </el-button>
+                            <el-button :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">
+                                {{ $t('kernelMissing.node.rescan') }}
+                            </el-button>
+                        </div>
                     </div>
 
                     <p v-else-if="nodeRuntimeChoice === 'system'" class="wiz-note">
@@ -361,6 +598,61 @@ onBeforeUnmount(() => {
                             <el-radio v-if="envProbe?.local.present" :value="'localnode'">{{ $t('kernelMissing.npmLocalNode') }}</el-radio>
                         </el-radio-group>
                         <div class="wiz-hint">{{ $t('kernelMissing.npmHint') }}</div>
+                    </div>
+
+                    <!-- 「程序内置」npm：未缓存 / 选版本时下一步会先下载 -->
+                    <div v-if="installNpm === 'bundled'" class="wiz-field">
+                        <template v-if="installingNpm">
+                            <template v-if="npmExtracting">
+                                <div class="wiz-hint">{{ $t('kernelMissing.extractingNpm') }}</div>
+                                <div class="activity-bar" />
+                            </template>
+                            <template v-else>
+                                <div class="wiz-hint">{{ $t('kernelMissing.npmPreparing') }}</div>
+                                <el-progress
+                                    :percentage="npmPercent"
+                                    :status="npmPercent >= 100 ? 'success' : undefined"
+                                    :stroke-width="8"
+                                    class="deploy-progress"
+                                />
+                                <div class="wiz-hint deploy-info">{{ npmInfo }}</div>
+                            </template>
+                            <div class="wiz-btn-row">
+                                <el-button size="small" :disabled="canceling" @click="cancelCurrentInstall">
+                                    {{ canceling ? $t('kernelMissing.canceling') : $t('kernelMissing.cancel') }}
+                                </el-button>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <div class="wiz-field">
+                                <label class="wiz-label">{{ $t('kernelMissing.pickNpmVersion') }}</label>
+                                <div class="missing-vrow">
+                                    <el-select
+                                        v-model="npmVersion"
+                                        filterable
+                                        clearable
+                                        :loading="npmVersionsLoading"
+                                        :placeholder="$t('kernelMissing.npmVersionDefault')"
+                                        class="missing-reg"
+                                    >
+                                        <el-option v-for="v in npmVersions" :key="v" :value="v" :label="v" />
+                                    </el-select>
+                                    <el-button :icon="ReloadOutlined" circle :loading="npmVersionsLoading" @click="loadNpmVersions" />
+                                </div>
+                                <div class="missing-opt">
+                                    <span>{{ $t('sv.env.includePrerelease') }}</span>
+                                    <el-switch v-model="npmIncludePre" />
+                                </div>
+                            </div>
+                            <!-- 未选版本且已缓存才算现成，否则下一步会先下载 -->
+                            <div class="wiz-hint">
+                                {{
+                                    !npmVersion && npmBundledPresent
+                                        ? $t('kernelMissing.npmBundledReady')
+                                        : $t('kernelMissing.npmBundledWillDownload')
+                                }}
+                            </div>
+                        </template>
                     </div>
                 </div>
 
@@ -400,14 +692,13 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <!-- 每步执行进度条 -->
-            <div v-if="installingKernel" class="install-progress">
+            <!-- 执行进度：仅在无专用进度条（Node / npm 下载）时显示，避免重复的加载动画 -->
+            <div
+                v-if="installingKernel && !deployingNode && !installingNpm && !nodeExtracting && !npmExtracting"
+                class="install-progress"
+            >
                 <div class="activity">
-                    <span class="activity__label">{{ step === 3 ? $t('kernelMissing.progressNpm') : $t('kernelMissing.executing') }}</span>
-                    <div class="activity-bar" />
-                </div>
-                <div v-if="step === 3" class="activity">
-                    <span class="activity__label">{{ $t('kernelMissing.progressDsh') }}</span>
+                    <span class="activity__label">{{ installLabel }}</span>
                     <div class="activity-bar" />
                 </div>
             </div>
@@ -417,7 +708,7 @@ onBeforeUnmount(() => {
                 <el-button text :disabled="installingKernel" @click="quitShell">{{ $t('kernelMissing.quit') }}</el-button>
                 <div class="wiz-nav__right">
                     <el-button v-if="step > 0" :disabled="installingKernel" @click="back">{{ $t('kernelMissing.prev') }}</el-button>
-                    <el-button type="primary" :loading="installingKernel" :icon="ReloadOutlined" @click="runCurrentStep">
+                    <el-button type="primary" :disabled="installingKernel" @click="runCurrentStep">
                         {{ step < 3 ? $t('kernelMissing.runStep') : $t('kernelMissing.install') }}
                     </el-button>
                 </div>
@@ -552,6 +843,11 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   color: var(--el-text-color-secondary);
   text-align: left;
+}
+.wiz-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .npm-opts {
   display: flex;

@@ -32,6 +32,8 @@ export interface SettingsState {
     appCheckPrerelease: boolean
     /** App 更新下载的 GitHub 公共镜像前缀；空串 = 官方直连。 */
     updateMirrorUrl: string
+    /** 文件下载并发连接数（1 = 单线程）。 */
+    downloadThreads: number
     devMode: boolean
     /** 内核来源：'local'（内置/默认）｜ 'global'（使用全局安装）。 */
     kernelSource: 'local' | 'global'
@@ -117,6 +119,7 @@ export function payloadFrom(state: SettingsState): Settings {
         appAutoUpdate: state.appAutoUpdate,
         appCheckPrerelease: state.appCheckPrerelease,
         updateMirrorUrl: state.updateMirrorUrl,
+        downloadThreads: state.downloadThreads,
         devMode: state.devMode,
         kernelSource: state.kernelSource,
         nodeRuntime: state.nodeRuntime,

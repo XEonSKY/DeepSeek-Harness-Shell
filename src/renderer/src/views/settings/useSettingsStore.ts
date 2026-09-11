@@ -40,6 +40,7 @@ export const useSettingsStore = defineStore('settings', () => {
         proxyPort: DEFAULT_SETTINGS.proxyPort,
         proxyScope: [...DEFAULT_SETTINGS.proxyScope],
         updateMirrorUrl: DEFAULT_SETTINGS.updateMirrorUrl,
+        downloadThreads: DEFAULT_SETTINGS.downloadThreads,
         zoomPercent: DEFAULT_SETTINGS.zoomPercent,
         ignoreSystemScale: DEFAULT_SETTINGS.ignoreSystemScale,
         funLocale: DEFAULT_SETTINGS.funLocale,
@@ -87,6 +88,7 @@ export const useSettingsStore = defineStore('settings', () => {
         state.proxyPort = s.proxyPort ?? DEFAULT_SETTINGS.proxyPort
         state.proxyScope = Array.isArray(s.proxyScope) ? [...s.proxyScope] : [...DEFAULT_SETTINGS.proxyScope]
         state.updateMirrorUrl = s.updateMirrorUrl ?? ''
+        state.downloadThreads = s.downloadThreads ?? DEFAULT_SETTINGS.downloadThreads
         state.zoomPercent = s.zoomPercent ?? DEFAULT_SETTINGS.zoomPercent
         state.ignoreSystemScale = s.ignoreSystemScale === true
         state.funLocale = s.funLocale ?? DEFAULT_SETTINGS.funLocale

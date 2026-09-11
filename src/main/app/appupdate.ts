@@ -275,7 +275,15 @@ function ensureInited(): void {
     autoUpdater.on('checking-for-update', () => emit({ kind: 'checking' }))
     autoUpdater.on('update-available', (info) => emit({ kind: 'available', version: info?.version ?? null }))
     autoUpdater.on('update-not-available', (info) => emit({ kind: 'not-available', version: info?.version ?? null }))
-    autoUpdater.on('download-progress', (p) => emit({ kind: 'progress', percent: typeof p?.percent === 'number' ? p.percent : 0 }))
+    autoUpdater.on('download-progress', (p) =>
+        emit({
+            kind: 'progress',
+            percent: typeof p?.percent === 'number' ? p.percent : 0,
+            speed: typeof p?.bytesPerSecond === 'number' ? p.bytesPerSecond : 0,
+            transferred: typeof p?.transferred === 'number' ? p.transferred : 0,
+            total: typeof p?.total === 'number' ? p.total : 0
+        })
+    )
     autoUpdater.on('update-downloaded', (info) => void onDownloaded(info))
     autoUpdater.on('error', (err) => emit({ kind: 'error', message: err && err.message ? err.message : String(err) }))
 }

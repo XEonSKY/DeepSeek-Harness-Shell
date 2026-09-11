@@ -1,17 +1,19 @@
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 import { createInterface } from 'node:readline'
-import type { NodeRuntimeKind, NpmRuntimeStatus, NpmSource, NpmStatus, Settings, ToolActionResult } from '@shared/types'
+import type { InstalledVersions, NodeDeployProgress, NodeRuntimeKind, NpmRuntimeStatus, NpmSource, NpmStatus, Settings, ToolActionResult } from '@shared/types'
 import { IS_WIN } from '../app/runtime'
-import { loadSettings, mt, localKernelDir, bundledNpmDir } from '../app/settings'
+import { loadSettings, mt, bundledNpmDir, tempDownloadDir, tempNpmDir } from '../app/settings'
 import { nodeRuntimeFor, localNodeNpmCli, findSystemNpm, pathEnv, findInDirs } from './tools'
 import { localNodeDir } from './nodeenv'
 import { compareVersions, stripV, sortVersionsDesc } from './semver'
 import { pushLog, rememberChild } from './dsh'
 import { downloadFile } from './downloader'
 import { proxyEnv, npmProxyArgs } from './net'
+import { beginCancelable, CANCELED_MESSAGE } from './cancel'
+import { activeVersion, installRoot, listInstalled, prepareVersionDir, removeVersion, setActiveVersion, versionDir } from './installs'
 
 /**
  * npm / 外部工具的调用层：如何按所选来源（系统 npm、内置 npm、本地 Node 自带 npm）
@@ -21,15 +23,29 @@ import { proxyEnv, npmProxyArgs } from './net'
  * 本模块只负责「怎么把它们跑起来」——两者关注点不同，分开后各自更好读。
  */
 
-export type ToolResult = { ok: boolean; stderrTail: string }
+export type ToolResult = { ok: boolean; stderrTail: string; canceled?: boolean }
 
 /** npm registry 的 URL 基址（安装/查询都走这里）。 */
 export function registryBase(r: 'npmjs' | 'npmmirror'): string {
     return r === 'npmmirror' ? 'https://registry.npmmirror.com' : 'https://registry.npmjs.org'
 }
 
+/**
+ * 把 npm 的缓存目录钉到 `<工作目录>/temp/npm`：所有 npm 调用（内核安装、npm 自更新、
+ * 内置 / 本地 Node 的 npm）都带上它，避免污染用户主目录的 ~/.npm。
+ */
+function npmCacheEnv(): NodeJS.ProcessEnv {
+    const dir = tempNpmDir()
+    try {
+        fs.mkdirSync(dir, { recursive: true })
+    } catch {
+        /* 目录创建失败时交给 npm 自己处理 */
+    }
+    return { npm_config_cache: dir }
+}
+
 /** Spawn any process and stream stdout/stderr into the log view. */
-function runTool(exec: string, argv: string[], label: string, opts: { shell: boolean; env?: NodeJS.ProcessEnv }): Promise<ToolResult> {
+function runTool(exec: string, argv: string[], label: string, opts: { shell: boolean; env?: NodeJS.ProcessEnv }, signal?: AbortSignal): Promise<ToolResult> {
     return new Promise((resolve) => {
         pushLog('o', `[Manager] ${label} …`)
         let stderrTail = ''
@@ -54,10 +70,24 @@ function runTool(exec: string, argv: string[], label: string, opts: { shell: boo
             pushLog('e', s)
             console.error('[Manager]', s.replace(/\n/g, '\n[Manager]'))
         })
+        let canceled = false
+        function onAbort(): void {
+            canceled = true
+            try {
+                child.kill('SIGKILL')
+            } catch {
+                /* ignore */
+            }
+        }
+        if (signal) {
+            if (signal.aborted) onAbort()
+            else signal.addEventListener('abort', onAbort, { once: true })
+        }
         const done = (ok: boolean): void => {
             if (settled) return
             settled = true
-            resolve({ ok, stderrTail })
+            signal?.removeEventListener('abort', onAbort)
+            resolve({ ok, stderrTail, canceled })
         }
         child.on('error', () => done(false))
         child.on('exit', (code) => {
@@ -73,24 +103,24 @@ function runTool(exec: string, argv: string[], label: string, opts: { shell: boo
 }
 
 /** Run the system `npm` (npm.cmd on Windows). */
-export function runNpm(args: string[], label: string): Promise<ToolResult> {
+export function runNpm(args: string[], label: string, signal?: AbortSignal): Promise<ToolResult> {
     const cfg = loadSettings()
-    const env = { ...process.env, ...proxyEnv(cfg, 'npm') }
-    return runTool(IS_WIN ? 'npm.cmd' : 'npm', [...args, ...npmProxyArgs(cfg)], label, { shell: IS_WIN, env })
+    const env = { ...process.env, ...proxyEnv(cfg, 'npm'), ...npmCacheEnv() }
+    return runTool(IS_WIN ? 'npm.cmd' : 'npm', [...args, ...npmProxyArgs(cfg)], label, { shell: IS_WIN, env }, signal)
 }
 
 /** Run an npm-cli.js under a Node runtime (used for the bundled / localnode npm). */
-function runNpmCli(cli: string, args: string[], label: string, runtime?: NodeRuntimeKind): Promise<ToolResult> {
+function runNpmCli(cli: string, args: string[], label: string, runtime?: NodeRuntimeKind, signal?: AbortSignal): Promise<ToolResult> {
     const cfg = loadSettings()
     const rt = nodeRuntimeFor(runtime ?? 'electron')
-    const env = { ...process.env, ...rt.env, ...proxyEnv(cfg, 'npm') }
-    return runTool(rt.exec, [cli, ...args, ...npmProxyArgs(cfg)], label, { shell: false, env })
+    const env = { ...process.env, ...rt.env, ...proxyEnv(cfg, 'npm'), ...npmCacheEnv() }
+    return runTool(rt.exec, [cli, ...args, ...npmProxyArgs(cfg)], label, { shell: false, env }, signal)
 }
 
-export function runNpmInstallGlobal(pkg: string, registry?: 'npmjs' | 'npmmirror'): Promise<ToolResult> {
+export function runNpmInstallGlobal(pkg: string, registry?: 'npmjs' | 'npmmirror', signal?: AbortSignal): Promise<ToolResult> {
     const args = ['install', '-g', pkg]
     if (registry) args.push(`--registry=${registryBase(registry)}`)
-    return runNpm(args, `npm install -g ${pkg}`)
+    return runNpm(args, `npm install -g ${pkg}`, signal)
 }
 
 /** Whether a system `npm` is available on PATH (or the Windows global prefix). */
@@ -130,7 +160,7 @@ function quietVersion(exec: string, argv: string[], shell: boolean, env?: NodeJS
 
 /** 内置 npm 跑在 Electron 自带的 Node 上（与 chooseLocalNpm 的 runtime: 'electron' 一致）。 */
 function electronNode(): { exec: string; env: NodeJS.ProcessEnv } {
-    return { exec: process.execPath, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
+    return { exec: process.execPath, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...npmCacheEnv() } }
 }
 
 /** 系统 npm 的版本（没有系统 npm → null）。 */
@@ -139,7 +169,7 @@ function systemNpmVersion(): Promise<string | null> {
     if (!p) return Promise.resolve(null)
     // Windows 上 .cmd 必须经 shell 启动，而 shell 模式下**带空格的路径**会被拆成两段，
     // 所以显式加引号（npm 常装在 C:\Program Files\nodejs 下）。
-    return quietVersion(IS_WIN ? `"${p}"` : p, ['--version'], IS_WIN)
+    return quietVersion(IS_WIN ? `"${p}"` : p, ['--version'], IS_WIN, { ...process.env, ...npmCacheEnv() })
 }
 
 /** 内置 npm 的版本（尚未下载到配置目录 → null）。 */
@@ -156,7 +186,7 @@ function localNodeNpmVersion(): Promise<string | null> {
     if (!cli) return Promise.resolve(null)
     try {
         const rt = nodeRuntimeFor('local')
-        return quietVersion(rt.exec, [cli, '--version'], false, { ...process.env, ...rt.env })
+        return quietVersion(rt.exec, [cli, '--version'], false, { ...process.env, ...rt.env, ...npmCacheEnv() })
     } catch {
         return Promise.resolve(null)
     }
@@ -251,33 +281,77 @@ function findSystemTar(): string | null {
 }
 
 /**
- * Make the bundled npm available: if it is not already cached, fetch a pinned
- * npm tarball from the chosen registry and extract it with a system tar. Once
- * ready its bin is run under Electron's own Node.
+ * 确保「程序内置」npm 可用：把 tarball 解压到 `<configDir>/npm/<版本>/` 并设为生效版本。
  *
- * `version` 指定要装哪个版本（设置页「切换版本」用）；**不传时保持原语义** —— 已缓存就直接用，
- * 内核安装路径不该因为缓存版本旧就重新下载。
+ * `version` 指定要装哪个版本；不传时：已有生效版本直接复用，否则拉最新版。
+ * cpu/取消经 signal 传递（下载与解压阶段都可中止）。
  */
+/** 解压 tar.gz 到目标目录；取消时杀掉子进程。 */
+function extractTar(tgz: string, dest: string, signal?: AbortSignal): Promise<boolean> {
+    return new Promise((resolve) => {
+        const tar = findSystemTar()
+        if (!tar) {
+            resolve(false)
+            return
+        }
+        pushLog('o', '[Manager] 解压 npm 压缩包…')
+        const child = rememberChild(spawn(tar, ['-xzf', tgz, '-C', dest], { windowsHide: true, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }))
+        let settled = false
+        function finish(ok: boolean): void {
+            if (settled) return
+            settled = true
+            signal?.removeEventListener('abort', onAbort)
+            resolve(ok)
+        }
+        function onAbort(): void {
+            try {
+                child.kill('SIGKILL')
+            } catch {
+                /* ignore */
+            }
+            finish(false)
+        }
+        if (signal) {
+            if (signal.aborted) onAbort()
+            else signal.addEventListener('abort', onAbort, { once: true })
+        }
+        child.stderr!.on('data', (d: Buffer) => pushLog('e', d.toString()))
+        child.on('error', () => finish(false))
+        child.on('exit', (code) => finish(code === 0))
+    })
+}
+
+/** 清理目录（尽力而为）。 */
+function removeQuietly(target: string): void {
+    try {
+        fs.rmSync(target, { recursive: true, force: true })
+    } catch {
+        /* ignore */
+    }
+}
+
 async function ensureBundledNpm(
     cfg: Settings,
-    version?: string
-): Promise<{ ok: boolean; cli?: string; message?: string }> {
-    const cli = bundledNpmCli()
-    if (fs.existsSync(cli) && version === undefined) return { ok: true, cli }
+    version?: string,
+    onProgress?: (p: NodeDeployProgress) => void,
+    signal?: AbortSignal
+): Promise<{ ok: boolean; cli?: string; message?: string; canceled?: boolean }> {
+    const activeCli = bundledNpmCli()
+    if (version === undefined && fs.existsSync(activeCli)) return { ok: true, cli: activeCli }
 
     const target = version ?? (await npmLatestVersion(cfg))
     if (!target) return { ok: false, message: mt('m.kernel.bundledNpmFetchFail') }
-    // 已经就是这个版本 → 空操作。
+    if (!/^\d+\.\d+\.\d+/.test(target)) return { ok: false, message: `npm 版本号不合法：${target}` }
+
+    const dest = versionDir('npm', target)
+    const cli = path.join(dest, 'package', 'bin', 'npm-cli.js')
     if (fs.existsSync(cli)) {
-        const cur = await bundledNpmVersion()
-        if (cur && stripV(cur) === stripV(target)) return { ok: true, cli }
+        setActiveVersion('npm', target)
+        return { ok: true, cli }
     }
 
     const base = registryBase(cfg.npmRegistry)
-    const npmDir = bundledNpmDir()
-    // 先在临时目录里下载解压，成功后再整体换上去 —— 直接解压到自己身上，一旦下载或解压失败
-    // 会把原本能用的缓存 npm 破坏掉（与 Node 换版本同一个道理）。
-    const stage = path.join(path.dirname(npmDir), '.npm-tmp')
+    const stage = path.join(installRoot('npm'), '.tmp')
     try {
         fs.rmSync(stage, { recursive: true, force: true })
         fs.mkdirSync(stage, { recursive: true })
@@ -285,54 +359,48 @@ async function ensureBundledNpm(
         return { ok: false, message: err instanceof Error ? err.message : String(err) }
     }
     const tgz = path.join(stage, `npm-${target}.tgz`)
-    const dl = await downloadFile({ url: `${base}/npm/-/npm-${target}.tgz`, destDir: stage, fileName: `npm-${target}.tgz` })
+    const dl = await downloadFile({
+        url: `${base}/npm/-/npm-${target}.tgz`,
+        destDir: stage,
+        fileName: `npm-${target}.tgz`,
+        tmpDir: tempDownloadDir(),
+        threads: cfg.downloadThreads,
+        signal,
+        onProgress: (p) => onProgress?.({ phase: 'download', ...p })
+    })
+    if (dl.canceled) {
+        removeQuietly(stage)
+        return { ok: false, canceled: true, message: CANCELED_MESSAGE }
+    }
     if (!dl.ok) {
-        fs.rmSync(stage, { recursive: true, force: true })
+        removeQuietly(stage)
         return { ok: false, message: mt('m.kernel.bundledNpmFetchFail') }
     }
-    const tar = findSystemTar()
-    if (!tar) {
-        fs.rmSync(stage, { recursive: true, force: true })
+    if (!findSystemTar()) {
+        removeQuietly(stage)
         return { ok: false, message: mt('m.kernel.bundledNpmNoTar') }
     }
-    const r = spawnSync(tar, ['-xzf', tgz, '-C', stage], { encoding: 'utf8' })
-    const entry = path.join(stage, 'package', 'bin', 'npm-cli.js')
-    if (r.status !== 0 || !fs.existsSync(entry)) {
-        fs.rmSync(stage, { recursive: true, force: true })
-        return { ok: false, message: r.status === 0 ? mt('m.kernel.bundledNpmMissing') : mt('m.kernel.bundledNpmExtractFail') }
-    }
-    try {
-        fs.unlinkSync(tgz)
-    } catch {
-    /* best effort */
-    }
 
-    // 换上去：旧的先改名挪开，失败则回滚，别让用户既没有旧的也没有新的。
-    const backup = `${npmDir}.old`
-    fs.rmSync(backup, { recursive: true, force: true })
-    if (fs.existsSync(npmDir)) {
-        try {
-            fs.renameSync(npmDir, backup)
-        } catch {
-            fs.rmSync(stage, { recursive: true, force: true })
-            return { ok: false, message: mt('m.kernel.bundledNpmExtractFail') }
-        }
-    }
+    onProgress?.({ phase: 'extract', percent: 100, downloaded: 0, total: 0, speed: 0 })
+    let destDir: string
     try {
-        fs.renameSync(stage, npmDir)
+        destDir = prepareVersionDir('npm', target)
     } catch (err) {
-        try {
-            fs.rmSync(npmDir, { recursive: true, force: true })
-            if (fs.existsSync(backup)) fs.renameSync(backup, npmDir)
-        } catch {
-            /* 回滚也失败：备份仍在 <configDir>/npm.old，留给用户手工恢复 */
-        }
-        fs.rmSync(stage, { recursive: true, force: true })
+        removeQuietly(stage)
         return { ok: false, message: err instanceof Error ? err.message : String(err) }
     }
-    fs.rmSync(backup, { recursive: true, force: true })
-    if (fs.existsSync(cli)) return { ok: true, cli }
-    return { ok: false, message: mt('m.kernel.bundledNpmMissing') }
+    const okExtract = await extractTar(tgz, destDir, signal)
+    removeQuietly(stage)
+    if (signal?.aborted) {
+        removeVersion('npm', target)
+        return { ok: false, canceled: true, message: CANCELED_MESSAGE }
+    }
+    if (!okExtract || !fs.existsSync(cli)) {
+        removeVersion('npm', target)
+        return { ok: false, message: okExtract ? mt('m.kernel.bundledNpmMissing') : mt('m.kernel.bundledNpmExtractFail') }
+    }
+    setActiveVersion('npm', target)
+    return { ok: true, cli }
 }
 
 /**
@@ -343,10 +411,10 @@ async function ensureBundledNpm(
  * `cli === null` means "use the system npm"; otherwise the npm-cli.js path,
  * plus the Node runtime it must run under.
  */
-async function chooseLocalNpm(cfg: Settings): Promise<{ ok: boolean; cli: string | null; runtime?: NodeRuntimeKind; message?: string }> {
+async function chooseLocalNpm(cfg: Settings, signal?: AbortSignal): Promise<{ ok: boolean; cli: string | null; runtime?: NodeRuntimeKind; message?: string; canceled?: boolean }> {
     if (cfg.npmSource === 'bundled') {
-        const b = await ensureBundledNpm(cfg)
-        return b.ok && b.cli ? { ok: true, cli: b.cli, runtime: 'electron' } : { ok: false, cli: null, message: b.message }
+        const b = await ensureBundledNpm(cfg, undefined, undefined, signal)
+        return b.ok && b.cli ? { ok: true, cli: b.cli, runtime: 'electron' } : { ok: false, cli: null, message: b.message, canceled: b.canceled }
     }
     if (cfg.npmSource === 'localnode') {
         const cli = localNodeNpmCli()
@@ -357,24 +425,66 @@ async function chooseLocalNpm(cfg: Settings): Promise<{ ok: boolean; cli: string
     return { ok: false, cli: null, message: mt('m.kernel.noSystemNpm') }
 }
 
-/** Local install into ~/.config/dsh_shell/kernel via `npm --prefix`. */
-export async function runLocalNpmInstall(target: string, cfg: Settings): Promise<{ ok: boolean; stderrTail: string; fatal?: string }> {
-    const npm = await chooseLocalNpm(cfg)
-    if (!npm.ok) return { ok: false, stderrTail: '', fatal: npm.message }
-    const kernelDir = localKernelDir()
+/**
+ * 首次安装向导用：确保「程序内置」npm 可用。
+ *
+ * 与 updateNpm 不同，这里**不强制升级** —— 已缓存就直接返回，只有尚未缓存时才下载最新版，
+ * 并通过 onProgress 上报下载进度，供向导在「NPM 环境」这一步展示后进入下一步。
+ */
+/**
+ * 首次安装向导用：确保「程序内置」npm 可用。
+ *
+ * 不传 version 时**不强制升级** —— 已缓存就直接返回，只有尚未缓存时才下载最新版；
+ * 通过 onProgress 上报下载 / 解压进度，供向导展示后进入下一步。
+ */
+export async function ensureBundledNpmReady(opts?: { version?: string }, onProgress?: (p: NodeDeployProgress) => void): Promise<ToolActionResult> {
+    const token = beginCancelable()
     try {
-        fs.mkdirSync(kernelDir, { recursive: true })
-        const pkgFile = path.join(kernelDir, 'package.json')
+        const r = await ensureBundledNpm(loadSettings(), opts?.version, onProgress, token.signal)
+        if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: opts?.version ?? null }
+        return r.ok
+            ? { ok: true, message: 'npm 已就绪', version: opts?.version ?? null }
+            : { ok: false, message: r.message ?? mt('m.kernel.bundledNpmFetchFail'), version: opts?.version ?? null }
+    } finally {
+        token.done()
+    }
+}
+
+/** 已安装 / 生效的内置 npm 版本。 */
+export function listInstalledNpmVersions(): InstalledVersions {
+    return { installed: listInstalled('npm'), active: activeVersion('npm') }
+}
+
+/** 切换内置 npm 生效版本（只改指针，不重装）。 */
+export function useNpmVersion(version: string): ToolActionResult {
+    if (!listInstalled('npm').includes(version)) return { ok: false, message: `未安装 npm ${version}`, version: null }
+    setActiveVersion('npm', version)
+    return { ok: true, message: `已切换到 npm ${version}`, version }
+}
+
+/** 删除某个已安装的内置 npm 版本。 */
+export function removeInstalledNpmVersion(version: string): ToolActionResult {
+    removeVersion('npm', version)
+    return { ok: true, message: `已删除 npm ${version}`, version }
+}
+
+/** Local install into <configDir>/kernel via `npm --prefix`. */
+export async function runLocalNpmInstall(target: string, cfg: Settings, prefix: string, signal?: AbortSignal): Promise<{ ok: boolean; stderrTail: string; fatal?: string; canceled?: boolean }> {
+    const npm = await chooseLocalNpm(cfg, signal)
+    if (!npm.ok) return { ok: false, stderrTail: '', fatal: npm.message, canceled: npm.canceled }
+    try {
+        fs.mkdirSync(prefix, { recursive: true })
+        const pkgFile = path.join(prefix, 'package.json')
         if (!fs.existsSync(pkgFile)) {
             fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dsh-shell-kernel', private: true, version: '0.0.0' }, null, 2))
         }
     } catch (err) {
         return { ok: false, stderrTail: '', fatal: err instanceof Error ? err.message : String(err) }
     }
-    const args = ['install', '--prefix', kernelDir, '--no-audit', '--no-fund', target]
+    const args = ['install', '--prefix', prefix, '--no-audit', '--no-fund', target]
     if (cfg.npmRegistry) args.push(`--registry=${registryBase(cfg.npmRegistry)}`)
     const label = `npm install ${target} (local)`
-    return npm.cli ? runNpmCli(npm.cli, args, label, npm.runtime ?? 'electron') : runNpm(args, label)
+    return npm.cli ? runNpmCli(npm.cli, args, label, npm.runtime ?? 'electron', signal) : runNpm(args, label, signal)
 }
 
 /**
@@ -400,42 +510,40 @@ function npmFailMessage(tail: string): string {
  *
  * 后两者会把过程输出接进终端日志（复用 runNpm / runNpmCli 的既有行为），捆绑下载则只看结果。
  */
-export async function updateNpm(opts: { source: NpmSource; version?: string }): Promise<ToolActionResult> {
-    const cfg = loadSettings()
-    const target = opts.version ?? (await npmLatestVersion(cfg))
-    if (!target) return { ok: false, message: mt('m.kernel.bundledNpmFetchFail'), version: null }
-    // 版本号会被拼进下载 URL 与 npm 参数，必须挡住意外/恶意字符串。
-    if (!/^\d+\.\d+\.\d+/.test(target)) return { ok: false, message: `npm 版本号不合法：${target}`, version: null }
+export async function updateNpm(opts: { source: NpmSource; version?: string }, onProgress?: (p: NodeDeployProgress) => void): Promise<ToolActionResult> {
+    const token = beginCancelable()
+    try {
+        const cfg = loadSettings()
+        const target = opts.version ?? (await npmLatestVersion(cfg))
+        if (!target) return { ok: false, message: mt('m.kernel.bundledNpmFetchFail'), version: null }
+        // 版本号会被拼进下载 URL 与 npm 参数，必须挡住意外/恶意字符串。
+        if (!/^\d+\.\d+\.\d+/.test(target)) return { ok: false, message: `npm 版本号不合法：${target}`, version: null }
 
-    if (opts.source === 'bundled') {
-        const r = await ensureBundledNpm(cfg, target)
-        return r.ok
-            ? { ok: true, message: `npm ${target} 已缓存到配置目录`, version: target }
-            : { ok: false, message: r.message ?? mt('m.kernel.bundledNpmFetchFail'), version: target }
-    }
+        if (opts.source === 'bundled') {
+            const r = await ensureBundledNpm(cfg, target, onProgress, token.signal)
+            if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: target }
+            return r.ok
+                ? { ok: true, message: `npm ${target} 已缓存到配置目录`, version: target }
+                : { ok: false, message: r.message ?? mt('m.kernel.bundledNpmFetchFail'), version: target }
+        }
 
-    if (opts.source === 'localnode') {
-        const cli = localNodeNpmCli()
-        if (!cli) return { ok: false, message: mt('m.kernel.noLocalNodeNpm'), version: null }
-        /**
-     * **必须显式钉住 `--prefix`**：npm 全局 prefix 默认取 node 可执行文件所在目录，但会被用户级
-     * `~/.npmrc` 的 `prefix=` 或 `npm_config_prefix` 环境变量覆盖 —— 那样它就会去写系统 Node 目录
-     * （Windows 上是 `C:\Program Files\nodejs`），非管理员直接 EPERM。命令行参数优先级高于两者。
-     */
-        const r = await runNpmCli(
-            cli,
-            ['install', '-g', `npm@${target}`, '--prefix', localNodeDir()],
-            `npm install -g npm@${target} (local node)`,
-            'local'
-        )
+        if (opts.source === 'localnode') {
+            const cli = localNodeNpmCli()
+            if (!cli) return { ok: false, message: mt('m.kernel.noLocalNodeNpm'), version: null }
+            const r = await runNpmCli(cli, ['install', '-g', `npm@${target}`, '--prefix', localNodeDir()], `npm install -g npm@${target} (local node)`, 'local', token.signal)
+            if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: target }
+            return r.ok
+                ? { ok: true, message: `npm ${target} 已装入本地 Node`, version: target }
+                : { ok: false, message: npmFailMessage(r.stderrTail), version: target }
+        }
+
+        if (!hasSystemNpm()) return { ok: false, message: mt('m.kernel.noSystemNpm'), version: null }
+        const r = await runNpm(['install', '-g', `npm@${target}`], `npm install -g npm@${target}`, token.signal)
+        if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: target }
         return r.ok
-            ? { ok: true, message: `npm ${target} 已装入本地 Node`, version: target }
+            ? { ok: true, message: `npm ${target} 已更新`, version: target }
             : { ok: false, message: npmFailMessage(r.stderrTail), version: target }
+    } finally {
+        token.done()
     }
-
-    if (!hasSystemNpm()) return { ok: false, message: mt('m.kernel.noSystemNpm'), version: null }
-    const r = await runNpm(['install', '-g', `npm@${target}`], `npm install -g npm@${target}`)
-    return r.ok
-        ? { ok: true, message: `npm ${target} 已更新`, version: target }
-        : { ok: false, message: npmFailMessage(r.stderrTail), version: target }
 }

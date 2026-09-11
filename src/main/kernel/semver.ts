@@ -21,8 +21,19 @@ export function pickLatest(list: string[]): string | null {
     return sorted.length > 0 ? sorted[0] : null
 }
 
-/** 降序排列；除非要求包含预发布，否则先剔除预发布版本。 */
+/**
+ * 按是否包含预发布过滤；若过滤后为空（例如远端只发布了预发布版），退回全量，
+ * 避免版本列表空空如也 —— 有预发布版可选，总好过一个空下拉框。
+ */
+export function filterByPrerelease(versions: string[], prerelease: boolean): string[] {
+    if (prerelease) return versions
+    const stable = versions.filter((v) => !isPrerelease(v))
+    return stable.length > 0 ? stable : versions
+}
+
+/** 降序排列；剔除预发布，除非要求包含、或稳定版为空而回退到全量。 */
 export function sortVersionsDesc(versions: string[], prerelease: boolean): string[] {
-    const pool = prerelease ? versions : versions.filter((v) => !isPrerelease(v))
-    return pool.filter((v): v is string => semver.valid(v) !== null).sort(semver.rcompare)
+    return filterByPrerelease(versions, prerelease)
+        .filter((v): v is string => semver.valid(v) !== null)
+        .sort(semver.rcompare)
 }

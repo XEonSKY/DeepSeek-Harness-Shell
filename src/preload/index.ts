@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppUpdateEvent, HotkeyState, LogEntry, NodeDeployProgress, RendererApi, Settings, Theme } from '@shared/types'
+import type { AppUpdateEvent, ConfigMigrationProgress, HotkeyState, LogEntry, NodeDeployProgress, RendererApi, Settings, Theme } from '@shared/types'
 
 /**
  * 订阅一个 main → renderer 频道，返回退订函数。
@@ -59,6 +59,8 @@ const api: RendererApi = {
     // ---- main → renderer 订阅 ----
     onAppUpdateEvent: (cb) => subscribe<AppUpdateEvent>('appupdate:event', cb),
     onNodeDeployProgress: (cb) => subscribe<NodeDeployProgress>('nodeenv:deploy-progress', cb),
+    onNpmDeployProgress: (cb) => subscribe<NodeDeployProgress>('npmenv:progress', cb),
+    onConfigMigrationProgress: (cb) => subscribe<ConfigMigrationProgress>('configdir:migration', cb),
     onDshUrl: (cb) => subscribe<string>('dsh:url', cb),
     onLog: (cb) => subscribe<LogEntry>('dsh:log', cb),
     onSettingsChanged: (cb) => subscribe<Settings>('settings:changed', cb),
@@ -88,10 +90,18 @@ const api: RendererApi = {
     getNpmStatus: () => ipcRenderer.invoke('npmenv:status'),
     listNpmVersions: (opts) => ipcRenderer.invoke('npmenv:versions', opts),
     updateNpm: (opts) => ipcRenderer.invoke('npmenv:update', opts),
+    ensureBundledNpm: (opts) => ipcRenderer.invoke('npmenv:ensure', opts),
+    cancelInstall: () => ipcRenderer.invoke('install:cancel'),
+    listInstalledVersions: (kind) => ipcRenderer.invoke('versions:list', kind),
+    useInstalledVersion: (kind, version) => ipcRenderer.invoke('versions:use', kind, version),
+    removeInstalledVersion: (kind, version) => ipcRenderer.invoke('versions:remove', kind, version),
     getHotkeyState: () => ipcRenderer.invoke('hotkey:state'),
     getWebviewInfo: () => ipcRenderer.invoke('webview:info'),
     getConfigDir: () => ipcRenderer.invoke('configdir:get'),
     setConfigDir: (dir) => ipcRenderer.invoke('configdir:set', dir),
+    revertConfigDir: () => ipcRenderer.invoke('configdir:revert'),
+    runConfigMigration: () => ipcRenderer.invoke('configdir:migrate-run'),
+    cancelConfigMigration: () => ipcRenderer.invoke('configdir:migrate-cancel'),
     getShellMeta: () => ipcRenderer.invoke('shell:meta'),
     openWebWindow: (url) => ipcRenderer.invoke('shell:open-url', url),
     focusCoreWindow: () => ipcRenderer.invoke('shell:focus-core'),

@@ -3,14 +3,14 @@ import os from 'node:os'
 import fs from 'node:fs'
 import { spawn } from 'node:child_process'
 import { IS_WIN } from '../app/runtime'
-import { localKernelDir, configDir } from '../app/settings'
+import { installRoot, listInstalled, resolveActive, versionDir } from './installs'
 import type { NodeRuntimeKind } from '@shared/types'
 
 /**
  * Kernel / tooling location helpers.
  *
  * The @deepseek-ai/dsh kernel may come from two places:
- *   - local ('local', default): installed by this app into ~/.config/dsh_shell/kernel
+ *   - local ('local', default): installed by this app into <configDir>/kernel
  *     and run with Electron's own bundled Node (no system node needed).
  *   - global ('global'): the system `npm install -g @deepseek-ai/dsh`, found on PATH.
  *
@@ -35,9 +35,11 @@ export function findInDirs(dirs: string[], names: string[]): string | undefined 
     return undefined
 }
 
-/** Where the app-managed (local) kernel is installed. */
+/** Where the app-managed (local) kernel is installed: `<configDir>/kernel/<版本>/node_modules/@deepseek-ai/dsh`. */
 export function localDshModuleDir(): string {
-    return path.join(localKernelDir(), 'node_modules', '@deepseek-ai', 'dsh')
+    const active = resolveActive('kernel')
+    const base = active ? versionDir('kernel', active) : installRoot('kernel')
+    return path.join(base, 'node_modules', '@deepseek-ai', 'dsh')
 }
 
 function readPkgVersion(moduleDir: string): string | null {
@@ -196,20 +198,36 @@ export interface NodeRuntime {
     env: Record<string, string>
 }
 
-/** 应用按架构下载部署到配置目录的 Node 可执行文件（<configDir>/node）。 */
+/**
+ * 可用的本地 Node 安装目录，按优先级：生效版本 → 其它完整版本 → 平铺旧布局。
+ * 这样即使某个版本目录残缺（搬迁时 node.exe 被占用没搬进来），也不会误报「未部署」。
+ */
+function nodeBaseCandidates(): string[] {
+    const out: string[] = []
+    const active = resolveActive('node')
+    if (active) out.push(versionDir('node', active))
+    for (const v of listInstalled('node')) {
+        if (v !== active) out.push(versionDir('node', v))
+    }
+    out.push(installRoot('node'))
+    return out
+}
+
+/** 应用按架构下载部署到配置目录的 Node 可执行文件（`<configDir>/node/<版本>/`）。 */
 export function localNodeExecPath(): string | null {
-    const base = path.join(configDir(), 'node')
-    const exec = IS_WIN ? path.join(base, 'node.exe') : path.join(base, 'bin', 'node')
-    return fs.existsSync(exec) ? exec : null
+    for (const base of nodeBaseCandidates()) {
+        const exec = IS_WIN ? path.join(base, 'node.exe') : path.join(base, 'bin', 'node')
+        if (fs.existsSync(exec)) return exec
+    }
+    return null
 }
 
 /** 部署的本地 Node 自带的 npm-cli（不存在返回 null）。 */
 export function localNodeNpmCli(): string | null {
-    const base = path.join(configDir(), 'node')
-    const candidates = IS_WIN
-        ? [path.join(base, 'node_modules', 'npm', 'bin', 'npm-cli.js')]
-        : [path.join(base, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js')]
-    for (const c of candidates) {
+    for (const base of nodeBaseCandidates()) {
+        const c = IS_WIN
+            ? path.join(base, 'node_modules', 'npm', 'bin', 'npm-cli.js')
+            : path.join(base, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js')
         if (fs.existsSync(c)) return c
     }
     return null

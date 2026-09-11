@@ -1,0 +1,61 @@
+# Kernel & environment install pipeline
+
+This page describes the download and installation of the dsh kernel, Node and npm: the versioned directories, the downloader, cancellation, the extraction phase and the npm cache.
+
+## Versioned install directories
+
+Node, npm and the kernel are all stored per version, with multiple versions coexisting:
+
+```text
+<config-dir>/
+├─ node/<version>/        Node runtime (with bundled npm)
+├─ npm/<version>/package/ App-managed bundled npm
+└─ kernel/<version>/      Bundled kernel (node_modules/@deepseek-ai/dsh)
+```
+
+Each root directory's `.active` records the currently active version. The core API is in `main/kernel/installs.ts`:
+
+| Function | Purpose |
+|---|---|
+| `installRoot(kind)` / `versionDir(kind, v)` | Build paths |
+| `resolveActive(kind)` | Get the active version; with no pointer, fall back to the latest **complete** version and write it back |
+| `isVersionComplete(kind, v)` | Whether the key files are in place (node needs `node.exe`, npm needs `package/bin/npm-cli.js`, the kernel needs dsh's `package.json`) |
+| `listInstalled` / `prepareVersionDir` / `removeVersion` | List / prepare / remove |
+| `migrateLegacyInstalls` | Migrate the old flat directories into versioned directories |
+
+> **Completeness matters**: files that were occupied during the move (typically a running `node.exe`) may not have been migrated. An incomplete directory is treated as nonexistent, and the read side falls back to the old flat layout; `moveFlatInto` also refuses to write `.active` when the key files are not in place.
+
+## Downloader (multi-threaded)
+
+`main/kernel/downloader.ts`'s `downloadFile`:
+
+- Concurrent segmented downloads over HTTP Range (default 4, configurable in settings, max 16); it degrades to a single stream below 1 MB or when the server does not support Range;
+- Retries and temp-file cleanup; temp files land in `temp/download` under the working directory and are moved to the target on completion (copying as a fallback across drives);
+- **Deduplication for the same target file**: `inFlightDownloads` merges by the lower-cased final path; a later call subscribes to the same task, and progress is broadcast to all subscribers; `isFileDownloading()` is exposed;
+- Supports cancellation via `signal`.
+
+## Cancelling an install
+
+`main/kernel/cancel.ts` provides a single active token: `beginCancelable()` / `cancelActive()` / `isAbortError()` / `CANCELED_MESSAGE`.
+
+Both download and extraction are bound to that token; the IPC `install:cancel` triggers it. After cancellation the temp files are cleaned up and `{ ok:false, canceled:true }` is returned; the renderer does not treat it as an error.
+
+## Extraction phase
+
+Unzipping Node's zip / tar and the bundled npm's tgz is a separate phase, and progress broadcasts carry `phase: 'download' | 'extract'`; during extraction the renderer switches to an indeterminate animation (no percentage).
+
+## npm cache
+
+`settings.tempNpmDir()` = `<working-dir>/temp/npm`; `npmRunner.npmCacheEnv()` injects `npm_config_cache` into every npm child process (system npm, bundled npm, the npm bundled with local Node, version detection), so nothing is written to `~/.npm`.
+
+## Install flow overview
+
+- **Node**: `nodeenv.deployLocalNode` downloads the matching platform package from nodejs.org → extracts → moves each item into `node/<version>/` → writes `.active`;
+- **npm**: `npmRunner.ensureBundledNpm` downloads the tgz from the registry → extracts it into `npm/<version>/`;
+- **Kernel**: `kernel.installTo` uses the selected npm with `--prefix` to install into `kernel/<version>/`, then writes `.active`;
+- All three support "install a specific version, switch at runtime, remove".
+
+## Related
+
+- [Config directory](/en/dev/config-dir)
+- [IPC contract](/en/dev/ipc)

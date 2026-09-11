@@ -1,13 +1,15 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
-import type { KernelAction, Settings, UpdateResult } from '@shared/types'
+import type { InstalledVersions, KernelAction, Settings, UpdateResult } from '@shared/types'
 import { IS_WIN, broadcast } from '../app/runtime'
 import { resolveKernel } from './tools'
 import { loadSettings, mt, localKernelDir } from '../app/settings'
 import { rememberChild, isDshRunning, stopAllDsh, restart } from './dsh'
-import { isPrerelease, compareVersions, pickLatest, sortVersionsDesc } from './semver'
+import { isPrerelease, compareVersions, filterByPrerelease, pickLatest, sortVersionsDesc } from './semver'
 import { registryBase, runNpm, runNpmInstallGlobal, runLocalNpmInstall } from './npmRunner'
+import { beginCancelable, CANCELED_MESSAGE } from './cancel'
+import { activeVersion, listInstalled, removeVersion, setActiveVersion, versionDir } from './installs'
 
 // ---------------------------------------------------------------------------
 // @deepseek-ai/dsh install & version checks (source-aware: local vs global)
@@ -74,7 +76,7 @@ export async function performUpdateCheck(
             message: mt('m.kernel.registryUnreachable', { version: info.version })
         }
     }
-    const pool = opts?.prerelease ? versions : versions.filter((v) => !isPrerelease(v))
+    const pool = filterByPrerelease(versions, opts?.prerelease === true)
     const latest = pickLatest(pool)
     if (!latest) {
         return { status: 'ok', current: info.version, latest: null, message: mt('m.kernel.noComparable') }
@@ -193,20 +195,26 @@ export async function listVersions(opts?: { prerelease?: boolean; registry?: 'np
 async function resolveTargetVersion(cfg: Settings, registry: 'npmjs' | 'npmmirror'): Promise<string> {
     const versions = await fetchPublishedVersions(registry)
     if (!versions || !versions.length) throw new Error(mt('m.kernel.installNoVersions'))
-    const picked = pickLatest(cfg.checkPrerelease ? versions : versions.filter((v) => !isPrerelease(v)))
+    // 稳定版过滤后为空时退回全量（例如此版本仅在预发布渠道发布），避免「列表有版本却装不了」。
+    const picked = pickLatest(filterByPrerelease(versions, cfg.checkPrerelease))
     if (!picked) throw new Error(mt('m.kernel.installNone'))
     return picked
 }
 
 /** Upgrade / install the kernel to the newest (or a specific) version. */
-async function installTo(local: boolean, target: string, registry: 'npmjs' | 'npmmirror', cfg: Settings): Promise<KernelAction> {
+async function installTo(local: boolean, target: string, registry: 'npmjs' | 'npmmirror', cfg: Settings, signal?: AbortSignal): Promise<KernelAction> {
     const wasRunning = isDshRunning()
     stopAllDsh()
-    let result: { ok: boolean; stderrTail: string; fatal?: string }
+    let result: { ok: boolean; stderrTail: string; fatal?: string; canceled?: boolean }
     if (local) {
-        result = await runLocalNpmInstall(`@deepseek-ai/dsh@${target}`, cfg)
+        // 本地内核装进 `<configDir>/kernel/<版本>/`（多版本并存）。
+        result = await runLocalNpmInstall(`@deepseek-ai/dsh@${target}`, cfg, versionDir('kernel', target), signal)
     } else {
-        result = await runNpmInstallGlobal(`@deepseek-ai/dsh@${target}`, registry)
+        result = await runNpmInstallGlobal(`@deepseek-ai/dsh@${target}`, registry, signal)
+    }
+    if (result.canceled) {
+        if (wasRunning) void restart()
+        return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: null }
     }
     if (!result.ok) {
         if (wasRunning) void restart()
@@ -215,6 +223,7 @@ async function installTo(local: boolean, target: string, registry: 'npmjs' | 'np
       (local ? mt('m.kernel.localInstallFail', { tail: result.stderrTail.trim() || '...' }) : mt('m.kernel.installFail', { tail: result.stderrTail.trim() || '...' }))
         return { ok: false, message, version: null }
     }
+    if (local) setActiveVersion('kernel', target)
     void restart() // bring the new/installed kernel up
     return { ok: true, message: mt('m.kernel.installOk', { version: target }), version: target }
 }
@@ -230,9 +239,11 @@ export async function updateKernel(opts?: { registry?: 'npmjs' | 'npmmirror' }):
         return { ok: false, message: check.message || '', version: null }
     }
     kernelBusy = true
+    const token = beginCancelable()
     try {
-        return await installTo(local, check.latest, effRegistry, cfg)
+        return await installTo(local, check.latest, effRegistry, cfg, token.signal)
     } finally {
+        token.done()
         kernelBusy = false
     }
 }
@@ -252,9 +263,11 @@ export async function installKernel(opts?: { version?: string | null; registry?:
         }
     }
     kernelBusy = true
+    const token = beginCancelable()
     try {
-        return await installTo(local, target, registry, cfg)
+        return await installTo(local, target, registry, cfg, token.signal)
     } finally {
+        token.done()
         kernelBusy = false
     }
 }
@@ -269,8 +282,9 @@ export async function uninstallKernel(): Promise<KernelAction> {
         stopAllDsh()
         if (local) {
             try {
-                // Removing the local module dir is enough (npm managed it under our prefix).
-                if (info.dir) fs.rmSync(info.dir, { recursive: true, force: true })
+                // 删除当前生效的版本目录即可（npm 在 `<configDir>/kernel/<版本>` 下管理它）。
+                const active = activeVersion('kernel')
+                if (active) removeVersion('kernel', active)
                 else fs.rmSync(path.join(localKernelDir(), 'node_modules'), { recursive: true, force: true })
             } catch (err) {
                 return { ok: false, message: err instanceof Error ? err.message : String(err), version: null }
@@ -288,4 +302,27 @@ export async function uninstallKernel(): Promise<KernelAction> {
     } finally {
         kernelBusy = false
     }
+}
+
+/** 已安装 / 生效的本地内核版本。 */
+export function listInstalledKernelVersions(): InstalledVersions {
+    return { installed: listInstalled('kernel'), active: activeVersion('kernel') }
+}
+
+/** 切换本地内核生效版本（只改指针并重启，不重装）。 */
+export function useKernelVersion(version: string): KernelAction {
+    if (!listInstalled('kernel').includes(version)) return { ok: false, message: `未安装内核 ${version}`, version: null }
+    stopAllDsh()
+    setActiveVersion('kernel', version)
+    void restart()
+    return { ok: true, message: mt('m.kernel.installOk', { version }), version }
+}
+
+/** 删除某个已安装的本地内核版本；删掉生效版本会自动切到剩余最新版。 */
+export function removeInstalledKernelVersion(version: string): KernelAction {
+    if (activeVersion('kernel') === version) stopAllDsh()
+    removeVersion('kernel', version)
+    if (!listInstalled('kernel').length) broadcast('kernel:missing')
+    else if (activeVersion('kernel')) void restart()
+    return { ok: true, message: `已删除内核 ${version}`, version }
 }

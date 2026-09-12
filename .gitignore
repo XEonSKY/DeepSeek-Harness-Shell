@@ -98,5 +98,6 @@ temp/
 AGENT.md
 
 # ---------- AI 工作区辅助（本地，不入库） ----------
-.dsh/
-.temp/
+.dsh
+.temp
+.dsh

@@ -2,19 +2,56 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { IS_WIN } from '../app/runtime'
 import { configDir } from '../app/settings'
+import type { InstallKind } from '@shared/types'
 import { sortVersionsDesc } from './semver'
 
 /**
- * 版本化安装目录：Node / npm / 内核各自装到 `<configDir>/<kind>/<版本>/` 下，允许多版本并存；
+ * 版本化安装目录：Node / npm / dsh 各自装到 `<configDir>/<kind>/<版本>/` 下，允许多版本并存；
  * `<root>/.active` 记录当前生效版本，切换版本只改指针、不重装。首次启动会把旧的平铺目录
  * （`<root>/node.exe`、`<root>/package`、`<root>/node_modules`）尽力迁移为版本化布局。
  */
 
-export type InstallKind = 'node' | 'npm' | 'kernel'
-
-/** 各工具的安装根目录：`<configDir>/node|npm|kernel`。 */
+/**
+ * 各工具的安装根目录：`<configDir>/node|npm|dsh`。
+ * `kernel` 是 dsh 目录的旧名，只在迁移里读一次（见 migrateLegacyDshDir）。
+ */
 export function installRoot(kind: InstallKind): string {
     return path.join(configDir(), kind)
+}
+
+/**
+ * 目录改名迁移：`<configDir>/kernel` → `<configDir>/dsh`。
+ * 目标已存在时逐项并入（通常是 .active 或个别版本目录），空的旧目录删掉；全程尽力而为。
+ */
+function migrateLegacyDshDir(): void {
+    const legacy = path.join(configDir(), 'kernel')
+    const target = path.join(configDir(), 'dsh')
+    if (!fs.existsSync(legacy)) return
+    try {
+        if (!fs.existsSync(target)) {
+            fs.renameSync(legacy, target)
+            return
+        }
+        for (const name of fs.readdirSync(legacy)) {
+            const from = path.join(legacy, name)
+            const to = path.join(target, name)
+            try {
+                // 目标已有同名项：旧处这份是重复的（目标才是权威），直接删掉，
+                // 免得留下一个半旧的 kernel 目录误导用户。
+                if (fs.existsSync(to)) fs.rmSync(from, { recursive: true, force: true })
+                else fs.renameSync(from, to)
+            } catch {
+                /* 被占用（如正在运行的 node.exe）：保留旧处，下次启动再试 */
+            }
+        }
+        try {
+            if (fs.readdirSync(legacy).length === 0) fs.rmdirSync(legacy)
+        } catch {
+            /* 清不掉就留着，不影响功能 */
+        }
+    } catch {
+        /* 迁移失败不影响启动：读取侧会按新目录名重新解析 */
+    }
 }
 
 /** 指定版本的安装目录。 */
@@ -119,7 +156,7 @@ export function removeVersion(kind: InstallKind, version: string): void {
 /**
  * 把 root 下除版本目录 / 指针 / 临时目录外的内容搬进 root/<version>。
  *
- * 关键运行文件（node.exe / 内置 npm / 内核包）排在第一位且必须真正落位：否则视为搬迁失败，
+ * 关键运行文件（node.exe / 内置 npm / dsh 包）排在第一位且必须真正落位：否则视为搬迁失败，
  * 不写 `.active`，让读取侧继续走平铺旧布局 —— 绝不产生「有指针、缺可执行文件」的残缺安装。
  */
 function moveFlatInto(kind: InstallKind, version: string): boolean {
@@ -166,9 +203,11 @@ function readPkgVersion(file: string): string | null {
 
 /**
  * 旧版平铺布局 → 版本化布局（尽力而为，失败不影响使用：读取侧仍有平铺回退）。
- * 在应用启动、启动内核之前调用一次。
+ * 在应用启动、启动 dsh 之前调用一次。
  */
 export async function migrateLegacyInstalls(probeNodeVersion: (exec: string) => Promise<string | null>): Promise<void> {
+    // 先做目录改名（kernel → dsh），后面的平铺迁移与读取都基于新目录名。
+    migrateLegacyDshDir()
     // Node：<root>/node.exe（Win）或 <root>/bin/node（*nix）直接躺在根目录。
     const root = installRoot('node')
     const exec = IS_WIN ? path.join(root, 'node.exe') : path.join(root, 'bin', 'node')
@@ -183,10 +222,10 @@ export async function migrateLegacyInstalls(probeNodeVersion: (exec: string) => 
         const ver = readPkgVersion(path.join(npmRoot, 'package', 'package.json'))
         if (ver && moveFlatInto('npm', ver)) setActiveVersion('npm', ver)
     }
-    // 内核：<root>/node_modules/@deepseek-ai/dsh 平铺。
-    const kernelRoot = installRoot('kernel')
-    if (!activeVersion('kernel') && fs.existsSync(path.join(kernelRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'))) {
-        const ver = readPkgVersion(path.join(kernelRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'))
-        if (ver && moveFlatInto('kernel', ver)) setActiveVersion('kernel', ver)
+    // dsh：<root>/node_modules/@deepseek-ai/dsh 平铺。
+    const dshRoot = installRoot('dsh')
+    if (!activeVersion('dsh') && fs.existsSync(path.join(dshRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'))) {
+        const ver = readPkgVersion(path.join(dshRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'))
+        if (ver && moveFlatInto('dsh', ver)) setActiveVersion('dsh', ver)
     }
 }

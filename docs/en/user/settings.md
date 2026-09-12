@@ -1,13 +1,13 @@
 # Settings Guide
 
-“Settings” is organized into groups on the left: General, Appearance, Network, Environment, Kernel, Terminal, Shortcuts, Webview, About. Every settings card can be **collapsed** by clicking its title. This page explains each item.
+“Settings” is organized into groups on the left: General, Appearance, Network, Environment, DeepSeek Harness, Models, Terminal, Shortcuts, Webview, About. Every settings card can be **collapsed** by clicking its title. This page explains each item.
 
 ## General
 
 | Setting | Effect |
 |---|---|
 | **Working directory** | The directory in which dsh starts; leave blank to use `workspace` under the configuration directory. |
-| **Configuration folder** | The location of app settings, local kernels, bundled npm, local Node, and the default workspace. Defaults to `~/.dsbox/release` (release) / `~/.dsbox/dev` (dev). You can “Change” it or “Restore Default”. |
+| **Configuration folder** | The location of app settings, local DeepSeek Harness, bundled npm, local Node, and the default workspace. Defaults to `~/.dsbox/release` (release) / `~/.dsbox/dev` (dev). You can “Change” it or “Restore Default”. |
 | **Port** | Automatic (picks a free port starting from 3080, recommended) or manually specified. |
 | **Close button behavior** | Hide to tray or quit directly; you can choose “Ask every time” or “Remember choice”. |
 | **Restore default settings** | One-click reset and restart of dsh. |
@@ -43,18 +43,22 @@ A change is **not moved immediately**; instead you are prompted that it will “
 | Setting | Effect |
 |---|---|
 | **npm registry mirror** | Official `registry.npmjs.org` or `npmmirror`. |
-| **Proxy** | Enable + protocol (HTTP / SOCKS5) + host + port + proxy scope (npm install / download, Node download and deployment, kernel update check). |
+| **Proxy** | Enable + protocol (HTTP / SOCKS5) + host + port + proxy scope (npm install / download, Node download and deployment, DeepSeek Harness update check). |
 | **Download concurrency** | The number of concurrent connections for multi-threaded segmented downloads: 1 = single-threaded, default 4, maximum 16. |
 
 For download progress, temporary directories, de-duplication, and similar behavior, see [Environment Management](/en/user/environment).
 
 ## Environment
 
-The Node and npm sources used to run the kernel; see [Environment Management (Node / npm)](/en/user/environment).
+The Node and npm sources used to run DeepSeek Harness; see [Environment Management (Node / npm)](/en/user/environment).
 
-## Kernel
+## DeepSeek Harness
 
-Kernel source, updates, version switching, and uninstalling; see [Kernel Management](/en/user/kernel).
+Source, updates, version switching, and uninstalling; see [DeepSeek Harness management](/en/user/dsh).
+
+## Models
+
+The model list, providers and balances; see [Models & balances](/en/user/models). The first visit asks for consent to read the local configuration; the page **never shows any key**.
 
 ## Terminal
 
@@ -78,7 +82,7 @@ Kernel source, updates, version switching, and uninstalling; see [Kernel Managem
 
 ## Webview
 
-The rendering mode and browser identity of embedded pages (kernel UI, web chat, dynamic tabs).
+The rendering mode and browser identity of embedded pages (dsh Web UI, web chat, dynamic tabs).
 
 - **Hardware acceleration**: enabled by default. Disabling it can reduce resource usage and improve compatibility with older drivers, but scrolling and animations become choppier. It can only be decided at **app startup**, so a change requires restarting the app.
 - **UserAgent**: leave blank to use the default, generated in real time from the current platform and version, like `... Chrome/<Chromium version> Safari/537.36 XEonSKY/<app version>`; a custom UA takes effect immediately for **new requests**, and for already-loaded pages after a refresh.
@@ -86,8 +90,17 @@ The rendering mode and browser identity of embedded pages (kernel UI, web chat, 
 ## About
 
 - Shows the app version and running architecture;
-- **Auto-update**: checks for a new app version at startup and downloads it in the background; see [App Update & Rollback](/en/user/update);
+- **Auto-update**: checks for a new app version at startup and downloads it in the background; see [App Update & Rollback](/en/user/update); when the download finishes a small red dot appears on the status-bar version item, and clicking it lets you “Restart and install”;
 - **Check for pre-releases**: whether to include pre-release versions;
 - **Developer Mode**: by default `F12` toggles DevTools (the shortcut can be changed on the “Shortcuts” page).
+
+## Status bar
+
+The window's bottom status bar is read-only; on the right it shows, in order:
+
+| Item | Description |
+|---|---|
+| **Current provider balance** | Once authorized it shows the balance, refreshing automatically every 5 minutes while in the foreground; clicking refreshes manually. Before authorization it shows “Click to authorize”, which jumps to “Settings → Models”. Hovering shows the granted / topped-up breakdown. |
+| **App version · dsh version** | Shaped like `v0.1.5-rc-1 · dsh 0.1.5-rc.2`. Clicking opens a popover that checks for updates; when a newer version is found it **only shows a small red dot on the version item** (a silent notice, no toast), and the popover shows the status of both the app and dsh version lines. |
 
 > The base source of theme and language is still dsh's `~/.dsh/settings.yaml`; the app's own settings are stored in `settings.json` in the **configuration directory**.

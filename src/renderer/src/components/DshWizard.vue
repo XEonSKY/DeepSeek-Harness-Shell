@@ -4,12 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { CloseOutlined, FileTextOutlined, DownloadOutlined, ReloadOutlined } from '@antdv-next/icons'
 import { ElMessage } from 'element-plus'
 import type { ConfigDirInfo, EnvProbe, NodeRuntimeKind, NpmSource } from '@shared/types'
-import { MIN_KERNEL_NODE_MAJOR, nodeMajor } from '@shared/version'
+import { MIN_NODE_MAJOR, nodeMajor } from '@shared/version'
 import { useAppIcon } from '../lib/appIcon'
 import { formatDownload } from '../lib/format'
 
 /**
- * 内核（@deepseek-ai/dsh）缺失时的全屏安装向导。
+ * @deepseek-ai/dsh 包缺失时的全屏安装向导。
  *
  * 从 App.vue 抽出：它自带完整状态（四步流程 / 环境探测 / 版本选择 / 安装日志）与独立样式，
  * 与外壳其余部分只通过「是否显示」和「装完了」两点耦合，因此适合作为独立组件。
@@ -22,18 +22,18 @@ const appIcon = useAppIcon()
 
 type Reg = 'npmjs' | 'npmmirror'
 
-const installingKernel = ref(false)
+const installingDsh = ref(false)
 const installError = ref('')
 const installReg = ref<Reg>('npmjs')
 
-// Optional kernel-version selection on first install: pick a specific published
+// Optional dsh-version selection on first install: pick a specific published
 // version and whether to include pre-releases (the list is re-fetched accordingly).
 const installPrerelease = ref(false)
 const installVersions = ref<string[]>([])
 const versionsLoading = ref(false)
 const installVersion = ref('')
 
-// 内核来源(local/global)与 npm(source)：本页选择后、安装前会持久化到设置。
+// dsh 来源(local/global)与 npm(source)：本页选择后、安装前会持久化到设置。
 const installSource = ref<'local' | 'global'>('local')
 const installNpm = ref<NpmSource>('system')
 // 安装过程的实时日志（本页展示，安装结束时保留以便回看）。
@@ -47,12 +47,12 @@ const step = ref(0)
 const envProbe = ref<EnvProbe | null>(null)
 const probingEnv = ref(false)
 
-/** 系统 Node 是否可用（存在且主版本 ≥ 内核要求，阈值见 shared/version.ts）。 */
+/** 系统 Node 是否可用（存在且主版本 ≥ dsh 要求，阈值见 shared/version.ts）。 */
 const systemNodeOk = computed(() => {
     const v = envProbe.value?.node.version
     if (!envProbe.value?.node.present || !v) return false
     const major = nodeMajor(v)
-    return major !== null && major >= MIN_KERNEL_NODE_MAJOR
+    return major !== null && major >= MIN_NODE_MAJOR
 })
 
 // 所选 Node 运行时（安装时随设置持久化）。
@@ -96,13 +96,13 @@ const npmExtracting = ref(false)
 const canceling = ref(false)
 
 /** 没有专用进度条（Node / npm 下载）时，通用执行条的文案。 */
-const installLabel = computed(() => (step.value === 3 ? t('kernelMissing.progressDsh') : t('kernelMissing.executing')))
+const installLabel = computed(() => (step.value === 3 ? t('dshMissing.progressDsh') : t('dshMissing.executing')))
 
 const runtimeHint = computed(() => {
     const c = nodeRuntimeChoice.value
-    if (c === 'system') return t('kernelMissing.node.hintSystem')
-    if (c === 'local') return t('kernelMissing.node.hintLocal')
-    return t('kernelMissing.node.hintElectron')
+    if (c === 'system') return t('dshMissing.node.hintSystem')
+    if (c === 'local') return t('dshMissing.node.hintLocal')
+    return t('dshMissing.node.hintElectron')
 })
 
 async function deployOnce(version?: string): Promise<boolean> {
@@ -118,7 +118,7 @@ async function deployOnce(version?: string): Promise<boolean> {
         const r = await window.api.deployLocalNode(version ? { version } : {})
         if (r.canceled) {
             // 用户主动取消：不算失败，也不弹错误提示。
-            ElMessage.info(r.message || t('kernelMissing.cancel'))
+            ElMessage.info(r.message || t('dshMissing.cancel'))
             return false
         }
         if (r.ok) {
@@ -150,7 +150,7 @@ async function ensureNpmOnce(version?: string): Promise<boolean> {
         const r = await window.api.ensureBundledNpm(version ? { version } : {})
         if (r.canceled) {
             // 用户主动取消：不算失败，也不弹错误提示。
-            ElMessage.info(r.message || t('kernelMissing.cancel'))
+            ElMessage.info(r.message || t('dshMissing.cancel'))
             return false
         }
         if (r.ok) {
@@ -262,7 +262,7 @@ async function loadConfigDir(): Promise<void> {
 function applyConfigDir(info: ConfigDirInfo): void {
     cfgDir.value = info.current
     cfgDefaultDir.value = info.default
-    if (info.pending) ElMessage.info(t('kernelMissing.configDirPending'))
+    if (info.pending) ElMessage.info(t('dshMissing.configDirPending'))
 }
 async function pickConfigDir(): Promise<void> {
     const p = await window.api.openDirectory()
@@ -283,7 +283,7 @@ async function persistWizard(): Promise<boolean> {
         await window.api.saveSettings({
             ...cur,
             npmRegistry: installReg.value,
-            kernelSource: installSource.value,
+            dshSource: installSource.value,
             nodeRuntime: nodeRuntimeChoice.value,
             npmSource: installSource.value === 'local' ? installNpm.value : cur.npmSource
         })
@@ -294,12 +294,12 @@ async function persistWizard(): Promise<boolean> {
     }
 }
 
-/** 第 3 步：真正安装内核。 */
+/** 第 3 步：真正安装 dsh。 */
 async function performInstall(): Promise<boolean> {
     installLog.value = []
     try {
         if (!(await persistWizard())) return false
-        const r = await window.api.installKernel({
+        const r = await window.api.installDsh({
             version: installVersion.value || null,
             registry: installReg.value
         })
@@ -316,8 +316,8 @@ async function performInstall(): Promise<boolean> {
 
 /** 执行当前步（持久化 + 该步动作），成功后自动进入下一步 / 完成。 */
 async function runCurrentStep(): Promise<void> {
-    if (installingKernel.value) return
-    installingKernel.value = true
+    if (installingDsh.value) return
+    installingDsh.value = true
     installError.value = ''
     let ok: boolean
     try {
@@ -339,7 +339,7 @@ async function runCurrentStep(): Promise<void> {
             ok = await performInstall()
         }
     } finally {
-        installingKernel.value = false
+        installingDsh.value = false
     }
     if (!ok) return
     if (step.value >= 3) {
@@ -410,7 +410,7 @@ let offNpm: (() => void) | null = null
 onMounted(() => {
     // 安装时把主进程的 stdout/stderr 追加到本页日志。
     offLog = window.api.onLog((entry) => {
-        if (!installingKernel.value) return
+        if (!installingDsh.value) return
         const line = (entry.k === 'e' ? '[err] ' : '') + entry.s
         installLog.value.push(line)
         if (installLog.value.length > 500) installLog.value.splice(0, installLog.value.length - 500)
@@ -435,7 +435,7 @@ onMounted(() => {
         const s = await window.api.getSettings()
         installReg.value = s.npmRegistry
         installPrerelease.value = s.checkPrerelease === true
-        installSource.value = s.kernelSource ?? 'local'
+        installSource.value = s.dshSource ?? 'local'
         installNpm.value = s.npmSource ?? 'system'
         nodeRuntimeChoice.value = s.nodeRuntime ?? 'electron'
         await loadConfigDir()
@@ -455,74 +455,70 @@ onBeforeUnmount(() => {
     <div class="missing-mask">
         <div class="missing-card">
             <div class="missing-icon"><img :src="appIcon" alt="DeepSeek Box" draggable="false" class="missing-logo" /></div>
-            <h2 class="missing-title">{{ $t('kernelMissing.title') }}</h2>
-            <p class="missing-desc">{{ $t('kernelMissing.wizIntro', { pkg: '@deepseek-ai/dsh' }) }}</p>
+            <h2 class="missing-title">{{ $t('dshMissing.title') }}</h2>
+            <p class="missing-desc">{{ $t('dshMissing.wizIntro', { pkg: '@deepseek-ai/dsh' }) }}</p>
 
             <el-steps :active="step" align-center finish-status="success" class="wiz-steps">
-                <el-step :title="$t('kernelMissing.wiz.source')" />
-                <el-step :title="$t('kernelMissing.wiz.node')" />
-                <el-step :title="$t('kernelMissing.wiz.npm')" />
-                <el-step :title="$t('kernelMissing.wiz.dsh')" />
+                <el-step :title="$t('dshMissing.wiz.source')" />
+                <el-step :title="$t('dshMissing.wiz.node')" />
+                <el-step :title="$t('dshMissing.wiz.npm')" />
+                <el-step :title="$t('dshMissing.wiz.dsh')" />
             </el-steps>
 
             <div class="wiz-body">
-                <!-- 第 0 步：镜像源 + 配置目录 -->
                 <div v-if="step === 0" class="wiz-pane">
                     <div class="wiz-field">
-                        <label class="wiz-label">{{ $t('kernelMissing.registry') }}</label>
+                        <label class="wiz-label">{{ $t('dshMissing.registry') }}</label>
                         <el-select v-model="installReg" class="missing-reg">
-                            <el-option :label="$t('kernelMissing.registryNpmjs')" value="npmjs" />
-                            <el-option :label="$t('kernelMissing.registryNpmmirror')" value="npmmirror" />
+                            <el-option :label="$t('dshMissing.registryNpmjs')" value="npmjs" />
+                            <el-option :label="$t('dshMissing.registryNpmmirror')" value="npmmirror" />
                         </el-select>
-                        <div class="wiz-hint">{{ $t('kernelMissing.registryHint') }}</div>
+                        <div class="wiz-hint">{{ $t('dshMissing.registryHint') }}</div>
                     </div>
 
                     <div class="wiz-field">
-                        <label class="wiz-label">{{ $t('kernelMissing.configDir') }}</label>
+                        <label class="wiz-label">{{ $t('dshMissing.configDir') }}</label>
                         <div class="cfg-row">
                             <el-input :model-value="cfgDir" readonly :placeholder="cfgDefaultDir" />
-                            <el-button type="primary" @click="pickConfigDir">{{ $t('kernelMissing.choose') }}</el-button>
-                            <el-button v-if="cfgDir !== cfgDefaultDir" @click="resetConfigDir">{{ $t('kernelMissing.restoreDefault') }}</el-button>
+                            <el-button type="primary" @click="pickConfigDir">{{ $t('dshMissing.choose') }}</el-button>
+                            <el-button v-if="cfgDir !== cfgDefaultDir" @click="resetConfigDir">{{ $t('dshMissing.restoreDefault') }}</el-button>
                         </div>
-                        <div class="wiz-hint">{{ $t('kernelMissing.configDirHint') }}</div>
+                        <div class="wiz-hint">{{ $t('dshMissing.configDirHint') }}</div>
                     </div>
                 </div>
 
-                <!-- 第 1 步：Node 环境（三选一） -->
                 <div v-else-if="step === 1" class="wiz-pane">
                     <div class="wiz-field">
-                        <label class="wiz-label">{{ $t('kernelMissing.node.pick') }}</label>
+                        <label class="wiz-label">{{ $t('dshMissing.node.pick') }}</label>
                         <el-radio-group v-model="nodeRuntimeChoice" class="nr-opts">
                             <el-radio :value="'system'" :disabled="!systemNodeOk">
-                                {{ $t('kernelMissing.node.runtimeSystem') }}
-                                <span v-if="!envProbe || !envProbe.node.present" class="muted">（{{ $t('kernelMissing.node.notFound') }}）</span>
-                                <span v-else-if="!systemNodeOk" class="muted">（{{ $t('kernelMissing.node.need20') }}）</span>
+                                {{ $t('dshMissing.node.runtimeSystem') }}
+                                <span v-if="!envProbe || !envProbe.node.present" class="muted">（{{ $t('dshMissing.node.notFound') }}）</span>
+                                <span v-else-if="!systemNodeOk" class="muted">（{{ $t('dshMissing.node.need20') }}）</span>
                                 <code v-else class="node-ver">{{ envProbe?.node.version }}</code>
                             </el-radio>
                             <el-radio :value="'electron'">
-                                {{ $t('kernelMissing.node.runtimeElectron') }}
-                                <span class="muted">（{{ $t('kernelMissing.node.rtDefault') }}）</span>
+                                {{ $t('dshMissing.node.runtimeElectron') }}
+                                <span class="muted">（{{ $t('dshMissing.node.rtDefault') }}）</span>
                             </el-radio>
-                            <el-radio :value="'local'">{{ $t('kernelMissing.node.runtimeLocal') }}</el-radio>
+                            <el-radio :value="'local'">{{ $t('dshMissing.node.runtimeLocal') }}</el-radio>
                         </el-radio-group>
                         <div class="wiz-hint">{{ runtimeHint }}</div>
                     </div>
 
                     <div v-if="nodeRuntimeChoice === 'local'" class="wiz-field nr-local">
-                        <!-- 当前生效的本地 Node 版本（探测结果优先，其次已安装版本的 active） -->
                         <div class="wiz-active">
                             <span class="wiz-hint">{{ $t('sv.env.activeVersion') }}：</span>
                             <code v-if="localNodeActive" class="node-ver">{{ localNodeActive }}</code>
-                            <span v-else class="muted">{{ $t('kernelMissing.node.notFound') }}</span>
+                            <span v-else class="muted">{{ $t('dshMissing.node.notFound') }}</span>
                         </div>
                         <el-tag v-if="envProbe?.local.present" type="success" size="small" effect="plain">
-                            {{ $t('kernelMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}
+                            {{ $t('dshMissing.node.localReady') }}&nbsp;{{ envProbe.local.version }}
                         </el-tag>
-                        <p v-else class="wiz-hint">{{ $t('kernelMissing.node.deployHint') }}</p>
+                        <p v-else class="wiz-hint">{{ $t('dshMissing.node.deployHint') }}</p>
 
-                        <!-- 版本选择：默认最新 LTS，勾选后含 Current；旁边保留刷新 -->
                         <div class="wiz-field">
-                            <label class="wiz-label">{{ $t('kernelMissing.pickNodeVersion') }}</label>
+                            <label class="wiz-label">{{ $t('dshMissing.pickNodeVersion') }}</label>
                             <div class="missing-vrow">
                                 <el-select
                                     v-model="nodeVersion"
@@ -530,7 +526,7 @@ onBeforeUnmount(() => {
                                     clearable
                                     :loading="nodeVersionsLoading"
                                     :disabled="deployingNode"
-                                    :placeholder="$t('kernelMissing.nodeVersionDefault')"
+                                    :placeholder="$t('dshMissing.nodeVersionDefault')"
                                     class="missing-reg"
                                 >
                                     <el-option v-for="v in nodeVersions" :key="v" :value="v" :label="v" />
@@ -538,7 +534,7 @@ onBeforeUnmount(() => {
                                 <el-button :icon="ReloadOutlined" circle :loading="nodeVersionsLoading" @click="loadNodeVersions" />
                             </div>
                             <div class="missing-opt">
-                                <span>{{ $t('kernelMissing.includeNonLts') }}</span>
+                                <span>{{ $t('dshMissing.includeNonLts') }}</span>
                                 <el-switch v-model="nodeIncludeNonLts" :disabled="deployingNode" />
                             </div>
                         </div>
@@ -546,11 +542,11 @@ onBeforeUnmount(() => {
                         <!-- 下载 / 解压进度：同一时刻只保留一个动画，解压时用不确定动画 -->
                         <template v-if="deployingNode">
                             <template v-if="nodeExtracting">
-                                <div class="wiz-hint">{{ $t('kernelMissing.extractingNode') }}</div>
+                                <div class="wiz-hint">{{ $t('dshMissing.extractingNode') }}</div>
                                 <div class="activity-bar" />
                             </template>
                             <template v-else>
-                                <div class="wiz-hint">{{ $t('kernelMissing.node.deploying') }}</div>
+                                <div class="wiz-hint">{{ $t('dshMissing.node.deploying') }}</div>
                                 <el-progress
                                     :percentage="deployPercent"
                                     :status="deployPercent >= 100 ? 'success' : undefined"
@@ -561,7 +557,7 @@ onBeforeUnmount(() => {
                             </template>
                             <div class="wiz-btn-row">
                                 <el-button size="small" :disabled="canceling" @click="cancelCurrentInstall">
-                                    {{ canceling ? $t('kernelMissing.canceling') : $t('kernelMissing.cancel') }}
+                                    {{ canceling ? $t('dshMissing.canceling') : $t('dshMissing.cancel') }}
                                 </el-button>
                             </div>
                         </template>
@@ -569,46 +565,45 @@ onBeforeUnmount(() => {
                         <!-- 部署按钮始终可用：已部署过也允许再装其它版本 -->
                         <div class="wiz-btn-row">
                             <el-button type="primary" :icon="DownloadOutlined" :disabled="deployingNode" @click="deployNode">
-                                {{ $t('kernelMissing.node.deploy') }}
+                                {{ $t('dshMissing.node.deploy') }}
                             </el-button>
                             <el-button v-if="envProbe?.local.present" size="small" :disabled="deployingNode" @click="deployNode">
-                                {{ $t('kernelMissing.node.redeploy') }}
+                                {{ $t('dshMissing.node.redeploy') }}
                             </el-button>
                             <el-button :icon="ReloadOutlined" :loading="probingEnv" @click="probeEnv">
-                                {{ $t('kernelMissing.node.rescan') }}
+                                {{ $t('dshMissing.node.rescan') }}
                             </el-button>
                         </div>
                     </div>
 
                     <p v-else-if="nodeRuntimeChoice === 'system'" class="wiz-note">
-                        {{ $t('kernelMissing.node.systemNote', { ver: envProbe?.node.version || '' }) }}
+                        {{ $t('dshMissing.node.systemNote', { ver: envProbe?.node.version || '' }) }}
                     </p>
                 </div>
 
-                <!-- 第 2 步：NPM 环境 -->
                 <div v-else-if="step === 2" class="wiz-pane">
                     <div class="wiz-field">
-                        <label class="wiz-label">{{ $t('kernelMissing.npmSource') }}</label>
+                        <label class="wiz-label">{{ $t('dshMissing.npmSource') }}</label>
                         <el-radio-group v-model="installNpm" class="npm-opts">
                             <el-radio :value="'system'" :disabled="!envProbe?.npm">
-                                {{ $t('kernelMissing.npmSystem') }}
-                                <span v-if="!envProbe?.npm" class="muted">（{{ $t('kernelMissing.unavailable') }}）</span>
+                                {{ $t('dshMissing.npmSystem') }}
+                                <span v-if="!envProbe?.npm" class="muted">（{{ $t('dshMissing.unavailable') }}）</span>
                             </el-radio>
-                            <el-radio :value="'bundled'">{{ $t('kernelMissing.npmBundled') }}</el-radio>
-                            <el-radio v-if="envProbe?.local.present" :value="'localnode'">{{ $t('kernelMissing.npmLocalNode') }}</el-radio>
+                            <el-radio :value="'bundled'">{{ $t('dshMissing.npmBundled') }}</el-radio>
+                            <el-radio v-if="envProbe?.local.present" :value="'localnode'">{{ $t('dshMissing.npmLocalNode') }}</el-radio>
                         </el-radio-group>
-                        <div class="wiz-hint">{{ $t('kernelMissing.npmHint') }}</div>
+                        <div class="wiz-hint">{{ $t('dshMissing.npmHint') }}</div>
                     </div>
 
                     <!-- 「程序内置」npm：未缓存 / 选版本时下一步会先下载 -->
                     <div v-if="installNpm === 'bundled'" class="wiz-field">
                         <template v-if="installingNpm">
                             <template v-if="npmExtracting">
-                                <div class="wiz-hint">{{ $t('kernelMissing.extractingNpm') }}</div>
+                                <div class="wiz-hint">{{ $t('dshMissing.extractingNpm') }}</div>
                                 <div class="activity-bar" />
                             </template>
                             <template v-else>
-                                <div class="wiz-hint">{{ $t('kernelMissing.npmPreparing') }}</div>
+                                <div class="wiz-hint">{{ $t('dshMissing.npmPreparing') }}</div>
                                 <el-progress
                                     :percentage="npmPercent"
                                     :status="npmPercent >= 100 ? 'success' : undefined"
@@ -619,20 +614,20 @@ onBeforeUnmount(() => {
                             </template>
                             <div class="wiz-btn-row">
                                 <el-button size="small" :disabled="canceling" @click="cancelCurrentInstall">
-                                    {{ canceling ? $t('kernelMissing.canceling') : $t('kernelMissing.cancel') }}
+                                    {{ canceling ? $t('dshMissing.canceling') : $t('dshMissing.cancel') }}
                                 </el-button>
                             </div>
                         </template>
                         <template v-else>
                             <div class="wiz-field">
-                                <label class="wiz-label">{{ $t('kernelMissing.pickNpmVersion') }}</label>
+                                <label class="wiz-label">{{ $t('dshMissing.pickNpmVersion') }}</label>
                                 <div class="missing-vrow">
                                     <el-select
                                         v-model="npmVersion"
                                         filterable
                                         clearable
                                         :loading="npmVersionsLoading"
-                                        :placeholder="$t('kernelMissing.npmVersionDefault')"
+                                        :placeholder="$t('dshMissing.npmVersionDefault')"
                                         class="missing-reg"
                                     >
                                         <el-option v-for="v in npmVersions" :key="v" :value="v" :label="v" />
@@ -648,44 +643,43 @@ onBeforeUnmount(() => {
                             <div class="wiz-hint">
                                 {{
                                     !npmVersion && npmBundledPresent
-                                        ? $t('kernelMissing.npmBundledReady')
-                                        : $t('kernelMissing.npmBundledWillDownload')
+                                        ? $t('dshMissing.npmBundledReady')
+                                        : $t('dshMissing.npmBundledWillDownload')
                                 }}
                             </div>
                         </template>
                     </div>
                 </div>
 
-                <!-- 第 3 步：DSH 环境 -->
                 <div v-else class="wiz-pane">
                     <div class="wiz-field">
-                        <label class="wiz-label">{{ $t('kernelMissing.kernelSource') }}</label>
+                        <label class="wiz-label">{{ $t('dshMissing.source') }}</label>
                         <el-radio-group v-model="installSource">
-                            <el-radio :value="'local'">{{ $t('kernelMissing.kernelLocal') }}</el-radio>
-                            <el-radio :value="'global'">{{ $t('kernelMissing.kernelGlobal') }}</el-radio>
+                            <el-radio :value="'local'">{{ $t('dshMissing.local') }}</el-radio>
+                            <el-radio :value="'global'">{{ $t('dshMissing.global') }}</el-radio>
                         </el-radio-group>
                     </div>
                     <div class="wiz-field">
                         <div class="missing-opt">
-                            <span>{{ $t('kernelMissing.preLabel') }}</span>
+                            <span>{{ $t('dshMissing.preLabel') }}</span>
                             <el-switch v-model="installPrerelease" />
                         </div>
                     </div>
                     <div class="wiz-field">
-                        <label class="wiz-label">{{ $t('kernelMissing.version') }}</label>
+                        <label class="wiz-label">{{ $t('dshMissing.version') }}</label>
                         <div class="missing-vrow">
                             <el-select
                                 v-model="installVersion"
                                 filterable
                                 :loading="versionsLoading"
                                 class="missing-reg"
-                                :placeholder="$t('kernelMissing.versionPlaceholder')"
+                                :placeholder="$t('dshMissing.versionPlaceholder')"
                             >
                                 <el-option v-for="v in installVersions" :key="v" :value="v" :label="v" />
                             </el-select>
                             <el-button :icon="ReloadOutlined" circle :loading="versionsLoading" @click="loadInstallVersions" />
                         </div>
-                        <div class="wiz-hint">{{ $t('kernelMissing.versionHint') }}</div>
+                        <div class="wiz-hint">{{ $t('dshMissing.versionHint') }}</div>
                     </div>
 
                     <p v-if="installError" class="missing-err">{{ installError }}</p>
@@ -694,7 +688,7 @@ onBeforeUnmount(() => {
 
             <!-- 执行进度：仅在无专用进度条（Node / npm 下载）时显示，避免重复的加载动画 -->
             <div
-                v-if="installingKernel && !deployingNode && !installingNpm && !nodeExtracting && !npmExtracting"
+                v-if="installingDsh && !deployingNode && !installingNpm && !nodeExtracting && !npmExtracting"
                 class="install-progress"
             >
                 <div class="activity">
@@ -703,35 +697,32 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <!-- 底部导航：执行当前步并进入下一步 -->
             <div class="wiz-nav">
-                <el-button text :disabled="installingKernel" @click="quitShell">{{ $t('kernelMissing.quit') }}</el-button>
+                <el-button text :disabled="installingDsh" @click="quitShell">{{ $t('dshMissing.quit') }}</el-button>
                 <div class="wiz-nav__right">
-                    <el-button v-if="step > 0" :disabled="installingKernel" @click="back">{{ $t('kernelMissing.prev') }}</el-button>
-                    <el-button type="primary" :disabled="installingKernel" @click="runCurrentStep">
-                        {{ step < 3 ? $t('kernelMissing.runStep') : $t('kernelMissing.install') }}
+                    <el-button v-if="step > 0" :disabled="installingDsh" @click="back">{{ $t('dshMissing.prev') }}</el-button>
+                    <el-button type="primary" :disabled="installingDsh" @click="runCurrentStep">
+                        {{ step < 3 ? $t('dshMissing.runStep') : $t('dshMissing.install') }}
                     </el-button>
                 </div>
             </div>
 
-            <!-- 右上角：全屏日志开关（向导打开即显示） -->
             <div class="log-toggle">
-                <el-button size="small" :icon="FileTextOutlined" @click="logFullscreen = true">{{ $t('kernelMissing.viewLog') }}</el-button>
+                <el-button size="small" :icon="FileTextOutlined" @click="logFullscreen = true">{{ $t('dshMissing.viewLog') }}</el-button>
             </div>
 
-            <!-- 全屏安装日志 -->
             <transition name="fade">
                 <div v-if="logFullscreen" class="log-full">
                     <div class="log-full__head">
-                        <span class="log-full__title">{{ $t('kernelMissing.installLog') }}</span>
+                        <span class="log-full__title">{{ $t('dshMissing.installLog') }}</span>
                         <div class="log-full__acts">
-                            <div v-if="installingKernel" class="log-full__mini">
+                            <div v-if="installingDsh" class="log-full__mini">
                                 <div class="activity-bar" />
                             </div>
-                            <el-button :icon="CloseOutlined" text @click="logFullscreen = false">{{ $t('kernelMissing.closeLog') }}</el-button>
+                            <el-button :icon="CloseOutlined" text @click="logFullscreen = false">{{ $t('dshMissing.closeLog') }}</el-button>
                         </div>
                     </div>
-                    <pre class="log-full__body">{{ installLog.length ? installLog.join('\n') : $t('kernelMissing.logWaiting') }}</pre>
+                    <pre class="log-full__body">{{ installLog.length ? installLog.join('\n') : $t('dshMissing.logWaiting') }}</pre>
                 </div>
             </transition>
         </div>

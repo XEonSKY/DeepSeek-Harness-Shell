@@ -1,6 +1,6 @@
 # 配置目录与迁移
 
-应用自身的数据（设置、内核、Node、npm、默认工作区）都放在**配置目录**，而不是 Electron 的 userData。本页说明默认位置、覆盖机制与两阶段迁移。
+应用自身的数据（设置、DeepSeek Harness、Node、npm、默认工作区）都放在**配置目录**，而不是 Electron 的 userData。本页说明默认位置、覆盖机制与两阶段迁移。
 
 ## 默认位置
 
@@ -26,7 +26,7 @@
 
 **第一阶段（设置时）**：`setConfigDir()` 不立即搬迁，只写迁移计划（`<userData>/config-migration.json`）。存在计划时 `configDir()` 仍返回**旧目录**，保证重启前设置可读。
 
-**第二阶段（重启引导）**：`main/index.ts` 建窗后 `await waitForConfigMigration()` 才启动内核与监听；搬迁由 `main/app/configmigrate.ts` 执行：
+**第二阶段（重启引导）**：`main/index.ts` 建窗后 `await waitForConfigMigration()` 才启动 DeepSeek Harness 与监听；搬迁由 `main/app/configmigrate.ts` 执行：
 
 - 先 `scanTree` 统计文件数；
 - `migrateTree` 逐项搬迁：同盘整目录 `rename`，跨盘或目标存在则递归 copy + unlink，并记录 journal；
@@ -42,5 +42,5 @@
 
 ## 相关
 
-- [内核与环境安装链路](/zh/dev/installs)
+- [DeepSeek Harness 与环境安装链路](/zh/dev/installs)
 - [应用自更新](/zh/dev/app-update)

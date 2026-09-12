@@ -14,10 +14,10 @@ import { pipeline } from 'node:stream/promises'
  * 目标位置；临时目录与目标目录可能不同盘，此时 rename 会失败，由 moveFile 拷贝兜底。
  *
  * 同一目标文件的重复请求会合并到同一个在途任务：后到的调用共享结果并订阅同一份进度，
- * 不会重复发起下载（见 downloadFile / isFileDownloading）。
+ * 不会重复发起下载（见 downloadFile）。
  */
 
-export interface DlProgress {
+interface DlProgress {
     total: number
     downloaded: number
     /** 0-100 */
@@ -26,7 +26,7 @@ export interface DlProgress {
     speed: number
 }
 
-export interface DownloadFileOpts {
+interface DownloadFileOpts {
     url: string
     destDir: string
     fileName?: string
@@ -52,9 +52,9 @@ interface InFlight {
 const inFlightDownloads = new Map<string, InFlight>()
 
 /** 默认并发连接数（可在「设置 → 网络」调整）。 */
-export const DEFAULT_DOWNLOAD_THREADS = 4
+const DEFAULT_DOWNLOAD_THREADS = 4
 /** 并发上限：别把服务端与本机同时打爆。 */
-export const MAX_DOWNLOAD_THREADS = 16
+const MAX_DOWNLOAD_THREADS = 16
 /** 小于该大小不值得分段（分段本身有额外请求开销）。 */
 const MIN_SEGMENT_BYTES = 1024 * 1024
 /** 单个请求的最大重试次数。 */
@@ -63,7 +63,7 @@ const MAX_RETRY = 3
 const EMIT_INTERVAL = 120
 
 /** 归一化并发数：非数字 / 小于 1 回退默认，上限 MAX。 */
-export function normalizeDownloadThreads(n: unknown): number {
+function normalizeDownloadThreads(n: unknown): number {
     const v = Math.floor(Number(n))
     if (!Number.isFinite(v) || v < 1) return DEFAULT_DOWNLOAD_THREADS
     return Math.min(MAX_DOWNLOAD_THREADS, v)
@@ -323,11 +323,6 @@ export async function downloadFile(o: DownloadFileOpts): Promise<DlResult> {
     }
     inFlightDownloads.set(key, entry)
     return entry.promise
-}
-
-/** 该目标文件当前是否有在途下载（同一文件的重复请求会被合并）。 */
-export function isFileDownloading(destDir: string, fileName: string): boolean {
-    return inFlightDownloads.has(downloadKey(destDir, fileName))
 }
 
 /** 去重键：最终文件的绝对路径小写（Windows 大小写不敏感）。 */

@@ -18,7 +18,7 @@ version: "1"
 
 - 打开「设置 → 终端」看 dsh 输出是否有报错（或按 `Ctrl` / `Cmd` + `T`）；
 - 检查所选端口是否被占用（应用会自动上扫空闲端口）；
-- 确认内核已安装、工作目录存在且可读写。
+- 确认 DeepSeek Harness 已安装、工作目录存在且可读写。
 
 ## 提示无法启动：No locally deployed Node found
 
@@ -39,12 +39,12 @@ version: "1"
 
 ## 为什么升级 / 卸载要「先停止 dsh」
 
-Windows 下运行中的 dsh 会锁定内核模块文件，导致替换 / 删除失败。应用会先停止再操作；若仍有进程占用会检测并提示你先关闭相关进程。
+Windows 下运行中的 dsh 会锁定 DeepSeek Harness 模块文件，导致替换 / 删除失败。应用会先停止再操作；若仍有进程占用会检测并提示你先关闭相关进程。
 
 ## 无法连接 / 检查更新失败
 
-- 检查网络；必要时把内核镜像源切到 `npmmirror` 重试；
-- 应用更新（GitHub）与内核更新（npm）走不同通道，可分别排查。
+- 检查网络；必要时把 npm 镜像源切到 `npmmirror` 重试；
+- 应用更新（GitHub）与 DeepSeek Harness 更新（npm）走不同通道，可分别排查。
 
 ## 想同时打开多个实例
 
@@ -54,4 +54,4 @@ Windows 下运行中的 dsh 会锁定内核模块文件，导致替换 / 删除�
 
 ## 其它
 
-若以上未解决，请带上「设置 → 终端」的日志与版本号（应用版本、内核版本）反馈到 [Issues](https://github.com/XEonSKY/DeepSeek-Harness-Shell/issues)。
+若以上未解决，请带上「设置 → 终端」的日志与版本号（应用版本、DeepSeek Harness 版本）反馈到 [Issues](https://github.com/XEonSKY/DeepSeek-Harness-Shell/issues)。

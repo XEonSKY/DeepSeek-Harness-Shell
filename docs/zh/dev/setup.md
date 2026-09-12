@@ -4,7 +4,7 @@
 
 | 项 | 要求 |
 |---|---|
-| Node | ≥ 20（内核运行时也要求 ≥ 20） |
+| Node | ≥ 20（DeepSeek Harness 运行时也要求 ≥ 20） |
 | 包管理器 | npm（仓库自带 `package-lock.json`） |
 | 平台 | Windows / macOS / Linux 均可开发；打包脚本按平台区分 |
 
@@ -31,9 +31,9 @@
 ```text
 project/
 ├─ src/
-│  ├─ main/            主进程（窗口、内核、配置、更新）
-│  │  ├─ app/           settings / configmigrate / ipc / ui / appupdate / appslots …
-│  │  └─ kernel/        dsh / kernel / nodeenv / npmRunner / downloader / installs …
+│  ├─ main/            主进程（窗口、DeepSeek Harness、配置、更新）
+│  │  ├─ app/           settings / configmigrate / models / ipc / ui / appupdate / appslots …
+│  │  └─ dsh/           dsh / manage / nodeenv / npmRunner / downloader / installs …
 │  ├─ preload/         window.api 桥接与类型
 │  ├─ renderer/        Vue 3 界面
 │  │  ├─ src/views/    页面与设置面板
@@ -47,11 +47,11 @@ project/
 
 ## 运行时的数据位置
 
-- **应用设置与本地安装**：配置目录，默认 `~/.dsbox/release`（打包）/ `~/.dsbox/dev`（开发），含 `settings.json`、`node/`、`npm/`、`kernel/`、`workspace/`。
+- **应用设置与本地安装**：配置目录，默认 `~/.dsbox/release`（打包）/ `~/.dsbox/dev`（开发），含 `settings.json`、`node/`、`npm/`、`dsh/`、`workspace/`。
 - **配置目录覆盖指针**：`<userData>/config-dir`；迁移计划 `<userData>/config-migration.json`。
 - **临时下载 / npm 缓存**：工作目录下 `temp/download` 与 `temp/npm`。
 
-详见[配置目录](/zh/dev/config-dir)与[内核与环境安装链路](/zh/dev/installs)。
+详见[配置目录](/zh/dev/config-dir)与[DeepSeek Harness 与环境安装链路](/zh/dev/installs)。
 
 ## 环境变量
 

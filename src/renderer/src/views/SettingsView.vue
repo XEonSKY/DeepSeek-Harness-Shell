@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { Component } from 'vue'
-import { SettingOutlined, BulbOutlined, ApiOutlined, DeploymentUnitOutlined, ClusterOutlined, CodeFilled, ControlOutlined, CompassOutlined, InfoCircleFilled } from '@antdv-next/icons'
+import { SettingOutlined, BulbOutlined, ApiOutlined, DeploymentUnitOutlined, ClusterOutlined, CodeFilled, ControlOutlined, CompassOutlined, InfoCircleFilled, RobotFilled } from '@antdv-next/icons'
 import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from './settings/useSettingsStore'
 
-type Group = 'general' | 'appearance' | 'network' | 'env' | 'dsh' | 'log' | 'hotkeys' | 'webview' | 'about'
+type Group = 'general' | 'appearance' | 'network' | 'env' | 'dsh' | 'models' | 'log' | 'hotkeys' | 'webview' | 'about'
 
 const { actions } = useSettingsStore()
 const route = useRoute()
@@ -17,6 +17,7 @@ const menus: { key: Group; icon: Component }[] = [
     { key: 'network', icon: ApiOutlined },
     { key: 'env', icon: DeploymentUnitOutlined },
     { key: 'dsh', icon: ClusterOutlined },
+    { key: 'models', icon: RobotFilled },
     { key: 'log', icon: CodeFilled },
     { key: 'hotkeys', icon: ControlOutlined },
     { key: 'webview', icon: CompassOutlined },

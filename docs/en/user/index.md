@@ -1,6 +1,6 @@
 # User guide
 
-DeepSeek Box puts the dsh kernel (npm package `@deepseek-ai/dsh`) into a desktop window: double-click to launch, no command line, no manual environment setup. This section is for **everyday users**.
+DeepSeek Box puts **DeepSeek Harness** (npm package `@deepseek-ai/dsh`, command `dsh`) into a desktop window: double-click to launch, no command line, no manual environment setup. This section is for **everyday users**.
 
 > To modify the code or learn about the internals, see the [Developer guide](/en/dev/).
 
@@ -21,15 +21,19 @@ DeepSeek Box puts the dsh kernel (npm package `@deepseek-ai/dsh`) into a desktop
   </a>
   <a class="card" href="/en/user/settings">
     <h3>⚙️ Settings</h3>
-    <p>General, appearance, network, terminal, shortcuts, webview and about.</p>
+    <p>General, appearance, network, environment, DeepSeek Harness, models, terminal and about.</p>
   </a>
   <a class="card" href="/en/user/environment">
     <h3>🧰 Environment (Node / npm)</h3>
     <p>Three sources, versioned installs and switching, downloader and cache.</p>
   </a>
-  <a class="card" href="/en/user/kernel">
-    <h3>🔄 Kernel management</h3>
+  <a class="card" href="/en/user/dsh">
+    <h3>🔄 DeepSeek Harness management</h3>
     <p>Install, update, switch / roll back versions and uninstall.</p>
+  </a>
+  <a class="card" href="/en/user/models">
+    <h3>🧠 Models & balances</h3>
+    <p>Model list, providers and balance queries; keys never leave the main process.</p>
   </a>
   <a class="card" href="/en/user/update">
     <h3>📦 App updates & rollback</h3>
@@ -48,6 +52,6 @@ DeepSeek Box puts the dsh kernel (npm package `@deepseek-ai/dsh`) into a desktop
 3. [Interface & usage](/en/user/usage) — tabs, multiple windows, shortcuts;
 4. [Settings](/en/user/settings) — what each setting actually controls.
 
-## Its relationship to the dsh kernel
+## Its relationship to DeepSeek Harness
 
-This app does **not replace** dsh; it is its **desktop entry point + environment manager**: it starts and supervises the dsh process, embeds the interface in a native window, and can optionally manage Node, npm, and kernel versions on your behalf. Conversations, workspaces, sessions, and other data still belong to dsh itself.
+This app does **not replace** DeepSeek Harness; it is its **desktop entry point + environment manager**: it starts and supervises the dsh process, embeds the interface in a native window, and can optionally manage Node, npm, and DeepSeek Harness versions on your behalf. Conversations, workspaces, sessions, and other data still belong to DeepSeek Harness itself.

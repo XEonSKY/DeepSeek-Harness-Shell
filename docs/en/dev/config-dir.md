@@ -1,6 +1,6 @@
 # Config directory & migration
 
-The app's own data (settings, kernel, Node, npm, default workspace) lives in the **config directory**, not Electron's userData. This page describes the default location, the override mechanism and the two-phase migration.
+The app's own data (settings, DeepSeek Harness, Node, npm, default workspace) lives in the **config directory**, not Electron's userData. This page describes the default location, the override mechanism and the two-phase migration.
 
 ## Default locations
 
@@ -26,7 +26,7 @@ The chosen directory is recorded in `<userData>/config-dir` (decoupled from the 
 
 **Phase one (when setting)**: `setConfigDir()` does not move anything immediately; it only writes a migration plan (`<userData>/config-migration.json`). While a plan exists, `configDir()` still returns the **old directory**, so settings stay readable before the restart.
 
-**Phase two (restart bootstrap)**: after creating the window, `main/index.ts` calls `await waitForConfigMigration()` before starting the kernel and the watchers; the migration is executed by `main/app/configmigrate.ts`:
+**Phase two (restart bootstrap)**: after creating the window, `main/index.ts` calls `await waitForConfigMigration()` before starting DeepSeek Harness and the watchers; the migration is executed by `main/app/configmigrate.ts`:
 
 - First `scanTree` counts the files;
 - `migrateTree` moves item by item: on the same drive a whole directory is `rename`-d; across drives, or when the target exists, it recursively copies + unlinks and records a journal;
@@ -42,5 +42,5 @@ The chosen directory is recorded in `<userData>/config-dir` (decoupled from the 
 
 ## Related
 
-- [Kernel & environment install pipeline](/en/dev/installs)
+- [DeepSeek Harness & environment install pipeline](/en/dev/installs)
 - [App self-update](/en/dev/app-update)

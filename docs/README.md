@@ -13,7 +13,7 @@ project/
    ├─ index.md             # 根路径跳转（meta refresh → /zh/）
    ├─ zh/
    │  ├─ index.md          # 中文首页（hero + 分流到 user / dev）
-   │  ├─ user/             # 用户文档：index / download / quickstart / usage / settings / environment / kernel / update / faq
+   │  ├─ user/             # 用户文档：index / download / quickstart / usage / settings / environment / dsh / models / update / faq
    │  └─ dev/              # 开发文档：index / setup / architecture / modules / renderer / ipc / installs / config-dir / app-update / release / conventions
    ├─ en/                  # 英文页面，与 zh/ 一一对应
    ├─ public/              # CNAME / .nojekyll / logo.png / home-page.png

@@ -4,7 +4,7 @@ import type { UpdateDownloadedEvent } from 'electron-updater'
 import semver from 'semver'
 import type { AppMeta, AppUpdateEvent, Settings } from '@shared/types'
 import { isPrerelease, stripV } from '@shared/version'
-import { proxyActive, proxyUrl } from '../kernel/net'
+import { proxyActive, proxyUrl } from '../dsh/net'
 import { broadcast } from './runtime'
 import { loadSettings, mt } from './settings'
 import {

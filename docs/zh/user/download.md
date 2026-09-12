@@ -8,10 +8,10 @@ DeepSeek Box 是跨平台桌面应用，安装包发布在 GitHub Releases。
 |---|---|
 | 操作系统 | Windows 10/11（x64 / arm64）、macOS、主流 Linux（x64 / arm64） |
 | 运行时 | **无需预装 Node.js**：可用 Electron 自带 Node、让应用下载部署本地 Node，或使用系统 Node（≥ 20） |
-| 网络 | 首次需联网以下载内核与（可选的）Node / npm；之后只使用本机回环地址 |
-| 磁盘 | 安装包 + 内核与运行时（每次约几十到几百 MB，取决于所选来源） |
+| 网络 | 首次需联网以下载 DeepSeek Harness 与（可选的）Node / npm；之后只使用本机回环地址 |
+| 磁盘 | 安装包 + DeepSeek Harness 与运行时（每次约几十到几百 MB，取决于所选来源） |
 
-> 内核 `@deepseek-ai/dsh` 由应用自动检测；缺失时会弹出安装向导，可选官方 `registry.npmjs.org` 或 `npmmirror` 镜像。
+> DeepSeek Harness `@deepseek-ai/dsh` 由应用自动检测；缺失时会弹出安装向导，可选官方 `registry.npmjs.org` 或 `npmmirror` 镜像。
 
 ## 从哪里下载
 

@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: DeepSeek Box
-  text: Desktop shell around the dsh kernel
-  tagline: Launch the dsh kernel with Electron and put the dsh Web UI, web chat and the top-up platform into one desktop window. Double-click to run — no command line.
+  text: Desktop shell around DeepSeek Harness
+  tagline: Launch DeepSeek Harness with Electron and put the dsh Web UI, web chat and the top-up platform into one desktop window. Double-click to run — no command line.
   image:
     src: /home-page.png
     alt: DeepSeek Box main window
@@ -19,7 +19,7 @@ hero:
 features:
   - icon: 🧩
     title: Browser-style tabs
-    details: The three fixed sites (kernel UI / web chat / usage & top-up) live in the tab strip; links opened from a page become dynamic tabs you can star to keep alive and drag to reorder.
+    details: The three fixed sites (dsh Web UI / web chat / usage & top-up) live in the tab strip; links opened from a page become dynamic tabs you can star to keep alive and drag to reorder.
   - icon: 🪟
     title: Multiple windows
     details: Right-click "Open in new window" to tear off a secondary window; tabs can be dragged between windows, and the earliest secondary window takes over once the core window closes.
@@ -27,7 +27,7 @@ features:
     title: Self-managed environment
     details: Use the bundled Node + npm, or your system Node; versioned installs you can switch and roll back without touching a terminal.
   - icon: 🔄
-    title: Self-managed kernel
+    title: Self-managed DeepSeek Harness
     details: Install / upgrade / switch / uninstall @deepseek-ai/dsh, safely stopping a running server first.
   - icon: ⬇️
     title: Multi-threaded downloads
@@ -54,7 +54,7 @@ features:
   </a>
   <a class="card" href="/en/user/settings">
     <h3>⚙️ Settings</h3>
-    <p>Theme, language, registry, proxy, downloads and kernel options.</p>
+    <p>Theme, language, registry, proxy, downloads and DeepSeek Harness options.</p>
   </a>
   <a class="card" href="/en/user/environment">
     <h3>🧰 Environment</h3>
@@ -77,7 +77,7 @@ features:
   <div class="step">
     <span class="step__no">2</span>
     <h3>Follow the wizard</h3>
-    <p>Registry → Node → npm → install kernel: four steps to finish setup.</p>
+    <p>Registry → Node → npm → install DeepSeek Harness: four steps to finish setup.</p>
   </div>
   <div class="step">
     <span class="step__no">3</span>

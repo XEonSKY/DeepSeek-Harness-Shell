@@ -3,7 +3,7 @@ import { isPrerelease, stripV } from '@shared/version'
 
 /**
  * 版本比较工具：改用流行 npm 库 `semver` 实现，替代手写 semver 解析/比较。
- * 对外保持原有函数名与语义（kernel/updater 依赖），减少自维护逻辑。
+ * 对外保持原有函数名与语义（dsh/updater 依赖），减少自维护逻辑。
  */
 
 // 「是否预发布」与「去前导 v」的判定统一放在 shared/version.ts（renderer 也用同一份）。

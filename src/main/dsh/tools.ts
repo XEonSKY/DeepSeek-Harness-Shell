@@ -7,14 +7,14 @@ import { installRoot, listInstalled, resolveActive, versionDir } from './install
 import type { NodeRuntimeKind } from '@shared/types'
 
 /**
- * Kernel / tooling location helpers.
+ * dsh / tooling location helpers.
  *
- * The @deepseek-ai/dsh kernel may come from two places:
- *   - local ('local', default): installed by this app into <configDir>/kernel
+ * @deepseek-ai/dsh may be installed in two ways:
+ *   - local ('local', default): installed by this app into <configDir>/dsh
  *     and run with Electron's own bundled Node (no system node needed).
  *   - global ('global'): the system `npm install -g @deepseek-ai/dsh`, found on PATH.
  *
- * Either way we launch the kernel by running its real JS bin entry under a Node
+ * Either way we launch dsh by running its real JS bin entry under a Node
  * runtime we pick, instead of a shell `.cmd` shim, so the whole lifecycle can run
  * under Electron's Node.
  */
@@ -35,10 +35,10 @@ export function findInDirs(dirs: string[], names: string[]): string | undefined 
     return undefined
 }
 
-/** Where the app-managed (local) kernel is installed: `<configDir>/kernel/<版本>/node_modules/@deepseek-ai/dsh`. */
-export function localDshModuleDir(): string {
-    const active = resolveActive('kernel')
-    const base = active ? versionDir('kernel', active) : installRoot('kernel')
+/** Where the app-managed (local) dsh is installed: `<configDir>/dsh/<版本>/node_modules/@deepseek-ai/dsh`. */
+function localDshModuleDir(): string {
+    const active = resolveActive('dsh')
+    const base = active ? versionDir('dsh', active) : installRoot('dsh')
     return path.join(base, 'node_modules', '@deepseek-ai', 'dsh')
 }
 
@@ -57,7 +57,7 @@ function readPkgVersion(moduleDir: string): string | null {
  * Resolve the JS bin entry of a package from its module dir (reads package.json
  * `bin`, preferring the entry mapped to `dsh`, falling back to `main`).
  */
-export function resolveModuleBin(moduleDir: string): string | null {
+function resolveModuleBin(moduleDir: string): string | null {
     let pkg: { bin?: unknown; main?: string }
     try {
         pkg = JSON.parse(fs.readFileSync(path.join(moduleDir, 'package.json'), 'utf8')) as {
@@ -107,7 +107,7 @@ function findDshModule(startPath: string): { dir: string; version: string } | nu
 }
 
 /** Resolve the global `dsh` launcher on PATH (throws when absent). */
-export function resolveDsh(configured: string | null): string {
+function resolveDshLauncher(configured: string | null): string {
     if (configured) {
         if (!fs.existsSync(configured)) throw new Error(`DSH_BIN / settings.dshBin points at a missing file: ${configured}`)
         return configured
@@ -123,8 +123,8 @@ export function resolveDsh(configured: string | null): string {
     throw new Error('Could not find the `dsh` CLI on PATH. Install it with:\n  npm install -g @deepseek-ai/dsh\nor set DSH_BIN to the launcher path.')
 }
 
-/** What we know about the currently effective kernel for a given setting. */
-export interface DshKernel {
+/** What we know about the currently effective dsh install for a given setting. */
+interface ResolvedDsh {
     kind: 'local' | 'global'
     present: boolean
     /** @deepseek-ai/dsh module directory ('' when unknown). */
@@ -134,12 +134,12 @@ export interface DshKernel {
     entry: string | null
 }
 
-/** Resolve presence / version / bin entry of the kernel chosen by cfg.kernelSource. */
-export function resolveKernel(cfg: { kernelSource?: 'local' | 'global'; dshBin?: string | null }): DshKernel {
-    if (cfg.kernelSource === 'global') {
+/** Resolve presence / version / bin entry of the dsh install chosen by cfg.dshSource. */
+export function resolveDshModule(cfg: { dshSource?: 'local' | 'global'; dshBin?: string | null }): ResolvedDsh {
+    if (cfg.dshSource === 'global') {
         let launcher: string
         try {
-            launcher = resolveDsh(cfg.dshBin ?? null)
+            launcher = resolveDshLauncher(cfg.dshBin ?? null)
         } catch {
             return { kind: 'global', present: false, moduleDir: '', version: null, entry: null }
         }
@@ -190,7 +190,7 @@ export function nodeVersionOf(nodePath: string): Promise<string | null> {
 }
 
 /**
- * The Node runtime used to execute the watchdog, the local kernel and any bundled
+ * The Node runtime used to execute the watchdog, the local dsh and any bundled
  * tooling.
  */
 export interface NodeRuntime {

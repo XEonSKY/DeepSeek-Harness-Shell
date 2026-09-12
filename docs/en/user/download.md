@@ -8,10 +8,10 @@ DeepSeek Box is a cross-platform desktop application; installers are published o
 |---|---|
 | Operating system | Windows 10/11 (x64 / arm64), macOS, mainstream Linux (x64 / arm64) |
 | Runtime | **No pre-installed Node.js required**: you can use the Node bundled with Electron, let the app download and deploy a local Node, or use the system Node (≥ 20) |
-| Network | An internet connection is required on first run to download the kernel and the (optional) Node / npm; afterwards only the local loopback address is used |
-| Disk | Installer + kernel and runtime (roughly tens to hundreds of MB each time, depending on the chosen source) |
+| Network | An internet connection is required on first run to download DeepSeek Harness and the (optional) Node / npm; afterwards only the local loopback address is used |
+| Disk | Installer + DeepSeek Harness and runtime (roughly tens to hundreds of MB each time, depending on the chosen source) |
 
-> The kernel `@deepseek-ai/dsh` is detected automatically by the app; when it is missing, an installation wizard pops up where you can choose the official `registry.npmjs.org` or the `npmmirror` mirror.
+> DeepSeek Harness `@deepseek-ai/dsh` is detected automatically by the app; when it is missing, an installation wizard pops up where you can choose the official `registry.npmjs.org` or the `npmmirror` mirror.
 
 ## Where to download
 

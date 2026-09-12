@@ -18,7 +18,7 @@ The app parses the address from the `dsh web: <url>` line printed by dsh. If the
 
 - Open “Settings → Terminal” to see whether the dsh output contains errors (or press `Ctrl` / `Cmd` + `T`);
 - Check whether the chosen port is occupied (the app automatically scans upward for a free port);
-- Confirm that the kernel is installed and that the working directory exists and is readable / writable.
+- Confirm that DeepSeek Harness is installed and that the working directory exists and is readable / writable.
 
 ## “No locally deployed Node found” when starting
 
@@ -39,12 +39,12 @@ You need to enable **Developer Mode** first: “Settings → About → Developer
 
 ## Why do upgrades / uninstalls “stop dsh first”
 
-On Windows, a running dsh locks the kernel module files, causing replacement / deletion to fail. The app stops it before operating; if a process still holds it, the app detects this and prompts you to close the relevant process.
+On Windows, a running dsh locks the DeepSeek Harness module files, causing replacement / deletion to fail. The app stops it before operating; if a process still holds it, the app detects this and prompts you to close the relevant process.
 
 ## Cannot connect / update check fails
 
-- Check your network; if necessary switch the kernel mirror to `npmmirror` and retry;
-- App updates (GitHub) and kernel updates (npm) use different channels and can be troubleshot separately.
+- Check your network; if necessary switch the npm mirror to `npmmirror` and retry;
+- App updates (GitHub) and DeepSeek Harness updates (npm) use different channels and can be troubleshot separately.
 
 ## Want to open multiple instances at once
 
@@ -54,4 +54,4 @@ It is **single-instance** by default: launching it again brings the existing win
 
 ## Other
 
-If the above does not solve it, please report the log from “Settings → Terminal” together with the version numbers (app version, kernel version) to [Issues](https://github.com/XEonSKY/DeepSeek-Harness-Shell/issues).
+If the above does not solve it, please report the log from “Settings → Terminal” together with the version numbers (app version, DeepSeek Harness version) to [Issues](https://github.com/XEonSKY/DeepSeek-Harness-Shell/issues).

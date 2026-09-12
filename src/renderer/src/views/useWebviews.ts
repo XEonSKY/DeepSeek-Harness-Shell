@@ -142,7 +142,7 @@ export function useWebviews(host: WebviewHost) {
         }
     }
 
-    /** home(内核 UI) URL 变化（dsh 就绪/重连换端口）时，让已存在的 home webview 导航过去。 */
+    /** home(dsh UI) URL 变化（dsh 就绪/重连换端口）时，让已存在的 home webview 导航过去。 */
     function syncHomeUrl(): void {
         const home = webTabs.list.find((t) => t.kind === 'home')
         const u = home?.url ?? null

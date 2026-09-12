@@ -1,6 +1,6 @@
 # Developer guide
 
-For developers who want to understand the internals, fix bugs, or contribute code. The app is an Electron + Vue 3 + TypeScript desktop shell that runs the **@deepseek-ai/dsh** kernel.
+For developers who want to understand the internals, fix bugs, or contribute code. The app is an Electron + Vue 3 + TypeScript desktop shell that runs **DeepSeek Harness** (npm package `@deepseek-ai/dsh`, command `dsh`).
 
 > Just want to use the app? See the [User guide](/en/user/).
 
@@ -17,7 +17,7 @@ For developers who want to understand the internals, fix bugs, or contribute cod
   </a>
   <a class="card" href="/en/dev/modules">
     <h3>📦 Main-process modules</h3>
-    <p>What each module under app/ and kernel/ is responsible for.</p>
+    <p>What each module under app/ and dsh/ is responsible for.</p>
   </a>
   <a class="card" href="/en/dev/renderer">
     <h3>🎨 Renderer</h3>

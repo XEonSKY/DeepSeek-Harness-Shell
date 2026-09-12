@@ -35,8 +35,8 @@ export interface SettingsState {
     /** 文件下载并发连接数（1 = 单线程）。 */
     downloadThreads: number
     devMode: boolean
-    /** 内核来源：'local'（内置/默认）｜ 'global'（使用全局安装）。 */
-    kernelSource: 'local' | 'global'
+    /** dsh 来源：'local'（内置/默认）｜ 'global'（使用全局安装）。 */
+    dshSource: 'local' | 'global'
     /** Node 运行时：'system' ｜ 'electron'(默认) ｜ 'local'。 */
     nodeRuntime: NodeRuntimeKind
     /** 本地安装用的 npm：'system' ｜ 'bundled'(内置) ｜ 'localnode'(本地 Node 自带)。 */
@@ -69,15 +69,17 @@ export interface SettingsState {
     webviewUserAgent: string
     /** 配色方案 id（预制方案见 lib/theme.ts）。 */
     colorScheme: ColorSchemeId
+    /** 「设置 → 模型」是否已同意读取本地凭据文件。 */
+    modelsCredConsent: boolean
     /** dsh 是否正在运行（仅 UI，不持久化）。 */
     dshRunning: boolean
     applying: boolean
     updating: boolean
-    updatingKernel: boolean
+    updatingDsh: boolean
     version: string | null
     versions: string[]
     versionsLoading: boolean
-    switchingKernel: boolean
+    switchingDsh: boolean
     uninstalling: boolean
     selectedVersion: string
 }
@@ -96,7 +98,7 @@ export interface SettingsActions {
     loadVersions(): Promise<void>
     versionLabel(v: string): string
     runUpdateCheck(): Promise<void>
-    runUpdateKernel(): Promise<void>
+    runUpdateDsh(): Promise<void>
     switchVersion(): Promise<void>
     confirmUninstall(): Promise<void>
     fillFrom(s: Settings): void
@@ -121,7 +123,7 @@ export function payloadFrom(state: SettingsState): Settings {
         updateMirrorUrl: state.updateMirrorUrl,
         downloadThreads: state.downloadThreads,
         devMode: state.devMode,
-        kernelSource: state.kernelSource,
+        dshSource: state.dshSource,
         nodeRuntime: state.nodeRuntime,
         npmSource: state.npmSource,
         proxyEnabled: state.proxyEnabled,
@@ -141,6 +143,7 @@ export function payloadFrom(state: SettingsState): Settings {
         hotkeyDevTools: state.hotkeyDevTools,
         hardwareAcceleration: state.hardwareAcceleration,
         webviewUserAgent: state.webviewUserAgent,
-        colorScheme: state.colorScheme
+        colorScheme: state.colorScheme,
+        modelsCredConsent: state.modelsCredConsent
     }
 }

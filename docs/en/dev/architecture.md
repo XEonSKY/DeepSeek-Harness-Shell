@@ -25,7 +25,7 @@ Main-process entry `src/main/index.ts`:
 5. **After app ready**: register IPC → create the window → create the tray → register global shortcuts;
 6. `await waitForConfigMigration()`: when a config-directory migration is pending, finish it first (with progress broadcasts), then continue;
 7. `await migrateLegacyInstalls()`: migrate the old flat install directories into the versioned layout;
-8. Start the config file watcher; if the kernel already exists, `restart()` to start dsh;
+8. Start the config file watcher; if DeepSeek Harness already exists, `restart()` to start dsh;
 9. Check for app updates according to settings.
 
 ## Lifecycle and quitting
@@ -36,7 +36,7 @@ Main-process entry `src/main/index.ts`:
 
 ## Window and tab model
 
-- The core window hosts three fixed sites (kernel UI / web chat / usage & top-up); the core-window registration and takeover logic lives in `app/windowreg.ts` and the renderer's `lib/tabs.ts`.
+- The core window hosts three fixed sites (dsh Web UI / web chat / usage & top-up); the core-window registration and takeover logic lives in `app/windowreg.ts` and the renderer's `lib/tabs.ts`.
 - Secondary windows are created by "Open in new window"; tabs can be dragged in / out, and after the core window closes the earliest secondary window takes over.
 - Embedded pages use `<webview>`; the address bar is shown only for dynamic tabs, and protocol / search routing lives in the renderer.
 
@@ -44,7 +44,7 @@ Main-process entry `src/main/index.ts`:
 
 - **App settings**: `settings.json` under the config directory (not Electron's userData);
 - **dsh's own settings**: `~/.dsh/settings.yaml`; the app syncs theme / language there;
-- **Kernel / Node / npm**: stored per version under the config directory, see [Kernel & environment install pipeline](/en/dev/installs).
+- **DeepSeek Harness / Node / npm**: stored per version under the config directory, see [DeepSeek Harness & environment install pipeline](/en/dev/installs).
 
 ## Related documents
 

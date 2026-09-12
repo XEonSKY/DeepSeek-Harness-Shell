@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import { NEWTAB_URL, isNewTabTarget } from '@shared/types'
 import type { HotkeyState } from '@shared/types'
 import { matchesAccelerator } from '@shared/hotkeys'
+import { CONTENT_HEIGHT, CONTENT_WIDTH, STATUSBAR_HEIGHT, TITLEBAR_HEIGHT } from '@shared/chrome'
 import { loadSettings, mt } from './settings'
 import { APP_TITLE } from './const'
 import {
@@ -143,8 +144,8 @@ function createPopupWindow(url: string, features: string): void {
 /**
  * 一个壳窗口被真正销毁后的收尾：若它正是当前“主(核心)窗口”则清空句柄；随后若已无核心
  * 但仍有多余壳窗口存活，则把核心角色移交给“现存最早”的副窗口，设为主窗口并告诉它：
- *   - shell:core(true)  → renderer 补上三固定站并回到内核 UI；
- *   - dsh:url           → 新核心此前未收过内核地址，补发当前 dsh URL。
+ *   - shell:core(true)  → renderer 补上三固定站并回到 dsh UI；
+ *   - dsh:url           → 新核心此前未收过 dsh 地址，补发当前 dsh URL。
  */
 function finalizeWindowClosed(win: BrowserWindow): void {
     if (getMainWindow() === win) setMainWindow(null)
@@ -176,8 +177,8 @@ export function takeOpenIntent(wcId: number): string | null {
 }
 
 /**
- * 建一个壳窗口（核心或副窗口）并挂上所有与角色/多窗口相关的处理。核心窗口承载 dsh 内核
- * UI；副窗口是带完整标签条的浏览器窗口，但无内核 UI 固定站，且 UI 事件均只发回本窗口。
+ * 建一个壳窗口（核心或副窗口）并挂上所有与角色/多窗口相关的处理。核心窗口承载 dsh
+ * UI；副窗口是带完整标签条的浏览器窗口，但无 dsh UI 固定站，且 UI 事件均只发回本窗口。
  */
 function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
     Menu.setApplicationMenu(null)
@@ -185,8 +186,9 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
     const iconPath = appIconPath()
 
     const win = new BrowserWindow({
-        width: 1280,
-        height: 860,
+        // 默认 16:9 指内容区 1280×720；再加自绘的标题栏与底部状态栏（见 @shared/chrome）
+        width: CONTENT_WIDTH,
+        height: CONTENT_HEIGHT + TITLEBAR_HEIGHT + STATUSBAR_HEIGHT,
         minWidth: 900,
         minHeight: 600,
         title: 'DeepSeek Box',
@@ -324,7 +326,7 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
 }
 
 /**
- * 首个（核心）壳窗口。dsh 内核 UI 固定站只在此窗口出现；它在关闭（且无托盘或非最后窗口）
+ * 首个（核心）壳窗口。dsh UI 固定站只在此窗口出现；它在关闭（且无托盘或非最后窗口）
  * 时被真正销毁，若有副窗口则会把核心角色移交给它们。
  */
 export function createShellWindow(): void {

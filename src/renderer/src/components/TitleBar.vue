@@ -186,13 +186,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <!-- Custom (frameless) title bar: the whole bar is a drag region. -->
     <header class="titlebar" :class="{ 'titlebar--flush': navVisible }">
         <div class="left">
-            <img :src="appIcon" class="icon" alt="" draggable="false" />
-            <span class="title">{{ $t('app.title') }}</span>
+            <div class="brand">
+                <div class="logo">
+                    <img :src="appIcon" class="logo__img" alt="" draggable="false" />
+                </div>
+                <span class="title">{{ $t('app.title') }}</span>
+            </div>
 
-            <!-- 核心窗口：显示固定三站图标；非核心窗口：显示“跳转核心窗口”按钮 -->
             <div class="quick">
                 <template v-if="shellMeta.isCore">
                     <el-tooltip :content="$t('app.nav.ui')" placement="bottom" :show-after="300">
@@ -300,12 +302,10 @@ onBeforeUnmount(() => {
 
     <!-- 跨窗口拖拽：本窗口被悬停为目标 → 顶部标签栏浅蓝遮罩表示可接收 -->
     <div v-if="hoverMask" class="tab-drop-mask"></div>
-    <!-- 拖动中的半透明“幽灵”标签，跟随指针 -->
     <div v-if="ghost.visible" class="tab-ghost" :style="{ left: ghost.x + 'px', top: ghost.y + 'px' }">
         {{ ghost.text }}
     </div>
 
-    <!-- 标签页右键菜单 -->
     <template v-if="ctx">
         <div class="ctx-bk" @mousedown="closeCtx" @contextmenu.prevent="closeCtx" />
         <div class="ctx" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
@@ -322,19 +322,21 @@ onBeforeUnmount(() => {
 .titlebar {
   -webkit-app-region: drag;
   flex: 0 0 auto;
-  height: 54px;
+  height: var(--titlebar-h, 52px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 10px 0 14px;
-  border-bottom: 1px solid var(--el-border-color-light);
+  /* 左侧不留内边距，Logo 才能贴住窗口最左边缘 */
+  padding: 0 10px 0 0;
+  /* 下边框改用 inset 阴影画：不占布局高度，52×52 的 Logo 正好顶满标题栏 */
+  box-shadow: inset 0 -1px 0 var(--el-border-color-light);
   background: var(--el-bg-color);
   user-select: none;
 }
 /* 动态标签页显示网址导航栏时，去掉标题栏下边框，使标题栏与网址栏无缝相连 */
 .titlebar--flush {
-  border-bottom: none;
+  box-shadow: none;
 }
 .left {
   display: flex;
@@ -344,18 +346,42 @@ onBeforeUnmount(() => {
   min-width: 0;
   overflow: hidden;
 }
-.icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  object-fit: cover;
-  -webkit-user-drag: none;
+/* 品牌区：Logo + 标题成组，组内紧贴、与右侧快捷站保持间距 */
+.brand {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Logo 独立元素：宽高随标题栏高度；图标本体固定 32px 居中 */
+.logo {
   flex: 0 0 auto;
+  width: var(--titlebar-h, 52px);
+  height: var(--titlebar-h, 52px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.logo__img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  /* 图标本身已是圆角白底；这里圆角与之一致（224/1024 × 32 ≈ 7px），避免二次裁切 */
+  border-radius: 7px;
+  object-fit: contain;
+  -webkit-user-drag: none;
 }
 .title {
+  /* 允许收缩并省略：窄窗口下标题不挤占标签条 */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
   font-size: 15px;
   white-space: nowrap;
+  color: var(--el-text-color-primary);
 }
 .right {
   flex: 0 0 auto;
@@ -372,6 +398,10 @@ onBeforeUnmount(() => {
   height: 22px;
   background: var(--el-border-color-lighter);
   margin: 0 6px;
+}
+/* 左侧快捷站与标签条之间的分割线：去掉右侧外边距，紧贴标签条 */
+.quick .divider {
+  margin-right: 0;
 }
 .icon-btn {
   display: inline-flex;
@@ -422,7 +452,6 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-left: 8px;
   overflow-x: auto;
   scrollbar-width: thin;
 }

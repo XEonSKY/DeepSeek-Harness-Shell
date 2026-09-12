@@ -12,7 +12,7 @@ import { loadSettings } from './settings'
  */
 
 /** Chromium 的 WebKit 兼容标记：真实 Chrome/Electron 一直发 537.36，与版本无关。 */
-export const WEBKIT_TOKEN = '537.36'
+const WEBKIT_TOKEN = '537.36'
 
 /**
  * UA 里的平台段，按各平台真实 Chrome 的写法生成：
@@ -21,7 +21,7 @@ export const WEBKIT_TOKEN = '537.36'
  *    即使 Apple Silicon 也照发，所以这里写死而不去猜 Darwin 版本到产品版本的映射
  *  - Linux：`X11; Linux x86_64` / `aarch64`
  */
-export function platformToken(platform: string, arch: string, osRelease: string): string {
+function platformToken(platform: string, arch: string, osRelease: string): string {
     if (platform === 'win32') {
         const nt = /^(\d+\.\d+)/.exec(osRelease)?.[1] ?? '10.0'
         const cpu = arch === 'arm64' ? 'Win64; ARM64' : arch === 'ia32' ? 'WOW64' : 'Win64; x64'

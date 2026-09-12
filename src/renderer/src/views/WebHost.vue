@@ -13,7 +13,7 @@ import type { WebviewEl } from './useWebviews'
  * 「/」路由宿主：标签页模式的 web 内容区。
  * - 每个标签页一个 pane；激活页可见，其余隐藏但保留在 DOM——已访问 webview 保活。
  * - webview 的创建/保活/裁剪规则见 `useWebviews`（本组件只负责显示与地址栏）。
- * - home（内核 UI）订阅主进程 dsh URL 广播 + 轮询兜底。
+ * - home（dsh UI）订阅主进程 dsh URL 广播 + 轮询兜底。
  * - 任一 webview 的 target=_blank / window.open (ui:new-tab) → openTab 动态新标签页。
  * - 顶部是浏览器式导航栏（后退/前进/刷新 + 地址栏），驱动当前激活 webview。
  * - 标题栏刷新(ui:reload-dsh) → 重载当前激活 webview。
@@ -164,7 +164,7 @@ onMounted(async () => {
     }
 
     // dsh:url 只定向发给“核心窗口”，但这里始终订阅：若本窗口稍后被提升为新的核心窗口，
-    // 主进程会在提升后补发 dsh:url，让内核 UI 固定站能及时拿到地址。
+    // 主进程会在提升后补发 dsh:url，让 dsh UI 固定站能及时拿到地址。
     offUrl = window.api.onDshUrl((u) => setHomeUrl(u))
     offNewTab = window.api.onNewTab((url) => { openTarget(url) })
     offReload = window.api.onReloadDsh(() => wvApi.reloadActive())
@@ -173,7 +173,7 @@ onMounted(async () => {
         if (s.searchEngine) defaultEngine = s.searchEngine
     })
 
-    // 初始拉取 dsh URL 只对核心窗口做（内核 UI 固定站只在核心窗口）；副窗口由主进程以
+    // 初始拉取 dsh URL 只对核心窗口做（dsh UI 固定站只在核心窗口）；副窗口由主进程以
     // ui:new-tab 定向给一个动态标签页，不需 home。
     wvApi.ensureActive()
     syncNavFrom(wvApi.activeWv())
@@ -226,7 +226,6 @@ onBeforeUnmount(() => {
                 class="whost__pane"
                 :class="{ on: tab.id === webTabs.activeId }"
             >
-                <!-- 内置导航页（无 webview） -->
                 <NewTab v-if="tab.kind === 'newtab'" />
                 <template v-else>
                     <div class="whost__holder" :ref="(el) => setHolder(tab.id, el as HTMLDivElement | null)"></div>

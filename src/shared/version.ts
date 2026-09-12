@@ -16,8 +16,8 @@ export function isPrerelease(v: string): boolean {
     return /^\d+\.\d+\.\d+-/.test(stripV(v))
 }
 
-/** 内核可用的 Node 最低主版本 —— 低于它的 Node 装了也跑不起内核。 */
-export const MIN_KERNEL_NODE_MAJOR = 20
+/** dsh 可用的 Node 最低主版本 —— 低于它的 Node 装了也跑不起 dsh。 */
+export const MIN_NODE_MAJOR = 20
 
 /** 取版本号主版本（`v22.14.0` / `22.14.0` → 22）；解析不出返回 null。 */
 export function nodeMajor(v: string | null | undefined): number | null {

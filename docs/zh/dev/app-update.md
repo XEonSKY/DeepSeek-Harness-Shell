@@ -23,11 +23,11 @@
 - 事件：`appupdate:*`（下载进度、就绪、错误）；
 - IPC：`appupdate:check` / `appupdate:trigger` / `appupdate:slots` / `appupdate:rollback`。
 
-## 与内核更新的区别
+## 与 DeepSeek Harness 更新的区别
 
 | | 对象 | 通道 |
 |---|---|---|
 | 应用自更新 | 外壳应用 | GitHub Releases |
-| 内核更新 | `@deepseek-ai/dsh` | npm registry |
+| DeepSeek Harness 更新 | `@deepseek-ai/dsh` | npm registry |
 
 两者互不影响，排查时分开看。

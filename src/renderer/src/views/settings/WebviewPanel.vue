@@ -6,7 +6,7 @@ import { tt } from '../../lib/locales'
 import { useSettingsStore } from './useSettingsStore'
 
 /**
- * 「Webview」页：内嵌页面（内核 UI / 网页对话 / 所有动态标签）的渲染与身份设置。
+ * 「Webview」页：内嵌页面（dsh UI / 网页对话 / 所有动态标签）的渲染与身份设置。
  *
  * 两项设置的生效方式**不一样**，UI 上必须说清楚：
  *  - **硬件加速**只能在 `app ready` 之前决定（Electron 限制），所以改完必须重启；

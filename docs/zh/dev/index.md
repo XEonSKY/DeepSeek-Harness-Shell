@@ -1,6 +1,6 @@
 # 开发文档
 
-面向想理解内部实现、修 bug 或贡献代码的开发者。应用是 Electron + Vue 3 + TypeScript 的桌面外壳，运行 **@deepseek-ai/dsh** 内核。
+面向想理解内部实现、修 bug 或贡献代码的开发者。应用是 Electron + Vue 3 + TypeScript 的桌面外壳，运行 **DeepSeek Harness**（npm 包 `@deepseek-ai/dsh`，命令 `dsh`）。
 
 > 只想把应用用起来？请看[用户文档](/zh/user/)。
 
@@ -17,7 +17,7 @@
   </a>
   <a class="card" href="/zh/dev/modules">
     <h3>📦 主进程模块</h3>
-    <p>app / 与 kernel / 下每个模块的职责与导出。</p>
+    <p>app/ 与 dsh/ 下每个模块的职责与导出。</p>
   </a>
   <a class="card" href="/zh/dev/renderer">
     <h3>🎨 渲染进程</h3>

@@ -24,7 +24,7 @@ npm run dist:win     # 打包 Windows（另有 dist:mac / dist:linux）
 
 1. 修改 `package.json` 与 `package-lock.json` 的版本号；
 2. 提交并推送到 `main`（推远程前需确认）；
-3. 打 tag（如 `v0.1.5-beta-1`）并推送，触发 `Build & Release`；
+3. 打 tag（如 `v0.1.5-rc-1`）并推送，触发 `Build & Release`；
 4. 文档改动若推到 `main`，会另行触发 Pages 部署。
 
 > 推送远程前必须先说明目标（分支 / 标签、是否强推）并征得确认，见[开发约定](/zh/dev/conventions)。

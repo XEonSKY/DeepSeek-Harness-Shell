@@ -23,11 +23,11 @@ Decided per platform: on Windows / macOS the application directory, on Linux the
 - Events: `appupdate:*` (download progress, ready, errors);
 - IPC: `appupdate:check` / `appupdate:trigger` / `appupdate:slots` / `appupdate:rollback`.
 
-## Difference from kernel updates
+## Difference from DeepSeek Harness updates
 
 | | Target | Channel |
 |---|---|---|
 | App self-update | The shell app | GitHub Releases |
-| Kernel update | `@deepseek-ai/dsh` | npm registry |
+| DeepSeek Harness update | `@deepseek-ai/dsh` | npm registry |
 
 The two are independent; look at them separately when troubleshooting.

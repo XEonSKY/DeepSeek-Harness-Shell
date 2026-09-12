@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppstoreOutlined, DeploymentUnitOutlined, DownloadOutlined, LinkOutlined, ReloadOutlined } from '@antdv-next/icons'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { InstalledVersions, NodeRuntimeKind, NodeStatus, NpmRuntimeStatus, NpmSource, NpmStatus } from '@shared/types'
-import { MIN_KERNEL_NODE_MAJOR, nodeMajor } from '@shared/version'
+import { MIN_NODE_MAJOR, nodeMajor } from '@shared/version'
 import { tt } from '../../lib/locales'
 import { formatDownload } from '../../lib/format'
 import { useSettingsStore } from './useSettingsStore'
@@ -86,7 +86,7 @@ const npmProgressSeen = ref(false)
 const npmProgressInfo = computed(() => formatDownload(npmTotal.value, npmDownloaded.value, npmSpeed.value))
 
 onMounted(() => {
-    // Node 部署下载 / 解压进度由主进程广播（与内核向导同一个事件源）。
+    // Node 部署下载 / 解压进度由主进程广播（与 dsh 向导同一个事件源）。
     offNodeProgress = window.api.onNodeDeployProgress((p) => {
         deployPhase.value = p.phase
         percent.value = p.percent
@@ -149,7 +149,7 @@ const deployKind = computed<'deploy' | 'update'>(() =>
 )
 
 // ---- 版本选择（下载 / 切换）----
-// 只在本组件内维护：内核页的 state.versions 是内核版本，绝不能共用同一个字段。
+// 只在本组件内维护：dsh 页的 state.versions 是 dsh 版本，绝不能共用同一个字段。
 
 /** 可安装的版本列表（默认只 LTS，勾选后含 Current）。主进程侧对发行索引有 10 分钟缓存。 */
 const nodeVersions = ref<string[]>([])
@@ -186,12 +186,12 @@ function versionLabel(v: string): string {
 }
 
 /**
- * 选中的版本低于内核要求的最低主版本 —— 装了内核也跑不起来。
+ * 选中的版本低于 dsh 要求的最低主版本 —— 装了 dsh 也跑不起来。
  * LTS 列表里仍有 Node 18/16 这种老 LTS，所以这个提示不是多余的。
  */
 const selectedTooOld = computed(() => {
     const major = nodeMajor(selectedVersion.value)
-    return major !== null && major < MIN_KERNEL_NODE_MAJOR
+    return major !== null && major < MIN_NODE_MAJOR
 })
 
 /**
@@ -204,7 +204,7 @@ const runtimeUsable = computed(() => {
     if (state.nodeRuntime === 'system') {
         const s = status.value?.system
         const major = nodeMajor(s?.version)
-        return !!s?.present && major !== null && major >= MIN_KERNEL_NODE_MAJOR
+        return !!s?.present && major !== null && major >= MIN_NODE_MAJOR
     }
     return status.value?.local.present === true
 })
@@ -268,7 +268,7 @@ async function installNode(version?: string): Promise<void> {
     }
 }
 
-/** 取消按钮的进行中状态（Node / npm / 内核通用）。 */
+/** 取消按钮的进行中状态（Node / npm / dsh 通用）。 */
 const canceling = ref(false)
 
 /** 取消正在进行的安装（下载与解压阶段生效）。 */
@@ -579,7 +579,6 @@ async function installNpm(version?: string): Promise<void> {
                             {{ deployPhase === 'extract' ? $t('sv.env.extracting') : progressInfo }}
                         </div>
 
-                        <!-- 安装期间可取消（下载与解压阶段）。 -->
                         <div v-if="deploying" class="act">
                             <el-button size="small" :loading="canceling" @click="cancelInstall()">
                                 {{ canceling ? $t('sv.env.canceling') : $t('sv.env.cancelInstall') }}
@@ -598,7 +597,7 @@ async function installNpm(version?: string): Promise<void> {
                             </el-button>
                         </div>
 
-                        <!-- 下载 / 切换任意版本：与内核页的「版本管理」同一套交互与样式 -->
+                        <!-- 下载 / 切换任意版本：与 dsh 页的「版本管理」同一套交互与样式 -->
                         <div class="upd-sep" />
                         <el-form label-position="top" class="vm-in">
                             <el-form-item :label="$t('sv.env.selectVersion')">
@@ -627,28 +626,41 @@ async function installNpm(version?: string): Promise<void> {
                                 </div>
                                 <el-checkbox v-model="includeNonLts">{{ $t('sv.env.includeNonLts') }}</el-checkbox>
                                 <div v-if="selectedTooOld" class="warn">
-                                    {{ $t('sv.env.tooOld', { major: MIN_KERNEL_NODE_MAJOR }) }}
+                                    {{ $t('sv.env.tooOld', { major: MIN_NODE_MAJOR }) }}
                                 </div>
                                 <div class="hint">{{ $t('sv.env.versionListHint') }}</div>
                             </el-form-item>
                         </el-form>
 
-                        <!-- 已安装版本：多版本并存，可在行内切换 / 删除 -->
                         <div class="upd-sep" />
                         <div class="iv">
                             <div class="iv__title">{{ $t('sv.env.installedVersions') }}</div>
                             <div v-if="!installedNode.installed.length" class="hint">{{ $t('sv.env.installedNone') }}</div>
-                            <div v-for="v in installedNode.installed" :key="v" class="iv__row">
-                                <code class="kv__v">{{ withV(v) }}</code>
-                                <el-tag v-if="v === installedNode.active" size="small" type="success" effect="plain">
-                                    {{ $t('sv.env.activeVersion') }}
-                                </el-tag>
-                                <el-button v-else size="small" :loading="switchingNode === v" @click="switchInstalled('node', v)">
-                                    {{ $t('sv.env.switchVersion') }}
-                                </el-button>
-                                <el-button size="small" type="danger" plain @click="removeInstalled('node', v)">
-                                    {{ $t('sv.env.removeVersion') }}
-                                </el-button>
+                            <div v-else class="iv__list">
+                                <div class="iv__thead">
+                                    <span class="iv__c1">{{ $t('sv.env.colVersion') }}</span>
+                                    <span class="iv__c2">{{ $t('sv.env.colStatus') }}</span>
+                                    <span class="iv__c3">{{ $t('sv.env.colActions') }}</span>
+                                </div>
+                                <div class="iv__tbody">
+                                    <div v-for="v in installedNode.installed" :key="v" class="iv__row">
+                                        <span class="iv__c1"><code class="iv__ver">{{ withV(v) }}</code></span>
+                                        <span class="iv__c2">
+                                            <el-tag v-if="v === installedNode.active" size="small" type="success" effect="plain">
+                                                {{ $t('sv.env.activeVersion') }}
+                                            </el-tag>
+                                            <span v-else class="iv__dash">—</span>
+                                        </span>
+                                        <span class="iv__c3">
+                                            <el-button v-if="v !== installedNode.active" size="small" :loading="switchingNode === v" @click="switchInstalled('node', v)">
+                                                {{ $t('sv.env.switchVersion') }}
+                                            </el-button>
+                                            <el-button size="small" type="danger" plain @click="removeInstalled('node', v)">
+                                                {{ $t('sv.env.removeVersion') }}
+                                            </el-button>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </el-tab-pane>
@@ -656,13 +668,12 @@ async function installNpm(version?: string): Promise<void> {
 
                 <div class="hint">{{ $t('sv.env.nodeRuntimeHint') }}</div>
 
-                <!-- 立即生效：落盘后重启 dsh，让新的 Node 运行时马上生效（与内核页的「立即应用」同义） -->
                 <div class="apply-sec">
                     <div class="apply-row">
                         <div class="apply__txt">
                             {{ $t('sv.env.applyTxt') }}
                             <div v-if="!runtimeUsable" class="warn">
-                                {{ $t('sv.env.runtimeUnusable', { major: MIN_KERNEL_NODE_MAJOR }) }}
+                                {{ $t('sv.env.runtimeUnusable', { major: MIN_NODE_MAJOR }) }}
                             </div>
                         </div>
                         <el-button type="primary" :loading="state.applying" :disabled="!runtimeUsable" @click="actions.apply()">
@@ -678,7 +689,7 @@ async function installNpm(version?: string): Promise<void> {
                     <div class="sec__title"><el-icon><AppstoreOutlined /></el-icon> {{ $t('sv.env.npmSource') }}</div>
                 </template>
 
-                <div v-if="state.kernelSource === 'global'" class="hint">{{ $t('sv.env.npmGlobalNote') }}</div>
+                <div v-if="state.dshSource === 'global'" class="hint">{{ $t('sv.env.npmGlobalNote') }}</div>
 
                 <el-tabs v-model="npmTab">
                     <el-tab-pane v-for="t in NPM_TABS" :key="t.key" :label="$t(t.labelKey)" :name="t.key">
@@ -711,27 +722,39 @@ async function installNpm(version?: string): Promise<void> {
                             </el-button>
                         </div>
 
-                        <!-- 内置 npm 的已安装版本列表（只有 bundled 来源由应用代管多版本） -->
                         <div v-if="t.key === 'bundled'" class="iv">
                             <div class="iv__title">{{ $t('sv.env.installedVersions') }}</div>
                             <div v-if="!installedNpm.installed.length" class="hint">{{ $t('sv.env.installedNone') }}</div>
-                            <div v-for="v in installedNpm.installed" :key="v" class="iv__row">
-                                <code class="kv__v">{{ withV(v) }}</code>
-                                <el-tag v-if="v === installedNpm.active" size="small" type="success" effect="plain">
-                                    {{ $t('sv.env.activeVersion') }}
-                                </el-tag>
-                                <el-button v-else size="small" :loading="switchingNpm === v" @click="switchInstalled('npm', v)">
-                                    {{ $t('sv.env.switchVersion') }}
-                                </el-button>
-                                <el-button size="small" type="danger" plain @click="removeInstalled('npm', v)">
-                                    {{ $t('sv.env.removeVersion') }}
-                                </el-button>
+                            <div v-else class="iv__list">
+                                <div class="iv__thead">
+                                    <span class="iv__c1">{{ $t('sv.env.colVersion') }}</span>
+                                    <span class="iv__c2">{{ $t('sv.env.colStatus') }}</span>
+                                    <span class="iv__c3">{{ $t('sv.env.colActions') }}</span>
+                                </div>
+                                <div class="iv__tbody">
+                                    <div v-for="v in installedNpm.installed" :key="v" class="iv__row">
+                                        <span class="iv__c1"><code class="iv__ver">{{ withV(v) }}</code></span>
+                                        <span class="iv__c2">
+                                            <el-tag v-if="v === installedNpm.active" size="small" type="success" effect="plain">
+                                                {{ $t('sv.env.activeVersion') }}
+                                            </el-tag>
+                                            <span v-else class="iv__dash">—</span>
+                                        </span>
+                                        <span class="iv__c3">
+                                            <el-button v-if="v !== installedNpm.active" size="small" :loading="switchingNpm === v" @click="switchInstalled('npm', v)">
+                                                {{ $t('sv.env.switchVersion') }}
+                                            </el-button>
+                                            <el-button size="small" type="danger" plain @click="removeInstalled('npm', v)">
+                                                {{ $t('sv.env.removeVersion') }}
+                                            </el-button>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </el-tab-pane>
                 </el-tabs>
 
-                <!-- 内置 npm 下载 / 解压进度与取消：只有 bundled 来源会广播进度 -->
                 <div v-if="npmInstalling" class="act">
                     <el-progress
                         v-if="npmProgressSeen"
@@ -816,20 +839,5 @@ async function installNpm(version?: string): Promise<void> {
 }
 .dep-progress {
   margin-top: 14px;
-}
-/* 已安装版本列表 */
-.iv {
-  margin-top: 6px;
-}
-.iv__title {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-  margin-bottom: 6px;
-}
-.iv__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
 }
 </style>

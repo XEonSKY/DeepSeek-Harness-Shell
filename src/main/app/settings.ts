@@ -285,7 +285,7 @@ const settingsFile = (): string => path.join(configDir(), 'settings.json')
 
 /**
  * 读取 `<root>/.active` 指向的版本目录；无指针 / 目录不存在 / 缺少关键文件时返回 null。
- * 关键文件校验与 kernel/installs.ts 的 isVersionComplete 保持一致：残缺目录不能当成安装。
+ * 关键文件校验与 dsh/installs.ts 的 isVersionComplete 保持一致：残缺目录不能当成安装。
  */
 function activeSubdir(root: string, keyRel: string): string | null {
     const candidates: string[] = []
@@ -309,9 +309,9 @@ function activeSubdir(root: string, keyRel: string): string | null {
     return null
 }
 
-/** 当前生效的内核版本目录（npm `--prefix`）：`<configDir>/kernel/<版本>`。 */
-export function localKernelDir(): string {
-    const root = path.join(configDir(), 'kernel')
+/** 当前生效的 dsh 版本目录（npm `--prefix`）：`<configDir>/dsh/<版本>`（旧名 kernel，见 installs.ts 的迁移）。 */
+export function localDshDir(): string {
+    const root = path.join(configDir(), 'dsh')
     return activeSubdir(root, path.join('node_modules', '@deepseek-ai', 'dsh', 'package.json')) ?? root
 }
 
@@ -326,7 +326,7 @@ export function defaultWorkspaceDir(): string {
     return path.join(configDir(), 'workspace')
 }
 
-/** 下载临时目录：`<工作目录>/temp/download`（所有内核下载共用）。 */
+/** 下载临时目录：`<工作目录>/temp/download`（所有 dsh 下载共用）。 */
 export function tempDownloadDir(): string {
     const ws = loadSettings().workspace ?? defaultWorkspaceDir()
     return path.join(ws, 'temp', 'download')
@@ -402,7 +402,7 @@ export function loadSettings(): Settings {
         updateMirrorUrl: disk.updateMirrorUrl ?? DEFAULT_SETTINGS.updateMirrorUrl,
         downloadThreads: disk.downloadThreads ?? DEFAULT_SETTINGS.downloadThreads,
         devMode: disk.devMode ?? DEFAULT_SETTINGS.devMode,
-        kernelSource: disk.kernelSource ?? DEFAULT_SETTINGS.kernelSource,
+        dshSource: disk.dshSource ?? (disk as { kernelSource?: Settings['dshSource'] }).kernelSource ?? DEFAULT_SETTINGS.dshSource,
         nodeRuntime: disk.nodeRuntime ?? DEFAULT_SETTINGS.nodeRuntime,
         npmSource: normalizeNpmSource(disk.npmSource ?? DEFAULT_SETTINGS.npmSource),
         proxyEnabled: disk.proxyEnabled ?? DEFAULT_SETTINGS.proxyEnabled,
@@ -424,7 +424,8 @@ export function loadSettings(): Settings {
         webviewUserAgent: disk.webviewUserAgent ?? DEFAULT_SETTINGS.webviewUserAgent,
         colorScheme: COLOR_SCHEME_IDS.includes(disk.colorScheme as ColorSchemeId)
             ? (disk.colorScheme as ColorSchemeId)
-            : DEFAULT_SETTINGS.colorScheme
+            : DEFAULT_SETTINGS.colorScheme,
+        modelsCredConsent: disk.modelsCredConsent ?? DEFAULT_SETTINGS.modelsCredConsent
     }
 }
 

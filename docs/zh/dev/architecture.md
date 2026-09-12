@@ -25,7 +25,7 @@ Electron 44 · electron-vite 5 · Vite 7 · Vue 3 · TypeScript · Element Plus 
 5. **app ready 后**：注册 IPC → 建窗 → 建托盘 → 注册全局快捷键；
 6. `await waitForConfigMigration()`：有待执行的配置目录迁移时先搬完（带进度广播），再继续；
 7. `await migrateLegacyInstalls()`：把旧的平铺安装目录迁成版本化布局；
-8. 启动配置文件监听；若内核已存在则 `restart()` 启动 dsh；
+8. 启动配置文件监听；若 DeepSeek Harness 已存在则 `restart()` 启动 dsh；
 9. 按设置检查应用更新。
 
 ## 生命周期与退出
@@ -36,7 +36,7 @@ Electron 44 · electron-vite 5 · Vite 7 · Vue 3 · TypeScript · Element Plus 
 
 ## 窗口与标签模型
 
-- 核心窗口承载三个固定站（内核 UI / 网页对话 / 用量充值）；核心窗口登记与接管逻辑见 `app/windowreg.ts` 与渲染层 `lib/tabs.ts`。
+- 核心窗口承载三个固定站（dsh Web UI / 网页对话 / 用量充值）；核心窗口登记与接管逻辑见 `app/windowreg.ts` 与渲染层 `lib/tabs.ts`。
 - 副窗口由「在新窗口打开」创建，可把标签拖入 / 拖出；核心窗口关闭后由最早的副窗口接管。
 - 内嵌页面用 `<webview>`；地址栏只在动态标签显示，协议 / 搜索分流见渲染层。
 
@@ -44,7 +44,7 @@ Electron 44 · electron-vite 5 · Vite 7 · Vue 3 · TypeScript · Element Plus 
 
 - **应用设置**：配置目录下 `settings.json`（不是 Electron 的 userData）；
 - **dsh 自身设置**：`~/.dsh/settings.yaml`，应用会把主题 / 语言同步过去；
-- **内核 / Node / npm**：配置目录下按版本存放，见[内核与环境安装链路](/zh/dev/installs)。
+- **DeepSeek Harness / Node / npm**：配置目录下按版本存放，见[DeepSeek Harness 与环境安装链路](/zh/dev/installs)。
 
 ## 相关文档
 

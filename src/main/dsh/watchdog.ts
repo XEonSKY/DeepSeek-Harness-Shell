@@ -5,7 +5,7 @@
  *   - 优雅退出：Electron 杀掉 watchdog 进程树（taskkill /T / -pid）。
  *   - 强杀 / 崩溃：本进程的 stdin 写端被 OS 关闭，watchdog 读到 EOF 后自行杀掉 dsh 树。
  * argv[1] 是 JSON 启动描述符：{ entry, args }。
- * watchdog 会用**同一个 Node 运行时**（本地内核时即 Electron-as-Node）重新拉起内核的 JS bin 入口，
+ * watchdog 会用**同一个 Node 运行时**（本地 dsh 时即 Electron-as-Node）重新拉起 dsh 的 JS bin 入口，
  * 因此不依赖 shell `.cmd` 垫片，也不需要系统 `node`。
  *
  * 单独成文件的理由：这是一段**独立程序**（62 行 JS），与主进程的类型化代码不同源，
@@ -40,7 +40,7 @@ let launch = null;
 try { launch = JSON.parse(process.argv[1] || "null"); } catch (_) { launch = null; }
 if (!launch || typeof launch.entry !== "string") { console.error("watchdog: bad launch descriptor"); process.exit(2); }
 // dsh's web profile runs an HMR service that requires Node launched with
-// --expose-internals, so pass it through when we spawn the kernel bin.
+// --expose-internals, so pass it through when we spawn the dsh bin.
 child = spawn(process.execPath, ['--expose-internals', launch.entry].concat(launch.args || []), {
   detached: !IS_WIN,
   windowsHide: true,

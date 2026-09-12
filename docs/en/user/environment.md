@@ -12,7 +12,7 @@ Click a tab to switch; **changes take effect only after restarting dsh** (there 
 | **System** | Uses the Node you installed yourself; shows the current version and the latest LTS, and offers “Go to download” when behind. The app does **not** modify the system installation directory. |
 | **Locally deployed** | Downloaded and managed by the app, installed into `<config dir>/node/<version>/`, with **multiple versions coexisting**. |
 
-Running the kernel requires **Node ≥ 20**; selecting an older major version shows a warning.
+Running DeepSeek Harness requires **Node ≥ 20**; selecting an older major version shows a warning.
 
 ### Locally deployed: install and switch
 
@@ -48,7 +48,7 @@ Pre-releases / test builds are hidden by default; if **only** pre-release versio
 
 ## npm cache
 
-The cache directory for all npm calls (kernel installation, npm self-update, npm of the bundled / local Node) points uniformly to **`temp/npm` under the working directory**, and is not written to `~/.npm` in the user's home directory.
+The cache directory for all npm calls (DeepSeek Harness installation, npm self-update, npm of the bundled / local Node) points uniformly to **`temp/npm` under the working directory**, and is not written to `~/.npm` in the user's home directory.
 
 ## Related settings
 

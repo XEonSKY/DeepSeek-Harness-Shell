@@ -4,7 +4,7 @@
 
 | Item | Requirement |
 |---|---|
-| Node | ≥ 20 (the kernel runtime also requires ≥ 20) |
+| Node | ≥ 20 (the DeepSeek Harness runtime also requires ≥ 20) |
 | Package manager | npm (the repository ships a `package-lock.json`) |
 | Platform | Windows / macOS / Linux can all be used for development; the packaging scripts differ per platform |
 
@@ -31,9 +31,9 @@ Run these under `project/`:
 ```text
 project/
 ├─ src/
-│  ├─ main/            main process (windows, kernel, config, updates)
-│  │  ├─ app/           settings / configmigrate / ipc / ui / appupdate / appslots …
-│  │  └─ kernel/        dsh / kernel / nodeenv / npmRunner / downloader / installs …
+│  ├─ main/            main process (windows, DeepSeek Harness, config, updates)
+│  │  ├─ app/           settings / configmigrate / models / ipc / ui / appupdate / appslots …
+│  │  └─ dsh/           dsh / manage / nodeenv / npmRunner / downloader / installs …
 │  ├─ preload/         window.api bridge and types
 │  ├─ renderer/        Vue 3 UI
 │  │  ├─ src/views/    pages and settings panels
@@ -47,11 +47,11 @@ project/
 
 ## Runtime data locations
 
-- **App settings & local installs**: the config directory, defaulting to `~/.dsbox/release` (release) / `~/.dsbox/dev` (dev), containing `settings.json`, `node/`, `npm/`, `kernel/`, `workspace/`.
+- **App settings & local installs**: the config directory, defaulting to `~/.dsbox/release` (release) / `~/.dsbox/dev` (dev), containing `settings.json`, `node/`, `npm/`, `dsh/`, `workspace/`.
 - **Config-directory override pointer**: `<userData>/config-dir`; the migration plan is `<userData>/config-migration.json`.
 - **Temporary downloads / npm cache**: `temp/download` and `temp/npm` under the working directory.
 
-See [Config directory](/en/dev/config-dir) and [Kernel & environment install pipeline](/en/dev/installs).
+See [Config directory](/en/dev/config-dir) and [DeepSeek Harness & environment install pipeline](/en/dev/installs).
 
 ## Environment variables
 

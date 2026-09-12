@@ -21,11 +21,11 @@ export interface Settings {
     rememberClose: boolean
     /** UI colour scheme. */
     theme: 'system' | 'light' | 'dark'
-    /** Check for a newer @deepseek-ai/dsh kernel automatically at startup. */
+    /** Check for a newer @deepseek-ai/dsh automatically at startup. */
     autoCheckUpdate: boolean
-    /** Also consider pre-release (-rc / -beta / …) kernel versions when checking. */
+    /** Also consider pre-release (-rc / -beta / …) dsh versions when checking. */
     checkPrerelease: boolean
-    /** npm registry used to list versions, check and install/uninstall the kernel. */
+    /** npm registry used to list versions, check and install/uninstall dsh. */
     npmRegistry: NpmRegistry
     /** App 自动更新：启动时自动检查新版本（默认开）。 */
     appAutoUpdate: boolean
@@ -42,12 +42,12 @@ export interface Settings {
     /** 开发模式：开启后 F12 才允许打开 DevTools 控制台（默认关）。 */
     devMode: boolean
     /**
-   * 内核来源：
+   * dsh 来源：
    *  - 'local'（默认）：由应用把 @deepseek-ai/dsh 安装/运行在应用自己的目录
-   *    （<configDir>/kernel），用所选 Node 运行。
+   *    （<configDir>/dsh），用所选 Node 运行。
    *  - 'global'：使用系统 npm install -g 装在 PATH 上的 @deepseek-ai/dsh。
    */
-    kernelSource: 'local' | 'global'
+    dshSource: 'local' | 'global'
     /**
    * 运行 dsh / npm 的 Node 运行时：
    *  - 'electron'（默认）：Electron 自带 Node（ELECTRON_RUN_AS_NODE）。
@@ -56,7 +56,7 @@ export interface Settings {
    */
     nodeRuntime: NodeRuntimeKind
     /**
-   * 本地内核安装时使用的 npm：
+   * 本地 dsh 安装时使用的 npm：
    *  - 'system'（默认）：用系统 npm。
    *  - 'bundled'：内置 npm（首次在线拉取并缓存到应用目录）。
    *  - 'localnode'：用部署在配置目录的本地 Node 自带的 npm（未部署时不可选）。
@@ -70,7 +70,7 @@ export interface Settings {
     proxyHost: string
     /** 代理端口。 */
     proxyPort: number | null
-    /** 代理范围：npm(安装/下载) · node(Node 下载部署) · update(内核更新检查)。 */
+    /** 代理范围：npm(安装/下载) · node(Node 下载部署) · update(dsh 更新检查)。 */
     proxyScope: ProxyScope[]
     /** 界面缩放百分比（50–200，默认 100）。 */
     zoomPercent: number
@@ -101,6 +101,11 @@ export interface Settings {
     webviewUserAgent: string
     /** 配色方案 id（预制方案见 renderer 的 `lib/theme.ts`；同时决定主色与页面/侧栏底色）。 */
     colorScheme: ColorSchemeId
+    /**
+   * 「设置 → 模型」是否已获得读取本地凭据文件（`<dshHome>/.credentials.yaml`）的同意。
+   * 首次进入该页时由用户确认并置 true；撤回后不再自动读取。
+   */
+    modelsCredConsent: boolean
 }
 
 /**
@@ -136,7 +141,7 @@ export type ProxyScope = 'npm' | 'node' | 'update'
 /** 本地安装所用 npm：'system' ｜ 'bundled'(内置) ｜ 'localnode'(本地 Node 自带)。 */
 export type NpmSource = 'system' | 'bundled' | 'localnode'
 
-/** Which npm registry to use for kernel version listing / install. */
+/** Which npm registry to use for dsh version listing / install. */
 export type NpmRegistry = 'npmjs' | 'npmmirror'
 
 export type Theme = 'system' | 'light' | 'dark'
@@ -179,7 +184,7 @@ export const DEFAULT_SETTINGS: Settings = {
     updateMirrorUrl: '',
     downloadThreads: 4,
     devMode: false,
-    kernelSource: 'local',
+    dshSource: 'local',
     nodeRuntime: 'electron',
     npmSource: 'system',
     proxyEnabled: false,
@@ -199,11 +204,12 @@ export const DEFAULT_SETTINGS: Settings = {
     hotkeyDevTools: 'F12',
     hardwareAcceleration: true,
     webviewUserAgent: '',
-    colorScheme: 'default'
+    colorScheme: 'default',
+    modelsCredConsent: false
 }
 
-/** Result of a kernel install / uninstall action. */
-export interface KernelAction {
+/** Result of a dsh install / uninstall action. */
+export interface DshActionResult {
     ok: boolean
     message: string
     version: string | null
@@ -310,8 +316,8 @@ export interface NodeDeployResult {
     canceled?: boolean
 }
 
-/** 可版本化的安装对象：Node / 内置 npm / 内核。 */
-export type InstallKind = 'node' | 'npm' | 'kernel'
+/** 可版本化的安装对象：Node / 内置 npm / dsh。 */
+export type InstallKind = 'node' | 'npm' | 'dsh'
 
 /** 安装进度广播：下载阶段带百分比 / 速度，解压阶段前端显示不确定动画。 */
 export interface NodeDeployProgress {
@@ -401,6 +407,53 @@ export interface AppUpdateEvent {
     previous?: string | null
 }
 
+/** 供应商余额（配额）的查询状态。 */
+export type ModelBalanceState = 'ok' | 'unsupported' | 'no-key' | 'error'
+
+/** 一次联网查询得到的供应商余额。只含展示字段，**不含任何密钥**。 */
+export interface ModelBalanceInfo {
+    state: ModelBalanceState
+    /** 币种（如 CNY）；未知为 null。 */
+    currency: string | null
+    /** 总额度 / 余额。 */
+    total: string | null
+    /** 赠送额度。 */
+    granted: string | null
+    /** 充值额度。 */
+    toppedUp: string | null
+    /** state 为 error 时的可展示说明（如 `HTTP 401`），不含密钥。 */
+    message: string | null
+}
+
+/** 「模型」页列表的一行：一个模型 + 它所属供应商的展示名与余额。 */
+export interface ModelEntryInfo {
+    /** 模型 id；供应商未公布任何模型时为空串（界面显示占位）。 */
+    id: string
+    /** 供应商路由名（settings 的键）。 */
+    provider: string
+    /** 供应商展示名。 */
+    providerName: string
+    /** 该供应商的余额；同一供应商的所有行相同。 */
+    balance: ModelBalanceInfo
+}
+
+/** 状态栏用：当前默认模型所属供应商的余额。 */
+export interface CurrentBalanceInfo {
+    /** 供应商路由名（settings 的键）。 */
+    provider: string
+    /** 供应商展示名。 */
+    providerName: string
+    /** 该供应商的余额。 */
+    balance: ModelBalanceInfo
+}
+
+/** 「模型」页的数据：跨供应商展开的模型列表。密钥明文绝不进入该结构。 */
+export interface ModelsInfo {
+    entries: ModelEntryInfo[]
+    /** 顶层错误码：settings-missing ｜ settings-parse ｜ no-provider ｜ internal；正常为 null。 */
+    errorCode: string | null
+}
+
 /** Everything the renderer (shell UI) can ask of the main process. */
 export interface RendererApi {
     platform: string
@@ -431,19 +484,19 @@ export interface RendererApi {
     setWindowZoom(percent: number): Promise<void>
     /** 重启应用（用于需重启生效的设置）。 */
     relaunch(): void
-    /** Current installed @deepseek-ai/dsh kernel version (from the local module). */
+    /** Current installed @deepseek-ai/dsh version (from the local module). */
     getDshVersion(): Promise<string | null>
     /** Whether @deepseek-ai/dsh is present on this machine. */
-    getKernelInstalled(): Promise<boolean>
-    /** List published kernel versions (descending), filtered by prerelease flag. */
+    isDshInstalled(): Promise<boolean>
+    /** List published dsh versions (descending), filtered by prerelease flag. */
     listVersions(opts: { prerelease: boolean; registry: NpmRegistry }): Promise<string[]>
     /** Check @deepseek-ai/dsh version/update in the main process. */
     checkForUpdates(opts?: { prerelease?: boolean; registry?: NpmRegistry }): Promise<UpdateResult>
     /**
-   * Upgrade the installed @deepseek-ai/dsh kernel to the newest considered
+   * Upgrade the installed @deepseek-ai/dsh to the newest considered
    * version (runs `npm install -g`). Resolves when the install finishes.
    */
-    updateKernel(opts?: { registry?: NpmRegistry }): Promise<KernelAction>
+    updateDsh(opts?: { registry?: NpmRegistry }): Promise<DshActionResult>
     /** 运行环境元信息（关于页显示当前版本/架构）。 */
     getAppMeta(): Promise<AppMeta>
     /** 触发一次 app 自动更新检查；有可用更新时由主进程后台自动下载。 */
@@ -459,12 +512,12 @@ export interface RendererApi {
     /** 回退到压缩保留的上一版（会重启应用）。 */
     rollbackAppUpdate(): Promise<{ ok: boolean; message: string }>
     /**
-   * Install / switch the kernel to a specific version (or latest when no
+   * Install / switch dsh to a specific version (or latest when no
    * version is given). If nothing was installed, dsh is started afterwards.
    */
-    installKernel(opts?: { version?: string | null; registry?: NpmRegistry }): Promise<KernelAction>
+    installDsh(opts?: { version?: string | null; registry?: NpmRegistry }): Promise<DshActionResult>
     /** Uninstall @deepseek-ai/dsh (stops dsh first). */
-    uninstallKernel(): Promise<KernelAction>
+    uninstallDsh(): Promise<DshActionResult>
 
     /** A dsh server URL is (re)available; the shell should show it in the webview. */
     onDshUrl(cb: (url: string) => void): () => void
@@ -476,7 +529,7 @@ export interface RendererApi {
    */
     onSettingsChanged(cb: (s: Settings) => void): () => void
     /**
-   * The dsh kernel's own settings.yaml (ui-theme.preference) changed on disk
+   * dsh's own settings.yaml (ui-theme.preference) changed on disk
    * (e.g. the theme was changed inside the dsh UI); adopt it in the shell.
    */
     onThemeChanged(cb: (theme: Theme) => void): () => void
@@ -490,8 +543,8 @@ export interface RendererApi {
     onShellRole(cb: (isCore: boolean) => void): () => void
     /** Renderer reports the user's close decision back to the main process. */
     resolveClose(decision: { action: 'hide' | 'quit'; remember: boolean }): void
-    /** Main detected that the kernel was removed/never installed; show the install mask. */
-    onKernelMissing(cb: () => void): () => void
+    /** Main detected that dsh was removed/never installed; show the install mask. */
+    onDshMissing(cb: () => void): () => void
 
     /** Ask the main process to request a reload of the dsh UI (title-bar refresh). */
     reloadDsh(): void
@@ -525,13 +578,17 @@ export interface RendererApi {
     onHotkeyState(cb: (s: HotkeyState) => void): () => void
     /** Webview 设置页用：默认 UA 与实际生效的 UA。 */
     getWebviewInfo(): Promise<WebviewInfo>
+    /** 「设置 → 模型」用：读取 dsh 配置并联网查询各供应商余额（密钥明文绝不离开主进程）。 */
+    getModelsInfo(): Promise<ModelsInfo>
+    /** 状态栏用：当前供应商余额；未同意读取或无法解析时返回 null。 */
+    getCurrentBalance(): Promise<CurrentBalanceInfo | null>
     /** 本地 Node 部署进度广播。 */
     onNodeDeployProgress(cb: (p: NodeDeployProgress) => void): () => void
     /** 「程序内置」npm 下载 / 解压进度广播。 */
     onNpmDeployProgress(cb: (p: NodeDeployProgress) => void): () => void
-    /** 取消正在进行的 Node / npm / 内核安装（下载与解压阶段）。 */
+    /** 取消正在进行的 Node / npm / dsh 安装（下载与解压阶段）。 */
     cancelInstall(): Promise<boolean>
-    /** 某个工具的已安装版本与生效版本（Node / npm / 内核）。 */
+    /** 某个工具的已安装版本与生效版本（Node / npm / dsh）。 */
     listInstalledVersions(kind: InstallKind): Promise<InstalledVersions>
     /** 切换某个工具的生效版本（不重装）。 */
     useInstalledVersion(kind: InstallKind, version: string): Promise<ToolActionResult>
@@ -549,7 +606,7 @@ export interface RendererApi {
     cancelConfigMigration(): Promise<void>
     /** 配置目录迁移进度广播（进度条 + 当前文件）。 */
     onConfigMigrationProgress(cb: (p: ConfigMigrationProgress) => void): () => void
-    /** 本窗口元信息：窗口 id 与是否核心窗口（核心窗口才承载 dsh 内核 UI）。 */
+    /** 本窗口元信息：窗口 id 与是否核心窗口（核心窗口才承载 dsh UI）。 */
     getShellMeta(): Promise<{ winId: number; isCore: boolean }>
     /** 把一个 URL 开到一个独立（副）窗口（右键“在新窗口打开 / 移动”）。 */
     openWebWindow(url: string): Promise<void>

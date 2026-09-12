@@ -368,7 +368,6 @@ onBeforeUnmount(() => {
         </div>
 
         <el-collapse v-model="open">
-            <!-- 更新开关 -->
             <el-collapse-item name="about-options">
                 <template #title>
                     <div class="sec__title">{{ $t('sv.about.options') }}</div>
@@ -388,7 +387,7 @@ onBeforeUnmount(() => {
                         </div>
                         <el-switch v-model="state.appCheckPrerelease" />
                     </div>
-                    <!-- 开发模式默认隐藏：在内核页连点「内核版本」5 次解锁；开启后才显示，关闭即再隐藏 -->
+                    <!-- 开发模式默认隐藏：在 dsh 页连点「dsh 版本」5 次解锁；开启后才显示，关闭即再隐藏 -->
                     <div v-if="state.devMode" class="au">
                         <div class="au__txt">
                             <div class="au__t">{{ $t('sv.about.devMode') }}</div>
@@ -399,7 +398,6 @@ onBeforeUnmount(() => {
                 </div>
             </el-collapse-item>
 
-            <!-- 项目链接 -->
             <el-collapse-item name="about-links">
                 <template #title>
                     <div class="sec__title">{{ $t('sv.about.links') }}</div>
@@ -417,7 +415,6 @@ onBeforeUnmount(() => {
                 </div>
             </el-collapse-item>
 
-            <!-- 更新操作区 -->
             <el-collapse-item name="about-check">
                 <template #title>
                     <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.about.checkTitle') }}</div>
@@ -488,7 +485,6 @@ onBeforeUnmount(() => {
                 />
             </el-collapse-item>
 
-            <!-- A/B 版本回退 -->
             <el-collapse-item name="about-slots">
                 <template #title>
                     <div class="sec__title"><el-icon><ReloadOutlined /></el-icon> {{ $t('sv.about.slots') }}</div>

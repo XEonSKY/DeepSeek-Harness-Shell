@@ -5,10 +5,10 @@ import { startAutoCheckIfEnabled } from './app/appupdate'
 import { loadSettings, startConfigWatchers, readDiskSettings, syncNativeTheme, ensureDefaultConfigMigration, waitForConfigMigration } from './app/settings'
 import { createShellWindow, createTray, showMainWindow, syncGlobalHotkey } from './app/ui'
 import { applyHardwareAcceleration, applyWebviewUserAgent } from './app/webview'
-import { resolveInstall } from './kernel/kernel'
-import { migrateLegacyInstalls } from './kernel/installs'
-import { nodeVersionOf } from './kernel/tools'
-import { restart, killServer, killAllChildren, stopDshGracefully } from './kernel/dsh'
+import { resolveInstall } from './dsh/manage'
+import { migrateLegacyInstalls } from './dsh/installs'
+import { nodeVersionOf } from './dsh/tools'
+import { restart, killServer, killAllChildren, stopDshGracefully } from './dsh/dsh'
 import { getTray, setQuitting, destroyTray } from './app/runtime'
 
 // ---------------------------------------------------------------------------
@@ -72,7 +72,7 @@ if (!gotLock) {
     }
 
     // Boot: wire IPC, start the external-config watchers, open the window/tray,
-    // and launch dsh when the kernel is present.
+    // and launch dsh when it is present.
     app.whenReady().then(async () => {
         const cfg = loadSettings()
         syncNativeTheme(cfg.theme) // 建窗前先让 webview 深浅色与外壳一致
@@ -83,16 +83,16 @@ if (!gotLock) {
         createTray()
         syncGlobalHotkey() // 系统全局快捷键（默认 Ctrl+Alt+H 回到主窗口）
 
-        // 有配置目录迁移计划时，先等渲染层把进度显示完、主进程搬完，再启动内核：
-        // 否则内核目录会在运行时被搬走。（无计划时立即返回。）
+        // 有配置目录迁移计划时，先等渲染层把进度显示完、主进程搬完，再启动 dsh：
+        // 否则 dsh 目录会在运行时被搬走。（无计划时立即返回。）
         await waitForConfigMigration()
         // 旧的平铺安装目录（<root>/node.exe、<root>/package、<root>/node_modules）迁移为版本化布局。
         await migrateLegacyInstalls(nodeVersionOf)
         startConfigWatchers()
 
-        // Launch dsh only if the kernel is present. When missing we do not show a
+        // Launch dsh only if it is present. When missing we do not show a
         // native prompt anymore — the renderer detects it on load and shows the
-        // in-app install mask (installKernel starts dsh after a successful install).
+        // in-app install mask (installDsh starts dsh after a successful install).
         if (resolveInstall(cfg).present) {
             void restart()
         }

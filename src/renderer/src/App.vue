@@ -2,9 +2,10 @@
 import { h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElCheckbox, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import KernelWizard from './components/KernelWizard.vue'
+import DshWizard from './components/DshWizard.vue'
 import TitleBar from './components/TitleBar.vue'
-import { checkAndNotify } from './lib/update'
+import StatusBar from './components/StatusBar.vue'
+import { applyAppUpdateEvent, checkAndNotify } from './lib/update'
 import { applyTheme, applyColorScheme } from './lib/theme'
 import { applyFunToZh, tt } from './lib/locales'
 import { useView, useGoView, useToggleTerminal } from './shell/viewnav'
@@ -12,11 +13,15 @@ import { webTabs, activeTab, activateTab, openTarget, setCoreRole, tabLabel } fr
 import WebHost from './views/WebHost.vue'
 import { shellMeta } from './shell/shellmeta'
 import type { AppUpdateEvent, ConfigMigrationPlan, ConfigMigrationProgress } from '@shared/types'
+import { STATUSBAR_HEIGHT, TITLEBAR_HEIGHT } from '@shared/chrome'
 
 const { t } = useI18n({ useScope: 'global' })
 
 const view = useView()
 const go = useGoView()
+
+/** 把外框高度下发给 TitleBar / StatusBar 的 CSS 变量（与主进程共用 @shared/chrome 常量）。 */
+const chromeStyle = `--titlebar-h: ${TITLEBAR_HEIGHT}px; --statusbar-h: ${STATUSBAR_HEIGHT}px`
 
 /**
  * 副窗口把“当前标签页标题”同步给主进程，用于把本窗口命名为“<标题> - 软件名”（例如任务栏/窗口
@@ -85,21 +90,12 @@ let offAppUpdate: (() => void) | null = null
 let offMigration: (() => void) | null = null
 
 /**
- * 主进程后台更新事件：新版本就绪时全局提示「立即重启安装」（点击通知即重启），
- * 自动回退时给出警告。这样即使不在「关于」页也不会错过。
+ * 主进程后台更新事件：**检测到新版本只更新右下角徽标**（VS Code 式静默提示），
+ * 不再弹通知打断用户；只有「已回退」这种异常状态才提示一次。
  */
 function onAppUpdateEvent(e: AppUpdateEvent): void {
-    if (e.kind === 'downloaded') {
-        ElNotification({
-            title: tt('sv.about.downloadedTitle'),
-            message: tt('sv.about.downloadedDesc'),
-            type: 'success',
-            position: 'top-right',
-            offset: 60,
-            duration: 0,
-            onClick: () => window.api.restartAndInstall()
-        })
-    } else if (e.kind === 'rollback' && e.message) {
+    applyAppUpdateEvent(e)
+    if (e.kind === 'rollback' && e.message) {
         ElNotification({
             title: tt('sv.about.slots'),
             message: e.message,
@@ -111,7 +107,7 @@ function onAppUpdateEvent(e: AppUpdateEvent): void {
     }
 }
 
-// 内核未安装时由主进程通知 → 显示安装向导（向导组件自管全部安装状态与步骤）。
+// dsh 未安装时由主进程通知 → 显示安装向导（向导组件自管全部安装状态与步骤）。
 const showMissing = ref(false)
 
 // ---- 配置目录迁移（重启引导阶段）：进度条 + 当前正在移动的文件 ----
@@ -167,16 +163,16 @@ async function boot(): Promise<void> {
     applyColorScheme(s.colorScheme)
     void window.api.setWindowZoom(s.zoomPercent ?? 100)
     applyFunToZh(s.funLocale ?? 'off')
-    const ok = await window.api.getKernelInstalled()
+    const ok = await window.api.isDshInstalled()
     if (!ok) {
-        showMissing.value = true // main does not start dsh when the kernel is absent
+        showMissing.value = true // main does not start dsh when it is absent
         return
     }
     if (s.autoCheckUpdate) void checkAndNotify({ prerelease: s.checkPrerelease })
 }
 
 onMounted(() => {
-    // 仅核心窗口保留三固定站；非核心窗口不显示内核UI/网页/用量固定标签
+    // 仅核心窗口保留三固定站；非核心窗口不显示 dsh UI/网页/用量固定标签
     setCoreRole(shellMeta.isCore)
     pushShellTitle() // 副窗口初始命名（如空则回落到软件名）
     // 副窗口若带“开页意图”（创建时主进程给了 URL），挂载后开一个动态标签页承载之。
@@ -192,7 +188,7 @@ onMounted(() => {
             })
             .catch(() => {})
     }
-    // 角色可能变化（如本窗口接管成为新核心）→ 更新固定标签并回到内核UI
+    // 角色可能变化（如本窗口接管成为新核心）→ 更新固定标签并回到 dsh UI
     offCore = window.api.onShellRole((isCore) => {
         shellMeta.isCore = isCore
         setCoreRole(isCore)
@@ -200,7 +196,7 @@ onMounted(() => {
     })
     offToggle = window.api.onToggleView(onToggle)
     offAskClose = window.api.onAskClose(() => void askClosePrompt())
-    offMissing = window.api.onKernelMissing(() => {
+    offMissing = window.api.onDshMissing(() => {
         showMissing.value = true
     })
     offAppUpdate = window.api.onAppUpdateEvent(onAppUpdateEvent)
@@ -218,21 +214,20 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="shell">
-        <!-- 自绘标题栏（含标签条、跨窗拖拽遮罩/幽灵、标签右键菜单；状态自管） -->
+    <div class="shell" :style="chromeStyle">
         <TitleBar />
 
         <main class="body">
             <!-- 常驻 web 宿主：进入日志/设置也不卸载，标签页 webview 保持保活 -->
             <div class="web-base"><WebHost /></div>
-            <!-- 覆盖层：日志 / 设置（盖在 web 宿主上） -->
             <div v-if="view !== 'web'" class="web-overlay"><router-view /></div>
         </main>
 
-        <!-- 内核未安装：全屏四步安装向导（状态自管；装完 emit done 由本窗口收起） -->
-        <KernelWizard v-if="showMissing && !migration" @done="showMissing = false" />
+        <!-- 底部状态栏（类似 VS Code）：空白占位，高度不计入内容区 16:9 -->
+        <StatusBar />
 
-        <!-- 配置目录迁移中：全屏进度框（进度条 + 当前正在移动的文件；完成/取消后自动收起） -->
+        <DshWizard v-if="showMissing && !migration" @done="showMissing = false" />
+
         <div v-if="migration" class="migrate">
             <div class="migrate__card">
                 <div class="migrate__title">{{ $t('configMigration.title') }}</div>

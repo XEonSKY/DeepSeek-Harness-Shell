@@ -19,7 +19,7 @@ import { activeVersion, installRoot, listInstalled, prepareVersionDir, removeVer
  * npm / 外部工具的调用层：如何按所选来源（系统 npm、内置 npm、本地 Node 自带 npm）
  * 与代理设置真正把命令跑起来，并把输出接进日志视图。
  *
- * 从 kernel.ts 抽出：kernel.ts 负责「装哪个版本、装到哪、失败怎么诊断」，
+ * 从 manage.ts 抽出：manage.ts 负责「装哪个版本、装到哪、失败怎么诊断」，
  * 本模块只负责「怎么把它们跑起来」——两者关注点不同，分开后各自更好读。
  */
 
@@ -31,7 +31,7 @@ export function registryBase(r: 'npmjs' | 'npmmirror'): string {
 }
 
 /**
- * 把 npm 的缓存目录钉到 `<工作目录>/temp/npm`：所有 npm 调用（内核安装、npm 自更新、
+ * 把 npm 的缓存目录钉到 `<工作目录>/temp/npm`：所有 npm 调用（dsh 安装、npm 自更新、
  * 内置 / 本地 Node 的 npm）都带上它，避免污染用户主目录的 ~/.npm。
  */
 function npmCacheEnv(): NodeJS.ProcessEnv {
@@ -340,7 +340,7 @@ async function ensureBundledNpm(
     if (version === undefined && fs.existsSync(activeCli)) return { ok: true, cli: activeCli }
 
     const target = version ?? (await npmLatestVersion(cfg))
-    if (!target) return { ok: false, message: mt('m.kernel.bundledNpmFetchFail') }
+    if (!target) return { ok: false, message: mt('m.dsh.bundledNpmFetchFail') }
     if (!/^\d+\.\d+\.\d+/.test(target)) return { ok: false, message: `npm 版本号不合法：${target}` }
 
     const dest = versionDir('npm', target)
@@ -374,11 +374,11 @@ async function ensureBundledNpm(
     }
     if (!dl.ok) {
         removeQuietly(stage)
-        return { ok: false, message: mt('m.kernel.bundledNpmFetchFail') }
+        return { ok: false, message: mt('m.dsh.bundledNpmFetchFail') }
     }
     if (!findSystemTar()) {
         removeQuietly(stage)
-        return { ok: false, message: mt('m.kernel.bundledNpmNoTar') }
+        return { ok: false, message: mt('m.dsh.bundledNpmNoTar') }
     }
 
     onProgress?.({ phase: 'extract', percent: 100, downloaded: 0, total: 0, speed: 0 })
@@ -397,7 +397,7 @@ async function ensureBundledNpm(
     }
     if (!okExtract || !fs.existsSync(cli)) {
         removeVersion('npm', target)
-        return { ok: false, message: okExtract ? mt('m.kernel.bundledNpmMissing') : mt('m.kernel.bundledNpmExtractFail') }
+        return { ok: false, message: okExtract ? mt('m.dsh.bundledNpmMissing') : mt('m.dsh.bundledNpmExtractFail') }
     }
     setActiveVersion('npm', target)
     return { ok: true, cli }
@@ -418,11 +418,11 @@ async function chooseLocalNpm(cfg: Settings, signal?: AbortSignal): Promise<{ ok
     }
     if (cfg.npmSource === 'localnode') {
         const cli = localNodeNpmCli()
-        if (!cli) return { ok: false, cli: null, message: mt('m.kernel.noLocalNodeNpm') }
+        if (!cli) return { ok: false, cli: null, message: mt('m.dsh.noLocalNodeNpm') }
         return { ok: true, cli, runtime: 'local' }
     }
     if (hasSystemNpm()) return { ok: true, cli: null }
-    return { ok: false, cli: null, message: mt('m.kernel.noSystemNpm') }
+    return { ok: false, cli: null, message: mt('m.dsh.noSystemNpm') }
 }
 
 /**
@@ -444,7 +444,7 @@ export async function ensureBundledNpmReady(opts?: { version?: string }, onProgr
         if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: opts?.version ?? null }
         return r.ok
             ? { ok: true, message: 'npm 已就绪', version: opts?.version ?? null }
-            : { ok: false, message: r.message ?? mt('m.kernel.bundledNpmFetchFail'), version: opts?.version ?? null }
+            : { ok: false, message: r.message ?? mt('m.dsh.bundledNpmFetchFail'), version: opts?.version ?? null }
     } finally {
         token.done()
     }
@@ -468,7 +468,7 @@ export function removeInstalledNpmVersion(version: string): ToolActionResult {
     return { ok: true, message: `已删除 npm ${version}`, version }
 }
 
-/** Local install into <configDir>/kernel via `npm --prefix`. */
+/** Local install into <configDir>/dsh via `npm --prefix`. */
 export async function runLocalNpmInstall(target: string, cfg: Settings, prefix: string, signal?: AbortSignal): Promise<{ ok: boolean; stderrTail: string; fatal?: string; canceled?: boolean }> {
     const npm = await chooseLocalNpm(cfg, signal)
     if (!npm.ok) return { ok: false, stderrTail: '', fatal: npm.message, canceled: npm.canceled }
@@ -476,7 +476,7 @@ export async function runLocalNpmInstall(target: string, cfg: Settings, prefix: 
         fs.mkdirSync(prefix, { recursive: true })
         const pkgFile = path.join(prefix, 'package.json')
         if (!fs.existsSync(pkgFile)) {
-            fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dsbox-kernel', private: true, version: '0.0.0' }, null, 2))
+            fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dsbox-dsh', private: true, version: '0.0.0' }, null, 2))
         }
     } catch (err) {
         return { ok: false, stderrTail: '', fatal: err instanceof Error ? err.message : String(err) }
@@ -515,7 +515,7 @@ export async function updateNpm(opts: { source: NpmSource; version?: string }, o
     try {
         const cfg = loadSettings()
         const target = opts.version ?? (await npmLatestVersion(cfg))
-        if (!target) return { ok: false, message: mt('m.kernel.bundledNpmFetchFail'), version: null }
+        if (!target) return { ok: false, message: mt('m.dsh.bundledNpmFetchFail'), version: null }
         // 版本号会被拼进下载 URL 与 npm 参数，必须挡住意外/恶意字符串。
         if (!/^\d+\.\d+\.\d+/.test(target)) return { ok: false, message: `npm 版本号不合法：${target}`, version: null }
 
@@ -524,12 +524,12 @@ export async function updateNpm(opts: { source: NpmSource; version?: string }, o
             if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: target }
             return r.ok
                 ? { ok: true, message: `npm ${target} 已缓存到配置目录`, version: target }
-                : { ok: false, message: r.message ?? mt('m.kernel.bundledNpmFetchFail'), version: target }
+                : { ok: false, message: r.message ?? mt('m.dsh.bundledNpmFetchFail'), version: target }
         }
 
         if (opts.source === 'localnode') {
             const cli = localNodeNpmCli()
-            if (!cli) return { ok: false, message: mt('m.kernel.noLocalNodeNpm'), version: null }
+            if (!cli) return { ok: false, message: mt('m.dsh.noLocalNodeNpm'), version: null }
             const r = await runNpmCli(cli, ['install', '-g', `npm@${target}`, '--prefix', localNodeDir()], `npm install -g npm@${target} (local node)`, 'local', token.signal)
             if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: target }
             return r.ok
@@ -537,7 +537,7 @@ export async function updateNpm(opts: { source: NpmSource; version?: string }, o
                 : { ok: false, message: npmFailMessage(r.stderrTail), version: target }
         }
 
-        if (!hasSystemNpm()) return { ok: false, message: mt('m.kernel.noSystemNpm'), version: null }
+        if (!hasSystemNpm()) return { ok: false, message: mt('m.dsh.noSystemNpm'), version: null }
         const r = await runNpm(['install', '-g', `npm@${target}`], `npm install -g npm@${target}`, token.signal)
         if (r.canceled) return { ok: false, canceled: true, message: CANCELED_MESSAGE, version: target }
         return r.ok

@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: DeepSeek Box
-  text: 桌面外壳 · 内嵌 dsh 内核
-  tagline: 用 Electron 拉起 dsh 内核，把 dsh Web UI、网页版对话与充值平台装进一个桌面窗口。双击即用，无需命令行。
+  text: 桌面外壳 · 内嵌 DeepSeek Harness
+  tagline: 用 Electron 拉起 DeepSeek Harness，把 dsh Web UI、网页版对话与充值平台装进一个桌面窗口。双击即用，无需命令行。
   image:
     src: /home-page.png
     alt: DeepSeek Box 主界面
@@ -19,7 +19,7 @@ hero:
 features:
   - icon: 🧩
     title: 浏览器式标签页
-    details: 内核 UI / 网页对话 / 用量充值三个固定标签常驻，页面里打开的新链接自动成为动态标签，可星标保活、拖动排序。
+    details: dsh Web UI / 网页对话 / 用量充值三个固定标签常驻，页面里打开的新链接自动成为动态标签，可星标保活、拖动排序。
   - icon: 🪟
     title: 多窗口
     details: 右键「在新窗口打开」拆出副窗口，标签可在窗口间拖动迁移；核心窗口关闭后由最早的副窗口自动接管。
@@ -27,7 +27,7 @@ features:
     title: 自管理环境
     details: 可选内置 Node + 内置 npm，也可用系统 Node；版本化安装、随时切换与回退，无需命令行。
   - icon: 🔄
-    title: 自管理内核
+    title: 自管理 DeepSeek Harness
     details: 自动下载 / 升级 / 切换 / 卸载 @deepseek-ai/dsh，操作前自动安全停止运行中的服务。
   - icon: ⬇️
     title: 多线程下载
@@ -54,7 +54,7 @@ features:
   </a>
   <a class="card" href="/zh/user/settings">
     <h3>⚙️ 设置说明</h3>
-    <p>主题、语言、镜像源、代理、下载与内核选项。</p>
+    <p>主题、语言、镜像源、代理、下载与 DeepSeek Harness 选项。</p>
   </a>
   <a class="card" href="/zh/user/environment">
     <h3>🧰 环境管理</h3>
@@ -77,7 +77,7 @@ features:
   <div class="step">
     <span class="step__no">2</span>
     <h3>跟着向导</h3>
-    <p>镜像源 → Node → npm → 安装内核，四步完成初始化。</p>
+    <p>镜像源 → Node → npm → 安装 DeepSeek Harness，四步完成初始化。</p>
   </div>
   <div class="step">
     <span class="step__no">3</span>

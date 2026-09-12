@@ -4,7 +4,7 @@ import { listWindows, coreWindowId, windowByContentsId } from './windowreg'
 /**
  * Lowest-level cross-cutting runtime state shared by every main-process module.
  *
- * Kept deliberately tiny and cycle-free: feature modules (settings / kernel /
+ * Kept deliberately tiny and cycle-free: feature modules (settings / dsh /
  * dsh server / ui / ipc) import these primitives; nothing imports them back, so
  * there is no import cycle. Electron types are imported as `type` only.
  */
@@ -84,7 +84,7 @@ export function sendToWcId(wcId: number | null | undefined, channel: string, pay
     sendToWindow(windowByContentsId(wcId), channel, payload)
 }
 
-/** 只发给“当前核心窗口”（内核 UI 唯一宿主）。无核心则不发送。 */
+/** 只发给“当前核心窗口”（dsh UI 唯一宿主）。无核心则不发送。 */
 export function sendCore(channel: string, payload?: unknown): void {
     sendToWcId(coreWindowId(), channel, payload)
 }

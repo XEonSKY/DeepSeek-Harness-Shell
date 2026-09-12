@@ -24,7 +24,7 @@ npm run dist:win     # package Windows (also dist:mac / dist:linux)
 
 1. Update the version in `package.json` and `package-lock.json`;
 2. Commit and push to `main` (confirm before pushing to the remote);
-3. Tag (e.g. `v0.1.5-beta-1`) and push to trigger `Build & Release`;
+3. Tag (e.g. `v0.1.5-rc-1`) and push to trigger `Build & Release`;
 4. If docs changes are pushed to `main`, a Pages deployment is triggered separately.
 
 > Before pushing to the remote you must state the target (branch / tag, whether it is a force push) and get confirmation, see [Development conventions](/en/dev/conventions).

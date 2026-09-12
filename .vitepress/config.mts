@@ -14,7 +14,8 @@ const zhUser = [
     { text: '界面与操作', link: '/zh/user/usage' },
     { text: '设置说明', link: '/zh/user/settings' },
     { text: '环境管理（Node / npm）', link: '/zh/user/environment' },
-    { text: '内核管理', link: '/zh/user/kernel' },
+    { text: 'DeepSeek Harness 管理', link: '/zh/user/dsh' },
+    { text: '模型', link: '/zh/user/models' },
     { text: '应用更新与回退', link: '/zh/user/update' },
     { text: '常见问题', link: '/zh/user/faq' }
   ] }
@@ -44,7 +45,8 @@ const enUser = [
     { text: 'Interface & usage', link: '/en/user/usage' },
     { text: 'Settings', link: '/en/user/settings' },
     { text: 'Environment (Node / npm)', link: '/en/user/environment' },
-    { text: 'Kernel management', link: '/en/user/kernel' },
+    { text: 'DeepSeek Harness management', link: '/en/user/dsh' },
+    { text: 'Models', link: '/en/user/models' },
     { text: 'App updates & rollback', link: '/en/user/update' },
     { text: 'FAQ', link: '/en/user/faq' }
   ] }
@@ -94,7 +96,7 @@ export default defineConfig({
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'DeepSeek Box' }],
     ['meta', { name: 'twitter:card', content: 'summary' }],
-    // 应用图标：由 app/resources/icon.png（256×256）复制为 docs/public/logo.png
+    // 应用图标：由 resources/icon.png 复制为 docs/public/logo.png
     ['link', { rel: 'icon', type: 'image/png', href: '/logo.png' }],
     ['meta', { property: 'og:image', content: '/logo.png' }]
   ],

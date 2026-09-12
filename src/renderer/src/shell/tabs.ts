@@ -5,7 +5,7 @@ import { isNewTabTarget } from '@shared/types'
 /**
  * 标题栏「浏览器标签页」模型（渲染层单例）。
  *
- * 三个固定站标签页（home 内核 UI / chat 网页对话 / platform 用量充值）始终保活、不可关闭。
+ * 三个固定站标签页（home dsh UI / chat 网页对话 / platform 用量充值）始终保活、不可关闭。
  * 动态标签页（由 `ui:new-tab` 或「＋ 新建」产生）**可以开很多**（不再自动关闭），但为控制
  * 资源只对其中的最近 `KEEP_ALIVE_DYNAMIC` 个做 webview 保活；其余标签仍保留在列表里，
  * 切回时再（重新）加载。固定三站不计入该保活上限。
@@ -155,7 +155,7 @@ const FIXED_SPECS: Array<{ id: string; kind: WebTabKind; url: string | null; tit
 
 /**
  * 依据本窗口是否“核心窗口”调整固定标签集合（幂等）：
- * - 核心：若缺少 内核UI/网页对话/用量 则补齐（用于“副窗口接管成为新核心”时补上内核UI）。
+ * - 核心：若缺少 dsh UI/网页对话/用量 则补齐（用于“副窗口接管成为新核心”时补上 dsh UI）。
  * - 非核心：移除三固定站（只保留动态/新建标签）。
  */
 export function setCoreRole(isCore: boolean): void {
@@ -172,7 +172,7 @@ export function setCoreRole(isCore: boolean): void {
         return
     }
 
-    // 核心：逐条补齐缺失的固定站，保持 内核UI/网页/用量 的相对顺序
+    // 核心：逐条补齐缺失的固定站，保持 dsh UI/网页/用量 的相对顺序
     for (let ci = 0; ci < FIXED_SPECS.length; ci++) {
         const spec = FIXED_SPECS[ci]
         if (hasKind(spec.kind)) continue

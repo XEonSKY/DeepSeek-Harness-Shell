@@ -9,7 +9,7 @@ import type { LogEntry, Settings } from '@shared/types'
 import { IS_WIN, broadcast, sendCore, setCurrentUrl } from '../app/runtime'
 import { listWindows } from '../app/windowreg'
 import type { NodeRuntime } from './tools'
-import { resolveKernel, nodeRuntimeForCfg } from './tools'
+import { resolveDshModule, nodeRuntimeForCfg } from './tools'
 import { loadSettings, mt } from '../app/settings'
 import { WATCHDOG_CODE } from './watchdog'
 
@@ -102,7 +102,7 @@ export function isDshRunning(): boolean {
  * Force-stop every launched dsh instance (the active watchdog/dsh tree plus any
  * lingering registered children, e.g. older generations). Returns true if a
  * server was actually running and had to be shut down. Used before swapping or
- * removing the kernel module, where a live process would lock the files.
+ * removing the dsh module, where a live process would lock the files.
  */
 export function stopAllDsh(): boolean {
     const wasRunning = isDshRunning()
@@ -111,7 +111,7 @@ export function stopAllDsh(): boolean {
     return wasRunning
 }
 
-/** 主动停止 dsh：关停并清空当前 URL，广播给渲染层（仅核心窗口承载内核 UI）。 */
+/** 主动停止 dsh：关停并清空当前 URL，广播给渲染层（仅核心窗口承载 dsh UI）。 */
 export function stopServer(): void {
     stopAllDsh()
     setCurrentUrl(null)
@@ -127,8 +127,8 @@ export const SHUTDOWN_GRACE_MS = 5000
 
 /**
  * 让当前 dsh（watchdog 树）优雅退出：经 watchdog 的 stdin 控制通道发
- * `{"cmd":"stop"}`，由 watchdog 给内核发 SIGTERM 并等待其清场；若 watchdog
- * 迟迟不退（内核忽略信号等），超时后在此强杀兜底，避免残留孤儿进程。
+ * `{"cmd":"stop"}`，由 watchdog 给 dsh 发 SIGTERM 并等待其清场；若 watchdog
+ * 迟迟不退（dsh 忽略信号等），超时后在此强杀兜底，避免残留孤儿进程。
  */
 export function stopDshGracefully(graceMs: number = SHUTDOWN_GRACE_MS): Promise<void> {
     const child = serverProcess
@@ -210,10 +210,10 @@ function launchServer(cfg: Settings): Promise<string> {
     killServer() // stop any previous generation
     childKilled = false
 
-    const kernel = resolveKernel(cfg)
-    if (!kernel.present || !kernel.entry) {
+    const resolved = resolveDshModule(cfg)
+    if (!resolved.present || !resolved.entry) {
         return Promise.reject(
-            new Error(`No usable @deepseek-ai/dsh kernel (source=${cfg.kernelSource ?? 'local'}). Please install it first.`)
+            new Error(`No usable @deepseek-ai/dsh install (source=${cfg.dshSource ?? 'local'}). Please install it first.`)
         )
     }
 
@@ -230,7 +230,7 @@ function launchServer(cfg: Settings): Promise<string> {
 
     const port = (cfg.port ?? 3080) === 0 ? 0 : cfg.port ?? 3080
     const rt = nodeRuntimeForCfg(cfg)
-    const launch = { entry: kernel.entry, args: dshArgs(cfg.host || '127.0.0.1', port) }
+    const launch = { entry: resolved.entry, args: dshArgs(cfg.host || '127.0.0.1', port) }
 
     return new Promise<string>((resolve, reject) => {
         spawnWatchdog(rt, launch, { cwd, gen, resolve, reject, timeoutMs: cfg.timeoutMs })
@@ -295,7 +295,7 @@ function spawnWatchdog(rt: NodeRuntime, launch: { entry: string; args: string[] 
     child.on('error', (err) => {
         if (!settledUrl && !timedOut) {
             clearTimeout(timer)
-            o.reject(new Error(`Failed to start the dsh kernel: ${err.message}`))
+            o.reject(new Error(`Failed to start dsh: ${err.message}`))
         }
     })
 
@@ -305,7 +305,7 @@ function spawnWatchdog(rt: NodeRuntime, launch: { entry: string; args: string[] 
         // 进程已结束就清掉当前句柄，避免 isDshRunning / 后续优雅停误判到已死/复用 PID。
         if (serverProcess === child) serverProcess = null
         if (!settledUrl && !childKilled) {
-            o.reject(new Error(`dsh kernel exited before serving a URL (code=${code}).\n${stderrTail}`))
+            o.reject(new Error(`dsh exited before serving a URL (code=${code}).\n${stderrTail}`))
         }
     })
 }
@@ -326,7 +326,7 @@ async function runOneRestart(): Promise<void> {
         effective.port = await resolvePort(effective)
         const url = await launchServer(effective)
         setCurrentUrl(url)
-        sendCore('dsh:url', url) // 只通知核心窗口：内核 UI 由核心窗口承载
+        sendCore('dsh:url', url) // 只通知核心窗口：dsh UI 由核心窗口承载
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         dialog.showErrorBox(mt('m.dialogs.startFailedTitle'), msg)

@@ -8,7 +8,7 @@ import { appState } from '../../lib/state'
 import { tt } from '../../lib/locales'
 import { payloadFrom, type SettingsState, type SettingsActions } from './settingsStore'
 import { createDshActions } from './actions/dshActions'
-import { createKernelActions } from './actions/kernelActions'
+import { createDshManageActions } from './actions/dshManageActions'
 
 /**
  * 设置页数据与动作（Pinia setup store）。
@@ -31,7 +31,7 @@ export const useSettingsStore = defineStore('settings', () => {
         appAutoUpdate: DEFAULT_SETTINGS.appAutoUpdate,
         appCheckPrerelease: DEFAULT_SETTINGS.appCheckPrerelease,
         devMode: DEFAULT_SETTINGS.devMode,
-        kernelSource: DEFAULT_SETTINGS.kernelSource,
+        dshSource: DEFAULT_SETTINGS.dshSource,
         nodeRuntime: DEFAULT_SETTINGS.nodeRuntime,
         npmSource: DEFAULT_SETTINGS.npmSource,
         proxyEnabled: DEFAULT_SETTINGS.proxyEnabled,
@@ -54,14 +54,15 @@ export const useSettingsStore = defineStore('settings', () => {
         hardwareAcceleration: DEFAULT_SETTINGS.hardwareAcceleration,
         webviewUserAgent: DEFAULT_SETTINGS.webviewUserAgent,
         colorScheme: DEFAULT_SETTINGS.colorScheme,
+        modelsCredConsent: DEFAULT_SETTINGS.modelsCredConsent,
         dshRunning: false,
         applying: false,
         updating: false,
-        updatingKernel: false,
+        updatingDsh: false,
         version: null,
         versions: [],
         versionsLoading: false,
-        switchingKernel: false,
+        switchingDsh: false,
         uninstalling: false,
         selectedVersion: ''
     })
@@ -79,7 +80,7 @@ export const useSettingsStore = defineStore('settings', () => {
         state.appAutoUpdate = s.appAutoUpdate !== false
         state.appCheckPrerelease = s.appCheckPrerelease === true
         state.devMode = s.devMode === true
-        state.kernelSource = s.kernelSource ?? DEFAULT_SETTINGS.kernelSource
+        state.dshSource = s.dshSource ?? DEFAULT_SETTINGS.dshSource
         state.nodeRuntime = s.nodeRuntime ?? DEFAULT_SETTINGS.nodeRuntime
         state.npmSource = s.npmSource ?? DEFAULT_SETTINGS.npmSource
         state.proxyEnabled = s.proxyEnabled === true
@@ -104,6 +105,7 @@ export const useSettingsStore = defineStore('settings', () => {
         state.hardwareAcceleration = s.hardwareAcceleration !== false
         state.webviewUserAgent = s.webviewUserAgent ?? DEFAULT_SETTINGS.webviewUserAgent
         state.colorScheme = s.colorScheme ?? DEFAULT_SETTINGS.colorScheme
+        state.modelsCredConsent = s.modelsCredConsent === true
         appState.workspace = s.workspace
         if (typeof s.port === 'number' && s.port > 0) {
             state.portMode = 'manual'
@@ -173,11 +175,11 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 动作按关注点分模块（见 ./actions/）；本 store 只保留与表单/防抖保存强耦合的部分。
     const dshActions = createDshActions(state)
-    const kernelActions = createKernelActions(state)
+    const dshManageActions = createDshManageActions(state)
 
     const actions: SettingsActions = {
         ...dshActions,
-        ...kernelActions,
+        ...dshManageActions,
         browseWorkspace,
         browseDshBin,
         apply,
@@ -196,7 +198,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // 配色方案即时生效（外部改动经 fillFrom 改 state 时这个 watch 也会跑）。
     watch(() => state.colorScheme, (id) => applyColorScheme(id))
     // 预发布开关/镜像变化时重建版本列表。
-    watch([() => state.autoCheckPrerelease, () => state.npmRegistry], () => void kernelActions.loadVersions())
+    watch([() => state.autoCheckPrerelease, () => state.npmRegistry], () => void dshManageActions.loadVersions())
 
     // ---- 外部配置自动同步：settings.json / dsh 的 settings.yaml 被外部改动。 ----
     const offSettingsChanged = window.api.onSettingsChanged((s) => {

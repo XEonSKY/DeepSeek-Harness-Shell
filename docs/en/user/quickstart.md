@@ -6,10 +6,10 @@ Once installation is complete, just launch the app for the first time and it is 
 
 ## Step 1: Launch the app
 
-Double-click the desktop icon or the Start menu shortcut. The app first checks whether the kernel is ready:
+Double-click the desktop icon or the Start menu shortcut. The app first checks whether DeepSeek Harness is ready:
 
 - Ready: it starts dsh directly and embeds the main interface;
-- Kernel not detected: it shows the full-screen **installation wizard** (see Step 2).
+- DeepSeek Harness not detected: it shows the full-screen **installation wizard** (see Step 2).
 
 ## Step 2: Follow the wizard to finish initialization
 
@@ -20,7 +20,7 @@ The wizard has four steps in total; on each one click “Run and Next”:
 | 1. Mirror | Official source / npmmirror mirror | In China choose **npmmirror**, it is faster |
 | 2. Node environment | Electron bundled / System bundled / Locally deployed | No Node installed on this machine: choose **Locally deployed**; don't want extra downloads: choose **Electron bundled** |
 | 3. npm environment | Bundled with the program / System bundled / Bundled with local Node | **Bundled with the program** is the most hassle-free |
-| 4. Install kernel | Version dropdown + install button | Just use the default version and click “Install Kernel” |
+| 4. Install DeepSeek Harness | Version dropdown + install button | Just use the default version and click “Install DeepSeek Harness” |
 
 A few notes:
 
@@ -35,8 +35,8 @@ Once installation completes, the app starts dsh automatically; the Web UI appear
 
 After launch, the interface consists of three parts:
 
-1. **Top title bar**: the app name on the left; in the middle is a browser-style tab bar—the highlighted **DeepSeek UI** (kernel interface), Web Chat, and Usage & Top-up as three fixed tabs, with a `＋` on the right to open a new tab; on the far right are refresh, settings, and minimize / maximize / close.
-2. **Main area**: the left vertical column has the kernel logo, “New Session”, and the “Workspaces” list; in the middle are the welcome message, workspace / mode selection, the input box, and the model selector.
+1. **Top title bar**: the app name on the left; in the middle is a browser-style tab bar—the highlighted **DeepSeek UI** (dsh Web UI), Web Chat, and Usage & Top-up as three fixed tabs, with a `＋` on the right to open a new tab; on the far right are refresh, settings, and minimize / maximize / close.
+2. **Main area**: the left vertical column has the DeepSeek Harness logo, “New Session”, and the “Workspaces” list; in the middle are the welcome message, workspace / mode selection, the input box, and the model selector.
 3. **“Settings” in the lower-left corner**: opens the settings page (an overlay that does not interrupt the current page).
 
 For the complete description see [Interface & Operations](/en/user/usage).
@@ -51,5 +51,6 @@ For the complete description see [Interface & Operations](/en/user/usage).
 
 - Adjust language, theme, mirror, or proxy: [Settings Guide](/en/user/settings)
 - Manage the Node / npm source and version: [Environment Management](/en/user/environment)
-- Manage the kernel version: [Kernel Management](/en/user/kernel)
+- Manage the DeepSeek Harness version: [DeepSeek Harness management](/en/user/dsh)
+- View models and balances: [Models & balances](/en/user/models)
 - Running into problems: [FAQ](/en/user/faq)

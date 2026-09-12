@@ -1,5 +1,5 @@
 /**
- * 可取消操作令牌：Node / npm / 内核的安装（下载 + 解压 + 落盘）共用一个「当前操作」，
+ * 可取消操作令牌：Node / npm / dsh 的安装（下载 + 解压 + 落盘）共用一个「当前操作」，
  * 渲染层「取消」按钮经 IPC 调 `cancelActive()` 中止。同一时刻只允许一个安装在进行。
  */
 
@@ -29,13 +29,6 @@ export function cancelActive(): boolean {
     if (!active) return false
     active.ctrl.abort()
     return true
-}
-
-/** 是否为「因取消而中止」的错误。 */
-export function isAbortError(err: unknown): boolean {
-    if (!err || typeof err !== 'object') return false
-    const e = err as { name?: string; message?: string }
-    return e.name === 'AbortError' || /abort/i.test(e.message ?? '')
 }
 
 /** 已取消时的统一文案。 */

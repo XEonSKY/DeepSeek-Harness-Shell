@@ -3,8 +3,8 @@ import type { BrowserWindow } from 'electron'
 /**
  * 壳窗口注册表：跟踪每个「壳窗口」(core 或 secondary)与其“核心”角色。
  *
- * 核心窗口：承载 dsh 内核 UI 的固定首标签。其它壳窗口为「副窗口」——同样带完整标签条，
- * 但不含内核 UI 固定站。真弹窗(第三方 window.open 带 frameName/features)不是壳窗口，
+ * 核心窗口：承载 dsh UI 的固定首标签。其它壳窗口为「副窗口」——同样带完整标签条，
+ * 但不含 dsh UI 固定站。真弹窗(第三方 window.open 带 frameName/features)不是壳窗口，
  * 不入册（所以既收不到全局广播，也不会被当作副窗口参与核心接管）。
  *
  * 核心窗口被销毁（真关闭）时，若仍有副窗口存活，应把核心角色移交给“现存最早打开”的副窗口
@@ -46,12 +46,6 @@ export function hasCoreWindow(): boolean {
 export function coreWindowId(): number | null {
     for (const e of windows.values()) if (e.core) return e.win.webContents.id
     return null
-}
-
-/** 核心窗口对象（被销毁或无则 null）。 */
-export function coreWindow(): BrowserWindow | null {
-    const id = coreWindowId()
-    return id != null ? windowByContentsId(id) : null
 }
 
 /**

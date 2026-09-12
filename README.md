@@ -1,8 +1,8 @@
 <div align="center">
 
-# DeepSeek Harness Shell
+# DeepSeek Box
 
-**把 DeepSeek Harness 装进桌面：双击就能用，不用命令行、不用自己配环境。**
+**把 dsh 内核装进桌面：双击就能用，不用命令行、不用自己配环境。**
 
 [![Electron](https://img.shields.io/badge/Electron-^44-47848F?logo=electron&logoColor=white&style=flat-square)](https://www.electronjs.org/)
 [![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white&style=flat-square)](https://vuejs.org/)
@@ -11,7 +11,7 @@
 
 </div>
 
-![DeepSeek Harness Shell 主界面](docs/public/home-page.png)
+![DeepSeek Box 主界面](docs/public/home-page.png)
 
 > 上图就是打开后的样子：顶部是浏览器式标签栏，左侧是工作区与会话，中间可以直接对话。
 
@@ -19,9 +19,9 @@
 
 ## 这是做什么的？
 
-DeepSeek Harness（下面简称 **dsh**）原本是一个需要在命令行里启动、再用浏览器打开的程序。对不熟悉命令行的用户来说，光是「装 Node、装内核、记住启动命令」就足够折腾。
+dsh（npm 包名 `@deepseek-ai/dsh`）原本是一个需要在命令行里启动、再用浏览器打开的程序。对不熟悉命令行的用户来说，光是「装 Node、装内核、记住启动命令」就足够折腾。
 
-**DeepSeek Harness Shell 就是它的桌面版入口**：在后台帮你启动 dsh，并把界面直接嵌进一个原生窗口。你只要双击图标，剩下的交给它。
+**DeepSeek Box 就是它的桌面版入口**：在后台帮你启动 dsh，并把界面直接嵌进一个原生窗口。你只要双击图标，剩下的交给它。
 
 它不替代 dsh，只是把「启动 dsh」这件事变成点一下按钮。
 
@@ -66,7 +66,7 @@ DeepSeek Harness（下面简称 **dsh**）原本是一个需要在命令行里�
 
 | 名词 | 白话解释 |
 |---|---|
-| **dsh / 内核** | 真正干活的 DeepSeek Harness 程序，相当于「引擎」 |
+| **dsh / 内核** | 真正干活的 AI 内核程序（`@deepseek-ai/dsh`），相当于「引擎」 |
 | **Node / npm** | 引擎运行需要的零件；本应用可以帮你自动下载，不用自己装 |
 | **配置目录** | 应用存放自己数据的位置，默认 `~/.dsbox/release`（开发版为 `~/.dsbox/dev`） |
 | **工作区** | dsh 读写文件时所在的文件夹 |
@@ -90,7 +90,7 @@ DeepSeek Harness（下面简称 **dsh**）原本是一个需要在命令行里�
 ## 界面速览
 
 - **顶部标题栏**：左侧是应用名；中间是标签栏——蓝色高亮的 **DeepSeek UI**（内核界面）、网页对话、充值平台等标签，右侧 `＋` 可新开标签；最右侧是刷新、设置、最小化 / 最大化 / 关闭。
-- **主区域（内核界面）**：左侧竖栏是 DeepSeek Harness 标识、「新会话」按钮和「工作区」列表；中间是欢迎语、工作区 / 模式选择、输入框与模型选择；左下角是「设置」。
+- **主区域（内核界面）**：左侧竖栏是内核标识、「新会话」按钮和「工作区」列表；中间是欢迎语、工作区 / 模式选择、输入框与模型选择；左下角是「设置」。
 - **设置页**以覆盖层打开，覆盖在网页之上，切回来仍是原来的状态；终端也收在设置里，按 `Ctrl/Cmd + T` 可快速切换。
 
 更完整的说明见 [界面与操作](docs/zh/user/usage.md)（[English](docs/en/user/usage.md)）。
@@ -114,7 +114,7 @@ DeepSeek Harness（下面简称 **dsh**）原本是一个需要在命令行里�
 </details>
 
 <details>
-<summary><b>我想用自己全局安装的 DeepSeek Harness</b></summary>
+<summary><b>我想用自己全局安装的 dsh</b></summary>
 
 「设置 → 内核 → 内核来源」选「全局」，再用文件选择器指定启动器路径。
 

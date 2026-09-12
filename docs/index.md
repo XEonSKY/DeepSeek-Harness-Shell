@@ -1,13 +1,13 @@
 ---
 layout: page
-title: DeepSeek Harness Shell
+title: DeepSeek Box
 head:
   - - meta
     - http-equiv: refresh
       content: '0; url=/zh/'
 ---
 
-# DeepSeek Harness Shell
+# DeepSeek Box
 
 正在跳转到[简体中文文档](/zh/)… / Redirecting to the [English docs](/en/)…
 

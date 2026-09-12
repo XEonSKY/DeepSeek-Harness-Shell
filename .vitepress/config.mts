@@ -81,8 +81,8 @@ const enNav = [
 ]
 
 export default defineConfig({
-  title: 'DeepSeek Harness Shell',
-  description: 'DeepSeek Harness Shell —— 用户与开发文档',
+  title: 'DeepSeek Box',
+  description: 'DeepSeek Box —— 用户与开发文档',
   cleanUrls: true,
   lastUpdated: true,
   // README.md 是仓库/站点维护说明，不属于用户文档，不进站点。
@@ -90,9 +90,9 @@ export default defineConfig({
   srcExclude: ['README.md'],
   head: [
     ['meta', { name: 'theme-color', content: '#0d1424' }],
-    ['meta', { name: 'application-name', content: 'DeepSeek Harness Shell' }],
+    ['meta', { name: 'application-name', content: 'DeepSeek Box' }],
     ['meta', { property: 'og:type', content: 'website' }],
-    ['meta', { property: 'og:site_name', content: 'DeepSeek Harness Shell' }],
+    ['meta', { property: 'og:site_name', content: 'DeepSeek Box' }],
     ['meta', { name: 'twitter:card', content: 'summary' }],
     // 应用图标：由 app/resources/icon.png（256×256）复制为 docs/public/logo.png
     ['link', { rel: 'icon', type: 'image/png', href: '/logo.png' }],
@@ -116,7 +116,7 @@ export default defineConfig({
         lastUpdated: { text: '最后更新于', formatOptions: { dateStyle: 'short', timeStyle: 'short' } },
         editLink: { pattern: REPO + '/edit/main/docs/:path', text: '在 GitHub 上编辑此页' },
         footer: {
-          message: 'DeepSeek Harness Shell · 用户与开发文档',
+          message: 'DeepSeek Box · 用户与开发文档',
           copyright: 'Copyright © 2026 <a href="https://www.xeonsky.com/" target="_blank" rel="noopener">XEonSKY Studio</a>'
         }
       },
@@ -130,7 +130,7 @@ export default defineConfig({
         lastUpdated: { text: 'Last updated at', formatOptions: { dateStyle: 'short', timeStyle: 'short' } },
         editLink: { pattern: REPO + '/edit/main/docs/:path', text: 'Edit this page on GitHub' },
         footer: {
-          message: 'DeepSeek Harness Shell · User & developer docs',
+          message: 'DeepSeek Box · User & developer docs',
           copyright: 'Copyright © 2026 <a href="https://www.xeonsky.com/" target="_blank" rel="noopener">XEonSKY Studio</a>'
         }
       }

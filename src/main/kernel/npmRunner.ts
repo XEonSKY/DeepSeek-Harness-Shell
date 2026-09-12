@@ -476,7 +476,7 @@ export async function runLocalNpmInstall(target: string, cfg: Settings, prefix: 
         fs.mkdirSync(prefix, { recursive: true })
         const pkgFile = path.join(prefix, 'package.json')
         if (!fs.existsSync(pkgFile)) {
-            fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dsh-shell-kernel', private: true, version: '0.0.0' }, null, 2))
+            fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dsbox-kernel', private: true, version: '0.0.0' }, null, 2))
         }
     } catch (err) {
         return { ok: false, stderrTail: '', fatal: err instanceof Error ? err.message : String(err) }

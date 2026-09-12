@@ -189,7 +189,7 @@ function buildShellWindow(core: boolean, initialUrl?: string): BrowserWindow {
         height: 860,
         minWidth: 900,
         minHeight: 600,
-        title: 'DeepSeek Harness',
+        title: 'DeepSeek Box',
         icon: fs.existsSync(iconPath) ? iconPath : undefined,
         frame: false, // frameless: the renderer draws its own title bar (drag + controls)
         autoHideMenuBar: true,
@@ -443,7 +443,7 @@ export function createTray(): void {
             const w = getMainWindow()
             return w && !w.isDestroyed() ? w : null
         }
-        t.setToolTip('DeepSeek Harness Shell')
+        t.setToolTip('DeepSeek Box')
         t.setContextMenu(
             Menu.buildFromTemplate([
                 {

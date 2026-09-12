@@ -2,12 +2,12 @@
 layout: home
 
 hero:
-  name: DeepSeek Harness Shell
-  text: 桌面外壳 · 内嵌 DeepSeek Harness
-  tagline: 用 Electron 拉起 dsh 内核，把 DeepSeek Harness Web UI、网页版对话与充值平台装进一个桌面窗口。双击即用，无需命令行。
+  name: DeepSeek Box
+  text: 桌面外壳 · 内嵌 dsh 内核
+  tagline: 用 Electron 拉起 dsh 内核，把 dsh Web UI、网页版对话与充值平台装进一个桌面窗口。双击即用，无需命令行。
   image:
     src: /home-page.png
-    alt: DeepSeek Harness Shell 主界面
+    alt: DeepSeek Box 主界面
   actions:
     - theme: brand
       text: 用户文档

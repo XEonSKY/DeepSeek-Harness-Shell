@@ -1,5 +1,5 @@
 # ============================================================
-# DeepSeek Harness Shell — Git 忽略规则
+# DeepSeek Box — Git 忽略规则
 # 仓库根为 app/。按类别分组，除当前已知产物外，也覆盖未来可能出现的文件。
 #
 # ⚠️ 必须入库、切勿加入忽略：package-lock.json、.npmrc、package.json、

@@ -354,9 +354,9 @@ onBeforeUnmount(() => {
 <template>
     <div class="panel">
         <div class="dsh-brand">
-            <div class="dsh-brand__icon about-logo"><img :src="aboutIcon" alt="DeepSeek Harness Shell" draggable="false" /></div>
+            <div class="dsh-brand__icon about-logo"><img :src="aboutIcon" alt="DeepSeek Box" draggable="false" /></div>
             <div class="dsh-brand__txt">
-                <div class="dsh-brand__name">DeepSeek Harness Shell</div>
+                <div class="dsh-brand__name">DeepSeek Box</div>
                 <div class="dsh-brand__ver">
                     {{ $t('sv.about.appVersion') }}&nbsp;<code
                         class="app-ver"

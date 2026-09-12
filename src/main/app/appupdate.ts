@@ -226,7 +226,7 @@ interface ReleaseItem {
 async function fetchReleases(): Promise<ReleaseItem[]> {
     const updaterSession = session.fromPartition(UPDATER_SESSION, { cache: false })
     const res = await updaterSession.fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases?per_page=30`, {
-        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'dsh-shell-updater' }
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'dsbox-updater' }
     })
     if (!res.ok) throw new Error(`GitHub API ${res.status}`)
     const arr = (await res.json()) as Array<{ tag_name?: string; prerelease?: boolean; draft?: boolean }>

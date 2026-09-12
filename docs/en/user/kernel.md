@@ -1,6 +1,6 @@
 # Kernel Management
 
-The kernel is the program that actually drives the DeepSeek Harness Web UI; its package name is `@deepseek-ai/dsh`. This page explains how to install, update, switch, and uninstall it. The related interface is under “Settings → Kernel”.
+The kernel is the program that actually drives the dsh Web UI; its package name is `@deepseek-ai/dsh`. This page explains how to install, update, switch, and uninstall it. The related interface is under “Settings → Kernel”.
 
 ## Kernel source
 

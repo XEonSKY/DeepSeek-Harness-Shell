@@ -1,6 +1,6 @@
 # User guide
 
-DeepSeek Harness Shell puts DeepSeek Harness (hereafter **dsh**) into a desktop window: double-click to launch, no command line, no manual environment setup. This section is for **everyday users**.
+DeepSeek Box puts the dsh kernel (npm package `@deepseek-ai/dsh`) into a desktop window: double-click to launch, no command line, no manual environment setup. This section is for **everyday users**.
 
 > To modify the code or learn about the internals, see the [Developer guide](/en/dev/).
 
@@ -48,6 +48,6 @@ DeepSeek Harness Shell puts DeepSeek Harness (hereafter **dsh**) into a desktop 
 3. [Interface & usage](/en/user/usage) — tabs, multiple windows, shortcuts;
 4. [Settings](/en/user/settings) — what each setting actually controls.
 
-## Its relationship to DeepSeek Harness
+## Its relationship to the dsh kernel
 
 This app does **not replace** dsh; it is its **desktop entry point + environment manager**: it starts and supervises the dsh process, embeds the interface in a native window, and can optionally manage Node, npm, and kernel versions on your behalf. Conversations, workspaces, sessions, and other data still belong to dsh itself.

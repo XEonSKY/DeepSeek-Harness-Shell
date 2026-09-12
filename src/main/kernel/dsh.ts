@@ -295,7 +295,7 @@ function spawnWatchdog(rt: NodeRuntime, launch: { entry: string; args: string[] 
     child.on('error', (err) => {
         if (!settledUrl && !timedOut) {
             clearTimeout(timer)
-            o.reject(new Error(`Failed to start DeepSeek Harness: ${err.message}`))
+            o.reject(new Error(`Failed to start the dsh kernel: ${err.message}`))
         }
     })
 
@@ -305,7 +305,7 @@ function spawnWatchdog(rt: NodeRuntime, launch: { entry: string; args: string[] 
         // 进程已结束就清掉当前句柄，避免 isDshRunning / 后续优雅停误判到已死/复用 PID。
         if (serverProcess === child) serverProcess = null
         if (!settledUrl && !childKilled) {
-            o.reject(new Error(`DeepSeek Harness exited before serving a URL (code=${code}).\n${stderrTail}`))
+            o.reject(new Error(`dsh kernel exited before serving a URL (code=${code}).\n${stderrTail}`))
         }
     })
 }

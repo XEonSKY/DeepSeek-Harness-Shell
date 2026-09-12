@@ -1,6 +1,6 @@
 # 用户文档
 
-DeepSeek Harness Shell 把 DeepSeek Harness（下称 **dsh**）装进一个桌面窗口：双击即可启动，不用命令行、不用手动配环境。本分类面向**日常使用者**。
+DeepSeek Box 把 dsh 内核（npm 包名 `@deepseek-ai/dsh`）装进一个桌面窗口：双击即可启动，不用命令行、不用手动配环境。本分类面向**日常使用者**。
 
 > 想改代码或了解内部实现，请转到[开发文档](/zh/dev/)。
 
@@ -48,6 +48,6 @@ DeepSeek Harness Shell 把 DeepSeek Harness（下称 **dsh**）装进一个桌�
 3. [界面与操作](/zh/user/usage) —— 标签页、多窗口、快捷键；
 4. [设置说明](/zh/user/settings) —— 每个设置项到底管什么。
 
-## 它和 DeepSeek Harness 的关系
+## 它和 dsh 内核的关系
 
 本应用**不替代** dsh，而是它的**桌面入口 + 环境管家**：负责启动与守护 dsh 进程、把界面嵌进原生窗口、并可选地代管 Node、npm 与内核版本。对话、工作区、会话等数据仍然属于 dsh 本身。

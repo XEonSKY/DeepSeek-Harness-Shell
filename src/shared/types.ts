@@ -476,7 +476,7 @@ export interface RendererApi {
    */
     onSettingsChanged(cb: (s: Settings) => void): () => void
     /**
-   * DeepSeek Harness's own settings.yaml (ui-theme.preference) changed on disk
+   * The dsh kernel's own settings.yaml (ui-theme.preference) changed on disk
    * (e.g. the theme was changed inside the dsh UI); adopt it in the shell.
    */
     onThemeChanged(cb: (theme: Theme) => void): () => void

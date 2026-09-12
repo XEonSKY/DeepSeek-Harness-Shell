@@ -91,7 +91,7 @@ export default {
             tagPre: '测试版',
             tagStable: '正式版',
             startup: '内核与启动',
-            launcherPath: 'DeepSeek Harness 启动器路径（可选）',
+            launcherPath: 'DeepSeek Box 启动器路径（可选）',
             browseLauncher: '选择…',
             launcherHint: '只有全局模式会用到；留空就按 PATH 找。',
             kernelSource: '内核来源',
@@ -101,7 +101,7 @@ export default {
             kernelGlobalHint: '用系统 npm install -g 装的内核。',
             timeout: '启动超时（毫秒）',
             timeoutHint: '等 dsh 印出地址要多久。',
-            applyTitle: '应用到 DeepSeek Harness',
+            applyTitle: '应用到 DeepSeek Box',
             applyTxt: '改完运行设置，点右边重启就生效咯。',
             applyBtn: '立即应用',
             start: '启动',
@@ -128,7 +128,7 @@ export default {
             installVersion: '安装这个版本',
             versionListHint: '按「包含测试版」过滤；随便装哪版都行。',
             uninstallTxt: '移除 {pkg}（会先停 dsh）。',
-            uninstall: '卸载 DeepSeek Harness'
+            uninstall: '卸载 DeepSeek Box'
         },
         env: {
             nodeRuntime: 'Node 运行环境',

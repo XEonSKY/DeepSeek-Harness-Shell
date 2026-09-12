@@ -2,7 +2,7 @@
 
 Once installation is complete, just launch the app for the first time and it is ready to use.
 
-![DeepSeek Harness Shell main interface](/home-page.png)
+![DeepSeek Box main interface](/home-page.png)
 
 ## Step 1: Launch the app
 
@@ -36,7 +36,7 @@ Once installation completes, the app starts dsh automatically; the Web UI appear
 After launch, the interface consists of three parts:
 
 1. **Top title bar**: the app name on the left; in the middle is a browser-style tab bar—the highlighted **DeepSeek UI** (kernel interface), Web Chat, and Usage & Top-up as three fixed tabs, with a `＋` on the right to open a new tab; on the far right are refresh, settings, and minimize / maximize / close.
-2. **Main area**: the left vertical column has the DeepSeek Harness logo, “New Session”, and the “Workspaces” list; in the middle are the welcome message, workspace / mode selection, the input box, and the model selector.
+2. **Main area**: the left vertical column has the kernel logo, “New Session”, and the “Workspaces” list; in the middle are the welcome message, workspace / mode selection, the input box, and the model selector.
 3. **“Settings” in the lower-left corner**: opens the settings page (an overlay that does not interrupt the current page).
 
 For the complete description see [Interface & Operations](/en/user/usage).

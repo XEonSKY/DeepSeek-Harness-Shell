@@ -2,12 +2,12 @@
 layout: home
 
 hero:
-  name: DeepSeek Harness Shell
-  text: Desktop shell around DeepSeek Harness
-  tagline: Launch the dsh kernel with Electron and put DeepSeek Harness Web UI, web chat and the top-up platform into one desktop window. Double-click to run — no command line.
+  name: DeepSeek Box
+  text: Desktop shell around the dsh kernel
+  tagline: Launch the dsh kernel with Electron and put the dsh Web UI, web chat and the top-up platform into one desktop window. Double-click to run — no command line.
   image:
     src: /home-page.png
-    alt: DeepSeek Harness Shell main window
+    alt: DeepSeek Box main window
   actions:
     - theme: brand
       text: User guide

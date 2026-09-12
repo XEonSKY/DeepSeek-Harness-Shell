@@ -6,7 +6,7 @@
  */
 export default {
     app: {
-        title: 'DeepSeek Harness Shell',
+        title: 'DeepSeek Box',
         nav: {
             ui: 'DeepSeek UI',
             chat: 'DeepSeek Chat',
@@ -32,15 +32,15 @@ export default {
         }
     },
     closeAsk: {
-        title: 'DeepSeek Harness Shell',
+        title: 'DeepSeek Box',
         text: 'What should happen when the window closes?',
         remember: 'Remember my choice and stop asking',
         toTray: 'Hide to system tray',
         quit: 'Quit'
     },
     kernelMissing: {
-        title: 'DeepSeek Harness kernel not installed',
-        desc: '{pkg} (the CLI kernel that powers this UI) was not found. Choose a kernel source and registry, then install it; DeepSeek Harness will start automatically afterwards.',
+        title: 'DeepSeek Box kernel not installed',
+        desc: '{pkg} (the CLI kernel that powers this UI) was not found. Choose a kernel source and registry, then install it; DeepSeek Box will start automatically afterwards.',
         kernelSource: 'Kernel source',
         kernelLocal: 'Bundled',
         kernelGlobal: 'Global',
@@ -101,13 +101,13 @@ export default {
             systemNote: 'Will run the kernel and npm with system Node {ver}.',
             download: 'Download & install Node LTS',
             downloadHint: 'Windows: install from the official installer. Linux / macOS: install globally with n. After installing, click “Rescan”.',
-            note: 'The DeepSeek Harness kernel runs on Electron’s own Node by default; this step chooses the runtime and detects system Node.'
+            note: 'The DeepSeek Box kernel runs on Electron’s own Node by default; this step chooses the runtime and detects system Node.'
         },
         installLog: 'Install log',
         clearLog: 'Clear',
         logWaiting: 'Installing — waiting for output…',
         progressNpm: 'Preparing / installing npm',
-        progressDsh: 'Installing DeepSeek Harness kernel',
+        progressDsh: 'Installing DeepSeek Box kernel',
         viewLog: 'View log',
         closeLog: 'Close',
         preLabel: 'Include pre-releases',
@@ -160,7 +160,7 @@ export default {
         lineCount: '{count} lines',
         autoScroll: 'Auto-scroll',
         clear: 'Clear',
-        empty: '(No output yet. Live logs will appear here once DeepSeek Harness starts.)'
+        empty: '(No output yet. Live logs will appear here once DeepSeek Box starts.)'
     },
     webpage: {
         loadFailed: 'Could not load this page. Check your network connection and retry.',
@@ -175,7 +175,7 @@ export default {
             network: 'Proxy connection and scope.',
             env: 'Which Node and npm run the kernel, and the version of each source.',
             dsh: 'Kernel source, npm source and updates.',
-            log: 'Live DeepSeek Harness output (stdout / stderr).',
+            log: 'Live DeepSeek Box output (stdout / stderr).',
             hotkeys: 'Keyboard shortcuts: system-wide and in-app.',
             webview: 'How the embedded pages render, and what they identify as.',
             about: 'About the app and kernel, plus update checks.'
@@ -183,7 +183,7 @@ export default {
         general: {
             run: 'Run',
             workspace: 'Working directory',
-            workspacePlaceholder: 'Choose a working directory for DeepSeek Harness',
+            workspacePlaceholder: 'Choose a working directory for DeepSeek Box',
             browse: 'Browse…',
             workspaceHint: 'Starts dsh here; leave empty to use the workspace under the config directory.',
             port: 'Port',
@@ -289,8 +289,8 @@ export default {
             tagPre: 'Pre-release',
             tagStable: 'Stable',
             startup: 'Kernel & startup',
-            launcherPath: 'DeepSeek Harness launcher path (optional)',
-            launcherPlaceholder: 'Full path when DeepSeek Harness is not on PATH',
+            launcherPath: 'DeepSeek Box launcher path (optional)',
+            launcherPlaceholder: 'Full path when DeepSeek Box is not on PATH',
             browseLauncher: 'Browse…',
             launcherHint: 'Global mode only; leave empty to look up on PATH.',
             kernelSource: 'Kernel source',
@@ -300,7 +300,7 @@ export default {
             kernelGlobalHint: 'Uses a kernel installed via system npm install -g.',
             timeout: 'Startup timeout (ms)',
             timeoutHint: 'How long to wait for dsh to print its address.',
-            applyTitle: 'Apply to DeepSeek Harness',
+            applyTitle: 'Apply to DeepSeek Box',
             applyTxt: 'After editing run settings, restart with the button on the right.',
             applyBtn: 'Apply now',
             start: 'Start',
@@ -329,7 +329,7 @@ export default {
             installVersion: 'Install this version',
             versionListHint: 'Filtered by “Include pre-releases”; install any version to upgrade or roll back.',
             uninstallTxt: 'Removes {pkg} (stopping dsh first).',
-            uninstall: 'Uninstall DeepSeek Harness'
+            uninstall: 'Uninstall DeepSeek Box'
         },
         env: {
             nodeRuntime: 'Node runtime',
@@ -475,7 +475,7 @@ export default {
     },
     msg: {
         saveFail: 'Auto-save failed: {err}',
-        applyOk: 'Applied — DeepSeek Harness is restarting with the new configuration.',
+        applyOk: 'Applied — DeepSeek Box is restarting with the new configuration.',
         applyFail: 'Apply failed: {err}',
         resetOk: 'Settings restored to defaults.',
         resetFail: 'Restore failed: {err}',
@@ -484,7 +484,7 @@ export default {
         uninstallOk: 'Kernel uninstalled. The install wizard will be shown.',
         updateKernelFail: 'Kernel update failed: {err}',
         uninstallBoxTitle: 'Uninstall kernel',
-        uninstallBoxText: 'This uninstalls the DeepSeek Harness kernel ({pkg}) and stops any running dsh first. You will need to reinstall it to use DeepSeek Harness again. Continue?',
+        uninstallBoxText: 'This uninstalls the DeepSeek Box kernel ({pkg}) and stops any running dsh first. You will need to reinstall it to use DeepSeek Box again. Continue?',
         uninstallOkBtn: 'Uninstall',
         cancelBtn: 'Cancel',
         dshRunningTitle: 'A running dsh must be stopped first',
@@ -495,7 +495,7 @@ export default {
     },
     m: {
         kernel: {
-            missingMsg: '@deepseek-ai/dsh is not installed (the DeepSeek Harness CLI tool)',
+            missingMsg: '@deepseek-ai/dsh is not installed (the DeepSeek Box CLI tool)',
             noVersion: 'Could not read the installed @deepseek-ai/dsh version',
             registryUnreachable: 'Currently {version}; cannot reach the npm registry to check for updates',
             noComparable: 'No comparable eligible version is available right now.',
@@ -521,7 +521,7 @@ export default {
             uninstallFail: 'Uninstall failed: {tail}',
             uninstallOk: '@deepseek-ai/dsh uninstalled.',
             uninstallDiag: 'Uninstall failed — detected cause: {reason}\n\nnpm output:\n{tail}',
-            uninstallReasonHolder: 'Processes are still using DeepSeek Harness: {procs} (all dsh managed by this app has been stopped). Close those processes and try again.',
+            uninstallReasonHolder: 'dsh kernel processes are still running: {procs} (every dsh managed by this app has been stopped). Close those processes and try again.',
             uninstallReasonLocked: 'The install directory still exists and cannot be removed — it is likely locked, read-only, or held by security software. Check the relevant processes and directory permissions and retry.',
             uninstallReasonPresent: 'The install directory still exists, but no occupying process was detected — deletion was likely blocked by file permissions or security software.',
             uninstallReasonRemoved: 'The module files were removed; the failure likely happened while cleaning the command entry (.cmd / bin). Check write permission on the npm prefix directory.'
@@ -547,8 +547,8 @@ export default {
         },
         dialogs: {
             workspaceMissingTitle: 'Working directory missing',
-            workspaceMissing: 'The configured working directory does not exist:\n{path}\n\nDeepSeek Harness will start in your home directory instead.',
-            startFailedTitle: 'DeepSeek Harness Shell could not start'
+            workspaceMissing: 'The configured working directory does not exist:\n{path}\n\nDeepSeek Box will start in your home directory instead.',
+            startFailedTitle: 'DeepSeek Box could not start'
         }
     },
     configMigration: {

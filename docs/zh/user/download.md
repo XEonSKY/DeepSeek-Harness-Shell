@@ -1,6 +1,6 @@
 # 下载与系统要求
 
-DeepSeek Harness Shell 是跨平台桌面应用，安装包发布在 GitHub Releases。
+DeepSeek Box 是跨平台桌面应用，安装包发布在 GitHub Releases。
 
 ## 系统要求
 
@@ -18,7 +18,7 @@ DeepSeek Harness Shell 是跨平台桌面应用，安装包发布在 GitHub Rele
 打开 [Releases](https://github.com/XEonSKY/DeepSeek-Harness-Shell/releases) 页面，选择最新版本。产物命名形如：
 
 ```text
-DeepSeek-Harness-Shell-<版本>-<平台>-<架构>.<后缀>
+DeepSeek-Box-<版本>-<平台>-<架构>.<后缀>
 ```
 
 | 系统 | 产物 |

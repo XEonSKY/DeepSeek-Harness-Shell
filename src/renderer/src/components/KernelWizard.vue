@@ -454,7 +454,7 @@ onBeforeUnmount(() => {
 <template>
     <div class="missing-mask">
         <div class="missing-card">
-            <div class="missing-icon"><img :src="appIcon" alt="DeepSeek Harness Shell" draggable="false" class="missing-logo" /></div>
+            <div class="missing-icon"><img :src="appIcon" alt="DeepSeek Box" draggable="false" class="missing-logo" /></div>
             <h2 class="missing-title">{{ $t('kernelMissing.title') }}</h2>
             <p class="missing-desc">{{ $t('kernelMissing.wizIntro', { pkg: '@deepseek-ai/dsh' }) }}</p>
 

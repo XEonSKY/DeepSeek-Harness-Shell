@@ -6,7 +6,7 @@
 
 | 区域 | 说明 |
 |---|---|
-| 应用图标 + 名称 | 显示 DeepSeek Harness Shell |
+| 应用图标 + 名称 | 显示 DeepSeek Box |
 | 固定站图标 | 仅**核心窗口**显示：DeepSeek UI / 网页对话 / 用量充值 |
 | 跳转核心窗口 | 仅**副窗口**显示，用于回到承载 DeepSeek UI 的那个窗口 |
 | 标签条 | 动态标签 + `＋` 新建；空白处可拖动窗口、滚轮横向滚动 |
@@ -22,7 +22,7 @@
 
 三个固定站始终存在、**不可关闭**：
 
-1. **DeepSeek UI** —— 内嵌的 DeepSeek Harness 主界面；
+1. **DeepSeek UI** —— 内嵌的 dsh 主界面；
 2. **网页对话** —— 内嵌 [chat.deepseek.com](https://chat.deepseek.com/)；
 3. **用量 / 充值** —— 内嵌 [platform.deepseek.com](https://platform.deepseek.com/)。
 

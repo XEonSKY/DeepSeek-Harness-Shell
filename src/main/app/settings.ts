@@ -361,7 +361,7 @@ function resolvePortSetting(raw: unknown): number | null {
     // settings.json when port was cleared) as "not configured".
     if (text === '' || /^(null|undefined)$/i.test(text)) return null
     if (!/^\d+$/.test(text)) {
-        dialog.showErrorBox('DeepSeek Harness Shell', `Invalid --port value: ${JSON.stringify(text)} (must be a non-negative integer)`)
+        dialog.showErrorBox('DeepSeek Box', `Invalid --port value: ${JSON.stringify(text)} (must be a non-negative integer)`)
         return null
     }
     return Number(text)

@@ -1,8 +1,8 @@
 {
-  "name": "deepseek-harness-shell",
-  "productName": "DeepSeek Harness Shell",
-  "version": "0.1.5-beta-1",
-  "description": "DeepSeek Harness Shell —— 基于 Electron + Vite + Vue3 + Element Plus 的桌面外壳",
+  "name": "deepseek-box",
+  "productName": "DeepSeek Box",
+  "version": "0.1.5-beta-2",
+  "description": "DeepSeek Box —— 基于 Electron + Vite + Vue3 + Element Plus 的桌面外壳",
   "license": "Apache-2.0",
   "author": "XEonSKY Studio",
   "main": "./out/main/index.js",
@@ -36,7 +36,6 @@
   },
   "devDependencies": {
     "@antdv-next/icons": "^1.1.2",
-    "@element-plus/icons-vue": "^2.3.2",
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "^26.5.0",
@@ -64,9 +63,9 @@
     "vue-tsc": "^3.3.11"
   },
   "build": {
-    "appId": "com.deepseek.harness.shell",
-    "productName": "DeepSeek Harness Shell",
-    "executableName": "dsh_shell",
+    "appId": "com.xeonsky.dsbox",
+    "productName": "DeepSeek Box",
+    "executableName": "dsbox",
     "publish": {
       "provider": "github",
       "owner": "XEonSKY",
@@ -101,8 +100,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
-      "artifactName": "DeepSeek-Harness-Shell-${version}-win-${arch}-setup.${ext}",
-      "shortcutName": "DeepSeek Harness Shell"
+      "artifactName": "DeepSeek-Box-${version}-win-${arch}-setup.${ext}",
+      "shortcutName": "DeepSeek Box"
     },
     "mac": {
       "target": [
@@ -125,7 +124,7 @@
       "category": "public.app-category.developer-tools"
     },
     "dmg": {
-      "artifactName": "DeepSeek-Harness-Shell-${version}-mac-${arch}.${ext}"
+      "artifactName": "DeepSeek-Box-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -139,15 +138,14 @@
       ],
       "icon": "resources/icon.png",
       "category": "Development",
-      "executableName": "deepseek-harness-shell"
+      "executableName": "dsbox"
     },
     "appImage": {
-      "artifactName": "DeepSeek-Harness-Shell-${version}-linux-${arch}.${ext}"
+      "artifactName": "DeepSeek-Box-${version}-linux-${arch}.${ext}"
     }
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
-    "node-downloader-helper": "^2.1.11",
     "semver": "^7.8.5",
     "yaml": "^2.9.0"
   }

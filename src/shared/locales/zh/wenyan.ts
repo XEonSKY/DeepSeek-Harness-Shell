@@ -91,7 +91,7 @@ export default {
             tagPre: '试版',
             tagStable: '正版',
             startup: '核心与起',
-            launcherPath: 'DeepSeek Harness 启动者之径（可阙）',
+            launcherPath: 'DeepSeek Box 启动者之径（可阙）',
             browseLauncher: '择…',
             launcherHint: '唯全域 mode 效；阙则按 PATH 觅。',
             kernelSource: '核心之来',
@@ -101,7 +101,7 @@ export default {
             kernelGlobalHint: '用系统 npm install -g 所装之核心。',
             timeout: '启动之限（毫秒）',
             timeoutHint: '俟 dsh 示其址之毫秒数。',
-            applyTitle: '施于 DeepSeek Harness',
+            applyTitle: '施于 DeepSeek Box',
             applyTxt: '既改运行之设，点右侧重启乃效。',
             applyBtn: '即施',
             start: '起',
@@ -128,7 +128,7 @@ export default {
             installVersion: '装此版',
             versionListHint: '依「含试版」滤；可装任一版。',
             uninstallTxt: '去 {pkg}（先止 dsh）。',
-            uninstall: '卸 DeepSeek Harness'
+            uninstall: '卸 DeepSeek Box'
         },
         env: {
             nodeRuntime: 'Node 行境',

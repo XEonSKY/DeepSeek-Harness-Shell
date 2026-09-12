@@ -117,7 +117,7 @@ onMounted(() => {
         <div class="dsh-brand">
             <div class="dsh-brand__icon"><el-icon :size="40"><ClusterOutlined /></el-icon></div>
             <div class="dsh-brand__txt">
-                <div class="dsh-brand__name">DeepSeek Harness</div>
+                <div class="dsh-brand__name">DeepSeek Box</div>
                 <div class="dsh-brand__ver">
                     {{ $t('sv.dsh.kernelVersion') }}&nbsp;<code>{{ state.version ? 'v' + state.version : $t('sv.dsh.versionMissing', { pkg: '@deepseek-ai/dsh' }) }}</code>
                     <el-tag

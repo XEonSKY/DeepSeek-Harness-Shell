@@ -6,7 +6,7 @@ The app is a frameless desktop shell: the upper part is a custom-drawn title bar
 
 | Area | Description |
 |---|---|
-| App icon + name | Shows DeepSeek Harness Shell |
+| App icon + name | Shows DeepSeek Box |
 | Pinned site icons | Shown only in the **core window**: DeepSeek UI / Web Chat / Usage & Top-up |
 | Jump to core window | Shown only in **secondary windows**, to return to the window hosting DeepSeek UI |
 | Tab strip | Dynamic tabs + `＋` to create; drag the empty area to move the window, and use the wheel to scroll horizontally |
@@ -22,7 +22,7 @@ The app is a frameless desktop shell: the upper part is a custom-drawn title bar
 
 The three pinned sites always exist and **cannot be closed**:
 
-1. **DeepSeek UI** — the embedded DeepSeek Harness main interface;
+1. **DeepSeek UI** — the embedded dsh main interface;
 2. **Web Chat** — embedded [chat.deepseek.com](https://chat.deepseek.com/);
 3. **Usage / Top-up** — embedded [platform.deepseek.com](https://platform.deepseek.com/).
 

@@ -7,7 +7,7 @@
 export default {
     /** 应用外壳通用 */
     app: {
-        title: 'DeepSeek Harness Shell',
+        title: 'DeepSeek Box',
         nav: {
             ui: 'DeepSeek UI',
             chat: 'DeepSeek 网页版对话',
@@ -34,7 +34,7 @@ export default {
     },
     /** 关闭行为询问（App 内 ElMessageBox） */
     closeAsk: {
-        title: 'DeepSeek Harness Shell',
+        title: 'DeepSeek Box',
         text: '关闭窗口时希望做什么？',
         remember: '记住我的选择，下次不再询问',
         toTray: '隐藏到系统托盘',
@@ -42,7 +42,7 @@ export default {
     },
     /** 内核未安装全屏遮罩 */
     kernelMissing: {
-        title: '未安装 DeepSeek Harness 内核',
+        title: '未安装 DeepSeek Box 内核',
         desc: '未检测到 {pkg}（驱动本界面的命令行内核）。请选择内核来源、镜像源并安装，安装完成后会自动启动。',
         kernelSource: '内核来源',
         kernelLocal: '内置',
@@ -104,13 +104,13 @@ export default {
             systemNote: '将使用系统 Node {ver} 运行内核与 npm。',
             download: '下载并安装 Node LTS',
             downloadHint: 'Windows：下载官方安装包安装；Linux / macOS：建议用 n 全局安装。装完后点「重新检测」。',
-            note: 'DeepSeek Harness 内核默认用 Electron 自带的 Node 运行；本步用于选择运行时与获取系统 Node。'
+            note: 'DeepSeek Box 内核默认用 Electron 自带的 Node 运行；本步用于选择运行时与获取系统 Node。'
         },
         installLog: '安装日志',
         clearLog: '清空',
         logWaiting: '正在安装，等待输出…',
         progressNpm: '准备 / 安装 npm',
-        progressDsh: '安装 DeepSeek Harness 内核',
+        progressDsh: '安装 DeepSeek Box 内核',
         viewLog: '查看日志',
         closeLog: '关闭',
         preLabel: '包含测试版',
@@ -167,7 +167,7 @@ export default {
         lineCount: '{count} 行',
         autoScroll: '自动滚动',
         clear: '清空显示',
-        empty: '（暂无输出。DeepSeek Harness 启动后，实时日志会出现在这里。）'
+        empty: '（暂无输出。DeepSeek Box 启动后，实时日志会出现在这里。）'
     },
     /** 内嵌外部站点页（网页版 Chat / DeepSeek 平台）加载状态 */
     webpage: {
@@ -184,7 +184,7 @@ export default {
             network: '代理连接与网络作用范围。',
             env: '运行内核所用的 Node 与 npm 来自哪里，以及各来源的版本。',
             dsh: 'dsh 内核的来源、npm 来源与更新。',
-            log: 'DeepSeek Harness 的实时输出（stdout / stderr）。',
+            log: 'DeepSeek Box 的实时输出（stdout / stderr）。',
             hotkeys: '键盘快捷键：系统全局的与常用的操作。',
             webview: '内嵌页面的渲染方式与浏览器标识。',
             about: '关于应用与内核，以及更新检查。'
@@ -192,7 +192,7 @@ export default {
         general: {
             run: '运行',
             workspace: '工作目录',
-            workspacePlaceholder: '选择 DeepSeek Harness 的工作目录',
+            workspacePlaceholder: '选择 DeepSeek Box 的工作目录',
             browse: '选择…',
             workspaceHint: '在此目录启动 dsh；留空用配置目录下的 workspace。',
             port: '端口',
@@ -298,8 +298,8 @@ export default {
             tagPre: '测试版',
             tagStable: '正式版',
             startup: '内核与启动',
-            launcherPath: 'DeepSeek Harness 启动器路径（可选）',
-            launcherPlaceholder: 'DeepSeek Harness 不在 PATH 时填写完整路径',
+            launcherPath: 'DeepSeek Box 启动器路径（可选）',
+            launcherPlaceholder: 'DeepSeek Box 不在 PATH 时填写完整路径',
             browseLauncher: '选择…',
             launcherHint: '仅全局模式生效；留空按 PATH 查找。',
             kernelSource: '内核来源',
@@ -309,7 +309,7 @@ export default {
             kernelGlobalHint: '使用系统 npm install -g 安装的内核。',
             timeout: '启动超时（毫秒）',
             timeoutHint: '等待 dsh 打印地址的毫秒数。',
-            applyTitle: '应用到 DeepSeek Harness',
+            applyTitle: '应用到 DeepSeek Box',
             applyTxt: '改动运行配置后，点右侧重启生效。',
             applyBtn: '立即应用',
             start: '启动',
@@ -338,7 +338,7 @@ export default {
             installVersion: '安装此版本',
             versionListHint: '按「包含测试版」过滤；可安装任意版本。',
             uninstallTxt: '移除 {pkg}（会先停止 dsh）。',
-            uninstall: '卸载 DeepSeek Harness'
+            uninstall: '卸载 DeepSeek Box'
         },
         env: {
             nodeRuntime: 'Node 运行时',
@@ -485,7 +485,7 @@ export default {
     /** 即时反馈（ElMessage / ElMessageBox 内文案） */
     msg: {
         saveFail: '自动保存失败：{err}',
-        applyOk: '已应用，DeepSeek Harness 正在按新配置重启。',
+        applyOk: '已应用，DeepSeek Box 正在按新配置重启。',
         applyFail: '应用失败：{err}',
         resetOk: '已恢复默认设置。',
         resetFail: '恢复默认失败：{err}',
@@ -494,7 +494,7 @@ export default {
         uninstallOk: '已卸载内核，将引导重新安装。',
         updateKernelFail: '内核更新失败：{err}',
         uninstallBoxTitle: '卸载内核',
-        uninstallBoxText: '将卸载 DeepSeek Harness 内核（{pkg}），并先停止运行中的 dsh。卸载后需要重新安装才能使用。确定继续吗？',
+        uninstallBoxText: '将卸载 DeepSeek Box 内核（{pkg}），并先停止运行中的 dsh。卸载后需要重新安装才能使用。确定继续吗？',
         uninstallOkBtn: '卸载',
         cancelBtn: '取消',
         dshRunningTitle: '需先关闭正在运行的 dsh',
@@ -506,7 +506,7 @@ export default {
     /** main 进程文案（kernel/updater/托盘/对话框） */
     m: {
         kernel: {
-            missingMsg: '未安装 @deepseek-ai/dsh（DeepSeek Harness 命令行工具）',
+            missingMsg: '未安装 @deepseek-ai/dsh（DeepSeek Box 命令行工具）',
             noVersion: '无法读取已安装的 @deepseek-ai/dsh 版本',
             registryUnreachable: '当前 {version}；无法连接 npm registry 检查更新',
             noComparable: '当前暂无可比较的适用版本。',
@@ -532,7 +532,7 @@ export default {
             uninstallFail: '卸载失败：{tail}',
             uninstallOk: '已卸载 @deepseek-ai/dsh。',
             uninstallDiag: '卸载失败，原因检测：{reason}\n\nnpm 输出：\n{tail}',
-            uninstallReasonHolder: '仍有进程在使用 DeepSeek Harness：{procs}（本应用管理的 dsh 已全部停止）。请先关闭上述进程后再重试。',
+            uninstallReasonHolder: '仍有 dsh 内核进程在运行：{procs}（本应用管理的 dsh 已全部停止）。请先关闭上述进程后再重试。',
             uninstallReasonLocked: '安装目录仍存在且无法删除，可能被占用、为只读，或被安全软件锁定。请检查相关进程与目录权限后再试。',
             uninstallReasonPresent: '安装目录仍存在，但未检测到占用进程，可能因文件权限或安全软件拦截而无法删除。',
             uninstallReasonRemoved: '模块文件已移除，失败可能发生在清理命令入口（.cmd / bin）时，请检查 npm 前缀目录的写权限。'
@@ -559,8 +559,8 @@ export default {
         },
         dialogs: {
             workspaceMissingTitle: '工作目录缺失',
-            workspaceMissing: '配置的工作目录不存在：\n{path}\n\nDeepSeek Harness 将改用用户主目录启动。',
-            startFailedTitle: 'DeepSeek Harness Shell 无法启动'
+            workspaceMissing: '配置的工作目录不存在：\n{path}\n\nDeepSeek Box 将改用用户主目录启动。',
+            startFailedTitle: 'DeepSeek Box 无法启动'
         }
     },
     /** 配置目录迁移（重启引导阶段的全屏进度框） */

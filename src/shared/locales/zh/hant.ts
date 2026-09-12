@@ -91,7 +91,7 @@ export default {
             tagPre: '測試版',
             tagStable: '正式版',
             startup: '核心與啟動',
-            launcherPath: 'DeepSeek Harness 啟動器路徑（可選）',
+            launcherPath: 'DeepSeek Box 啟動器路徑（可選）',
             browseLauncher: '選擇…',
             launcherHint: '僅全域模式生效；留空依 PATH 尋找。',
             kernelSource: '核心來源',
@@ -101,7 +101,7 @@ export default {
             kernelGlobalHint: '使用系統 npm install -g 安裝的核心。',
             timeout: '啟動逾時（毫秒）',
             timeoutHint: '等待 dsh 印出位址的毫秒數。',
-            applyTitle: '套用到 DeepSeek Harness',
+            applyTitle: '套用到 DeepSeek Box',
             applyTxt: '改動執行設定後，點右側重啟生效。',
             applyBtn: '立即套用',
             start: '啟動',
@@ -128,7 +128,7 @@ export default {
             installVersion: '安裝此版本',
             versionListHint: '依「包含測試版」過濾；可安裝任一版本。',
             uninstallTxt: '移除 {pkg}（會先停止 dsh）。',
-            uninstall: '解除安裝 DeepSeek Harness'
+            uninstall: '解除安裝 DeepSeek Box'
         },
         env: {
             nodeRuntime: 'Node 執行階段',
@@ -159,7 +159,7 @@ export default {
     },
     msg: {
         saveFail: '自動儲存失敗：{err}',
-        applyOk: '已套用，DeepSeek Harness 正依新設定重啟。',
+        applyOk: '已套用，DeepSeek Box 正依新設定重啟。',
         applyFail: '套用失敗：{err}',
         resetOk: '已恢復預設設定。',
         resetFail: '恢復預設失敗：{err}',

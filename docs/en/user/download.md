@@ -1,6 +1,6 @@
 # Download & System Requirements
 
-DeepSeek Harness Shell is a cross-platform desktop application; installers are published on GitHub Releases.
+DeepSeek Box is a cross-platform desktop application; installers are published on GitHub Releases.
 
 ## System requirements
 
@@ -18,7 +18,7 @@ DeepSeek Harness Shell is a cross-platform desktop application; installers are p
 Open the [Releases](https://github.com/XEonSKY/DeepSeek-Harness-Shell/releases) page and choose the latest version. Artifacts are named like:
 
 ```text
-DeepSeek-Harness-Shell-<version>-<platform>-<arch>.<extension>
+DeepSeek-Box-<version>-<platform>-<arch>.<extension>
 ```
 
 | System | Artifact |

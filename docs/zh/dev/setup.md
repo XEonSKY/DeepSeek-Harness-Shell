@@ -10,7 +10,7 @@
 
 ## 常用命令
 
-在 `project/` 下执行：
+在仓库根执行：
 
 | 命令 | 作用 |
 |---|---|
@@ -29,7 +29,7 @@
 ## 目录结构
 
 ```text
-project/
+.
 ├─ src/
 │  ├─ main/            主进程（窗口、DeepSeek Harness、配置、更新）
 │  │  ├─ app/           settings / configmigrate / models / ipc / ui / appupdate / appslots …

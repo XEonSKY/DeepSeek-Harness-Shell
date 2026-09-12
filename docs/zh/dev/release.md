@@ -2,7 +2,7 @@
 
 ## 版本号
 
-- 版本号以 `project/package.json` 为准，同时同步到 `package-lock.json`；
+- 版本号以 `package.json` 为准，同时同步到 `package-lock.json`；
 - CI 会校验 **Git tag == package.json 版本**；
 - 是否预发布由版本号是否包含 `-` 动态决定（如 `0.1.5-beta-1` 属预发布）。
 

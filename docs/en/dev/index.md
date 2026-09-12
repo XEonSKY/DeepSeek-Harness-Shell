@@ -59,8 +59,8 @@ For developers who want to understand the internals, fix bugs, or contribute cod
 
 ## Repository at a glance
 
-- Repo root = `project/` (both the app and the docs site); the version lives in `project/package.json`.
-- Main process `project/src/main/`, preload `project/src/preload/`, renderer `project/src/renderer/`, shared code and types `project/src/shared/`.
-- Docs content `project/docs/`, site logic `project/.vitepress/config.mts`.
+- The repo root (also the workspace root) holds both the app and the docs site; the version lives in `package.json`.
+- Main process `src/main/`, preload `src/preload/`, renderer `src/renderer/`, shared code and types `src/shared/`.
+- Docs content `docs/`, site logic `.vitepress/config.mts`.
 
 > Per-file line counts and notes live in the workspace index `.dsh/index/` (`README.md` is the entry point; `files.tsv` is greppable).

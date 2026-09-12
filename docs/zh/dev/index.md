@@ -59,8 +59,8 @@
 
 ## 仓库速览
 
-- 仓库根 = `project/`（同时是应用与文档站）；版本号在 `project/package.json`。
-- 主进程源码 `project/src/main/`，预加载 `project/src/preload/`，渲染层 `project/src/renderer/`，共享代码与类型 `project/src/shared/`。
-- 文档站内容 `project/docs/`，逻辑 `project/.vitepress/config.mts`。
+- 仓库根（= 本工作区根）同时承载应用与文档站；版本号在 `package.json`。
+- 主进程源码 `src/main/`，预加载 `src/preload/`，渲染层 `src/renderer/`，共享代码与类型 `src/shared/`。
+- 文档站内容 `docs/`，逻辑 `.vitepress/config.mts`。
 
 > 具体每个文件的行数 / 说明，见工作区索引 `.dsh/index/`（`README.md` 为总入口，`files.tsv` 可 grep）。

@@ -1,13 +1,13 @@
 # 文档站维护说明
 
-基于 [VitePress](https://vitepress.dev/) 的中英双语站点。**内容**在本目录（`project/docs/`），**构建逻辑**在项目层（`project/.vitepress/config.mts`）。
+基于 [VitePress](https://vitepress.dev/) 的中英双语站点。**内容**在本目录（`docs/`），**构建逻辑**在仓库根（`.vitepress/config.mts`）。
 
 ## 目录结构
 
 站点分「用户文档」与「开发文档」两类，各自再分中英；URL 前缀与目录一一对应。
 
 ```text
-project/
+.
 ├─ .vitepress/config.mts   # 站点配置（srcDir: 'docs'，输出 .vitepress/dist）
 └─ docs/
    ├─ index.md             # 根路径跳转（meta refresh → /zh/）
@@ -30,7 +30,7 @@ project/
 - 站内链接必须带语言前缀与分类前缀；
 - 中英页面**成对存在**，新增页面要同步 `.vitepress/config.mts` 的 nav / sidebar（两份语言都改）。
 
-## 命令（在 `project/` 下执行）
+## 命令（在仓库根执行）
 
 ```bash
 npm run docs:dev       # 本地预览（默认 http://localhost:5173）

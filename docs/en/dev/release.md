@@ -2,7 +2,7 @@
 
 ## Version number
 
-- The version number is governed by `project/package.json` and is also synced to `package-lock.json`;
+- The version number is governed by `package.json` and is also synced to `package-lock.json`;
 - CI verifies that **the Git tag == the package.json version**;
 - Whether a release is a pre-release is decided dynamically by whether the version contains `-` (e.g. `0.1.5-beta-1` is a pre-release).
 

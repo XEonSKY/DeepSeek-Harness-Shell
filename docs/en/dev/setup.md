@@ -10,7 +10,7 @@
 
 ## Common commands
 
-Run these under `project/`:
+Run these in the repo root:
 
 | Command | Purpose |
 |---|---|
@@ -29,7 +29,7 @@ Run these under `project/`:
 ## Directory structure
 
 ```text
-project/
+.
 ├─ src/
 │  ├─ main/            main process (windows, DeepSeek Harness, config, updates)
 │  │  ├─ app/           settings / configmigrate / models / ipc / ui / appupdate / appslots …

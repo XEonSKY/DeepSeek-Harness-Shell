@@ -20,7 +20,7 @@ Before changing code or documentation, please follow these conventions.
 |---|---|
 | Temporary / intermediate files (logs, reports, drafts) | `.temp/` at the workspace root, deleted once used |
 | AI-assistance files (index, onboarding docs) | `.dsh/` at the workspace root |
-| Do not scatter temp files | No temp artifacts in the workspace root, `project/` or `docs/` |
+| Do not scatter temp files | No temp artifacts elsewhere in the workspace root or in `docs/` |
 
 `.dsh/` and `.temp/` are not version-controlled beyond the docs site and the index.
 

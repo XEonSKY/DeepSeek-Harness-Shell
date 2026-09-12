@@ -162,7 +162,7 @@ npm run dev
 
 ## 更多
 
-- 在线文档：[简体中文](https://dssh.xeonsky.com/zh/) · [English](https://dssh.xeonsky.com/en/)
+- 在线文档：[简体中文](https://dsbox.xeonsky.com/zh/) · [English](https://dsbox.xeonsky.com/en/)
 - 文档源码：用户文档 [`docs/zh/user/`](docs/zh/user/) · 开发文档 [`docs/zh/dev/`](docs/zh/dev/)（英文见 `docs/en/`）
 - 遇到问题：[Issues](../../issues)
 

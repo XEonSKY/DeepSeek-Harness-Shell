@@ -150,8 +150,8 @@ dsh（npm 包名 `@deepseek-ai/dsh`）原本是一个需要在命令行里启动
 适合想自己改代码的人，需要 Node ≥ 20：
 
 ```bash
-git clone https://github.com/XEonSKY/DeepSeek-Harness-Shell.git
-cd DeepSeek-Harness-Shell
+git clone https://github.com/XEonSKY/DeepSeek-Box.git
+cd DeepSeek-Box
 npm install
 npm run dev
 ```

@@ -246,7 +246,7 @@ async function rollback(): Promise<void> {
 }
 
 /** 项目主页（外部浏览器打开）。 */
-const REPO_URL = 'https://github.com/XEonSKY/DeepSeek-Harness-Shell'
+const REPO_URL = 'https://github.com/XEonSKY/DeepSeek-Box'
 
 function openRepo(): void {
     void window.api.openExternal(REPO_URL)

@@ -15,7 +15,7 @@ DeepSeek Box is a cross-platform desktop application; installers are published o
 
 ## Where to download
 
-Open the [Releases](https://github.com/XEonSKY/DeepSeek-Harness-Shell/releases) page and choose the latest version. Artifacts are named like:
+Open the [Releases](https://github.com/XEonSKY/DeepSeek-Box/releases) page and choose the latest version. Artifacts are named like:
 
 ```text
 DeepSeek-Box-<version>-<platform>-<arch>.<extension>

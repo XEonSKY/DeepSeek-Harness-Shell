@@ -213,7 +213,7 @@ async function prepareUpdater(cfg: Settings): Promise<void> {
 
 /** 更新源 owner/repo（与 package.json 的 build.publish 一致）。 */
 const OWNER = 'XEonSKY'
-const REPO = 'DeepSeek-Harness-Shell'
+const REPO = 'DeepSeek-Box'
 
 /** GitHub Releases API 精简项。 */
 interface ReleaseItem {

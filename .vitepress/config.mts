@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitepress'
 
-const REPO = 'https://github.com/XEonSKY/DeepSeek-Harness-Shell'
+const REPO = 'https://github.com/XEonSKY/DeepSeek-Box'
 
 // 文档分「用户文档 / 开发文档」两类，各自再分中英：
 //   docs/zh/user、docs/zh/dev、docs/en/user、docs/en/dev

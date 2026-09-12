@@ -15,7 +15,7 @@ DeepSeek Box 是跨平台桌面应用，安装包发布在 GitHub Releases。
 
 ## 从哪里下载
 
-打开 [Releases](https://github.com/XEonSKY/DeepSeek-Harness-Shell/releases) 页面，选择最新版本。产物命名形如：
+打开 [Releases](https://github.com/XEonSKY/DeepSeek-Box/releases) 页面，选择最新版本。产物命名形如：
 
 ```text
 DeepSeek-Box-<版本>-<平台>-<架构>.<后缀>

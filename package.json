@@ -69,7 +69,7 @@
     "publish": {
       "provider": "github",
       "owner": "XEonSKY",
-      "repo": "DeepSeek-Harness-Shell",
+      "repo": "DeepSeek-Box",
       "releaseType": "prerelease"
     },
     "directories": {

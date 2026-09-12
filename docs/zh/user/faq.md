@@ -54,4 +54,4 @@ Windows 下运行中的 dsh 会锁定 DeepSeek Harness 模块文件，导致替�
 
 ## 其它
 
-若以上未解决，请带上「设置 → 终端」的日志与版本号（应用版本、DeepSeek Harness 版本）反馈到 [Issues](https://github.com/XEonSKY/DeepSeek-Harness-Shell/issues)。
+若以上未解决，请带上「设置 → 终端」的日志与版本号（应用版本、DeepSeek Harness 版本）反馈到 [Issues](https://github.com/XEonSKY/DeepSeek-Box/issues)。

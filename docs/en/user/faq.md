@@ -54,4 +54,4 @@ It is **single-instance** by default: launching it again brings the existing win
 
 ## Other
 
-If the above does not solve it, please report the log from “Settings → Terminal” together with the version numbers (app version, DeepSeek Harness version) to [Issues](https://github.com/XEonSKY/DeepSeek-Harness-Shell/issues).
+If the above does not solve it, please report the log from “Settings → Terminal” together with the version numbers (app version, DeepSeek Harness version) to [Issues](https://github.com/XEonSKY/DeepSeek-Box/issues).
